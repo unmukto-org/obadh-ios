@@ -26,7 +26,7 @@ protocol KeyboardDebugCommandHandler: AnyObject {
 final class KeyboardDebugChannel {
     private weak var handler: KeyboardDebugCommandHandler?
     private var timer: Timer?
-    private let log = Logger(subsystem: "com.nsssayom.obadh.keyboard", category: "debug")
+    private let log = Logger(subsystem: "org.unmukto.obadh.keyboard", category: "debug")
     private let commandURL: URL?
 
     init(handler: KeyboardDebugCommandHandler) {

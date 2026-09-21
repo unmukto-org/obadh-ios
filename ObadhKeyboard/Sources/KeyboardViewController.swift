@@ -4,8 +4,8 @@ import os
 final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedback {
     /// Lifecycle telemetry so the running extension can be observed on the
     /// Simulator via: `xcrun simctl spawn booted log stream --predicate
-    /// 'subsystem == "com.nsssayom.obadh.keyboard"'`.
-    private let lifecycleLog = Logger(subsystem: "com.nsssayom.obadh.keyboard", category: "lifecycle")
+    /// 'subsystem == "org.unmukto.obadh.keyboard"'`.
+    private let lifecycleLog = Logger(subsystem: "org.unmukto.obadh.keyboard", category: "lifecycle")
     private let engine = ObadhBridgeClient.shared
     private lazy var composer = KeyboardComposer(
         engine: ObadhBridgeClient.shared,
@@ -24,7 +24,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private let learnedWordStore = LearnedWordStore()
     /// Serial queue for heavy engine work (snapshot export/write) so it stays
     /// off the main thread while remaining serialized against the Rust session.
-    private let engineQueue = DispatchQueue(label: "com.nsssayom.obadh.engine", qos: .userInitiated)
+    private let engineQueue = DispatchQueue(label: "org.unmukto.obadh.engine", qos: .userInitiated)
     private let feedbackController = KeyboardFeedbackController()
     private let backspaceRepeater = BackspaceRepeatController()
     private let suggestionBar = SuggestionBarView()

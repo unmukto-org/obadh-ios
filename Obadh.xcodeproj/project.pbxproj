@@ -10,6 +10,7 @@
 		000D3A3BE86A5EEC9A576F17 /* KeystrokeProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C69984AC573FFF5A2CC2467 /* KeystrokeProfile.swift */; };
 		00A0F8BFEB55AE4C83370FE3 /* KeyboardTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63A0E44B2BF4ECEBD1F200FA /* KeyboardTheme.swift */; };
 		06E091C5C329FAFEEDB4B67A /* BanglaEmojiSuggestionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FCEAEC18E70D2E206C2073B /* BanglaEmojiSuggestionStore.swift */; };
+		0CC75F3FDC04FA7731576A53 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0FC9666CF0AB1E7872412D58 /* PrivacyInfo.xcprivacy */; };
 		1211B381465DA94D85B78236 /* ObadhEngineIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59039DE8C56C0B58461FC9C /* ObadhEngineIntegrationTests.swift */; };
 		14B443384482487193F34C8C /* KeyboardPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9EA5D130961F58065D10E2D /* KeyboardPreferences.swift */; };
 		16C7798A088DC4BAE6921D2B /* KeyboardFeedbackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86492A9D653BD7ADC7768E20 /* KeyboardFeedbackController.swift */; };
@@ -23,6 +24,7 @@
 		2E19839B4C6301EBEF3AFDFD /* KeyboardTouchSurfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A47007187215709D9F7A376C /* KeyboardTouchSurfaceView.swift */; };
 		30E0C1068BE02C5E421C3E6C /* ObadhBridge.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A140FAB27D1F3192798424FA /* ObadhBridge.xcframework */; };
 		31F08F06D2E3954F4CA75E41 /* ObadhModels in Resources */ = {isa = PBXBuildFile; fileRef = 62363696E04B4D208F1866B8 /* ObadhModels */; };
+		3774D4CCFDBE95A8C4A9C52E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 74F9550BE157C25FEE275F7E /* PrivacyInfo.xcprivacy */; };
 		389445790B9C5BA874BD5E2C /* TextCompositionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA357898E8C15A804056128 /* TextCompositionController.swift */; };
 		497AF49455F39FDEDAAFA47E /* BanglaEmojiSearchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 357A2D2EC4233E419470E4C6 /* BanglaEmojiSearchStore.swift */; };
 		4D1233218307DF3CA79F70A2 /* LearnedWordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF186A27FCD23F8BE66D60EC /* LearnedWordStore.swift */; };
@@ -104,6 +106,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0FC9666CF0AB1E7872412D58 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		1A590DD924D6A20FFDF0681E /* EmojiRecentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiRecentStore.swift; sourceTree = "<group>"; };
 		200997DA7CAB0B7076B91A93 /* Brand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Brand.swift; sourceTree = "<group>"; };
 		22CFF9E5FDDBFC923C946FF4 /* KeyboardLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardLayout.swift; sourceTree = "<group>"; };
@@ -135,6 +138,7 @@
 		6CDAB14409BFF075910B4EC0 /* BanglaTypingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BanglaTypingEngine.swift; sourceTree = "<group>"; };
 		6E1485BB6F35E3728758EB63 /* BackspaceRepeatController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackspaceRepeatController.swift; sourceTree = "<group>"; };
 		6E33258B90523B2B7A711259 /* KeyboardTouchResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTouchResolver.swift; sourceTree = "<group>"; };
+		74F9550BE157C25FEE275F7E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		75AF0050088171853CB3E184 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		78C9F77251F3803865E9E7A5 /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
 		7E7A08BDE93B4142634C087E /* ObadhApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObadhApp.swift; sourceTree = "<group>"; };
@@ -338,10 +342,20 @@
 			path = Shared/Sources/Design;
 			sourceTree = "<group>";
 		};
+		D4B2E6144F2046C32662452A /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				0FC9666CF0AB1E7872412D58 /* PrivacyInfo.xcprivacy */,
+			);
+			name = Resources;
+			path = ObadhKeyboard/Resources;
+			sourceTree = "<group>";
+		};
 		E4453E948B8E03D6FA53F75F /* Resources */ = {
 			isa = PBXGroup;
 			children = (
 				583A8D41964D11C4FEC69A03 /* Assets.xcassets */,
+				74F9550BE157C25FEE275F7E /* PrivacyInfo.xcprivacy */,
 				2DD1FF9151E1C74445AC2D0C /* Settings.bundle */,
 			);
 			name = Resources;
@@ -358,6 +372,7 @@
 				BFD2F8EF8CC1D32F3C330470 /* Keyboard */,
 				C15CFD943BA0CC58F2CC6B32 /* ObadhEngineTests */,
 				E4453E948B8E03D6FA53F75F /* Resources */,
+				D4B2E6144F2046C32662452A /* Resources */,
 				99D613CBBA4E66199AE543A5 /* Settings */,
 				0EE7460F3AA0D40D799BB36B /* Sources */,
 				B5B90948593A23AD3BA89D92 /* Sources */,
@@ -479,6 +494,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9249FCD6DDEBECFECE0D6F6F /* ObadhModels in Resources */,
+				0CC75F3FDC04FA7731576A53 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -487,6 +503,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8499E19B49429F2060CADAE0 /* Assets.xcassets in Resources */,
+				3774D4CCFDBE95A8C4A9C52E /* PrivacyInfo.xcprivacy in Resources */,
 				A4DF455A569C77774B98E25D /* Settings.bundle in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -745,7 +762,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -865,7 +882,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -948,7 +965,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

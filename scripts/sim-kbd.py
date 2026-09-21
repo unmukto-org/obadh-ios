@@ -56,12 +56,12 @@ def _bundle_id() -> str:
     # An empty answer is a failure, not an id. Letting it through once produced a
     # keyboard identifier of ".keyboard", which the daemon ignores, so every
     # `select-obadh` silently left the SYSTEM keyboard on screen.
-    return value or "com.nsssayom.obadh"
+    return value or "org.unmukto.obadh"
 
 
 OBADH_APP = os.environ.get("OBADH_APP") or _bundle_id()
 OBADH_KB = os.environ.get("OBADH_KB", OBADH_APP + ".keyboard")
-LOG_PREDICATE = 'subsystem == "com.nsssayom.obadh.keyboard"'
+LOG_PREDICATE = 'subsystem == "org.unmukto.obadh.keyboard"'
 DEVICE_W_PT = 440.0
 
 

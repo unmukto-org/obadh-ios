@@ -101,7 +101,7 @@ struct KeyboardPreferences {
     // prefs persisted in the App Group across reinstalls and silently re-themed the
     // keyboard (near-white keys in dark mode) long after the tuning session ended.
     // Tuned values are baked into KeyboardTheme; render code reads no debug prefs.
-    static let debugKeyTintDarwinName = "com.nsssayom.obadh.debug.keytint"
+    static let debugKeyTintDarwinName = "org.unmukto.obadh.debug.keytint"
 
     // On-keyboard overlay that dumps the presentation context the system hands us
     // (bounds, safe-area insets, window width, nearest rounded-corner ancestor). Lets

@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DERIVED_DATA_DIR="$ROOT_DIR/build/DerivedData"
 DEVICE_ID="${DEVICE_ID:-}"
 DEVICE_WAIT_SECONDS="${DEVICE_WAIT_SECONDS:-45}"
-BUNDLE_ID="com.nsssayom.obadh"
+BUNDLE_ID="org.unmukto.obadh"
 # The physical iPhone runs the RELEASE build by default: it excludes all
 # #if DEBUG tooling (e.g. KeyboardDebugChannel) so nothing debug-only ships to
 # the phone. Override with CONFIG=Debug only when explicitly needed.

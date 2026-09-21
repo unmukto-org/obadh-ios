@@ -14,7 +14,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     IPHONEOS_DEPLOYMENT_TARGET: "18.0"
-    MARKETING_VERSION: "0.1.0"
+    MARKETING_VERSION: "1.0"
     # CURRENT_PROJECT_VERSION comes from Config/BuildInfo.xcconfig (git-stamped by
     # scripts/stamp-build.sh), with a fallback in Signing.xcconfig — NOT set here,
     # or a project-level value would override the xcconfig.
@@ -26,6 +26,8 @@ targets:
     sources:
       - path: ObadhApp/Sources
       - path: ObadhApp/Resources/Assets.xcassets
+      - path: ObadhApp/Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
       # Empty on purpose: it exists so the app has an entry in Settings at all, which
       # is what openSettingsURLString needs in order to land anywhere but the root.
       - path: ObadhApp/Resources/Settings.bundle
@@ -72,6 +74,8 @@ targets:
       - path: Resources/ObadhModels
         buildPhase: resources
         type: folder
+      - path: ObadhKeyboard/Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(OBADH_APP_BUNDLE_ID).keyboard

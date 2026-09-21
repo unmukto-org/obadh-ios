@@ -32,7 +32,7 @@ import QuartzCore
 final class KeystrokeProfile: @unchecked Sendable {
     static let shared = KeystrokeProfile()
 
-    private let log = Logger(subsystem: "com.nsssayom.obadh.keyboard", category: "perf")
+    private let log = Logger(subsystem: "org.unmukto.obadh.keyboard", category: "perf")
     private let lock = NSLock()
     private var keystrokeStart: CFTimeInterval = 0
     private var engineAccum: Double = 0

@@ -16,13 +16,13 @@
 // That is exactly what happened before this file existed: a bundle-id workaround
 // leaked into a staged project.pbxproj in nine places.
 
-OBADH_APP_BUNDLE_ID = com.nsssayom.obadh
+OBADH_APP_BUNDLE_ID = org.unmukto.obadh
 
 // The App Group is deliberately NOT derived from the bundle id. It is where the
 // user's learned words and preferences live, so renaming the app must not
 // silently point the app and the keyboard at a fresh, empty container. Change
 // this only when you intend to orphan existing user data, and never in a local
 // override.
-OBADH_APP_GROUP = group.com.nsssayom.obadh
+OBADH_APP_GROUP = group.org.unmukto.obadh
 
 #include? "Identity.local.xcconfig"

@@ -41,5 +41,5 @@ enum ObadhIdentity {
 
     private static let keyboardSuffix = ".keyboard"
     /// Only reached when there is no bundle at all, i.e. a unit-test host.
-    private static let fallbackAppBundleID = "com.nsssayom.obadh"
+    private static let fallbackAppBundleID = "org.unmukto.obadh"
 }
