@@ -11,13 +11,13 @@
 #
 # Observe the extension loading live in another shell:
 #   xcrun simctl spawn booted log stream --predicate \
-#     'subsystem == "com.nsssayom.obadh.keyboard"'
+#     'subsystem == "org.unmukto.obadh.keyboard"'
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DD=/tmp/obadh-sim-dd
-APP_BUNDLE=com.nsssayom.obadh
-KB_BUNDLE=com.nsssayom.obadh.keyboard
+APP_BUNDLE=org.unmukto.obadh
+KB_BUNDLE=org.unmukto.obadh.keyboard
 OUT="${!#:-/tmp/obadh-keyboard.png}"; [[ "$OUT" == --* ]] && OUT=/tmp/obadh-keyboard.png
 APPEARANCE=""
 DO_BUILD=0
@@ -65,4 +65,4 @@ sleep 2
 
 xcrun simctl io "$UDID" screenshot "$OUT"
 echo "wrote $OUT"
-xcrun simctl spawn "$UDID" log show --last 20s --predicate 'subsystem == "com.nsssayom.obadh.keyboard"' 2>/dev/null | grep OBADH-LIFECYCLE | tail -2 || true
+xcrun simctl spawn "$UDID" log show --last 20s --predicate 'subsystem == "org.unmukto.obadh.keyboard"' 2>/dev/null | grep OBADH-LIFECYCLE | tail -2 || true

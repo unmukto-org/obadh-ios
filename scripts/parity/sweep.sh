@@ -59,7 +59,7 @@ capture_appearance() { # udid slug host appearance
   sleep 3
   python3 "$ROOT/scripts/sim-kbd.py" shot "$OUT/$slug-$host-$app-native.png"
   xcrun simctl spawn "$udid" log show --last 3m \
-    --predicate 'subsystem == "com.nsssayom.obadh.keyboard"' 2>/dev/null \
+    --predicate 'subsystem == "org.unmukto.obadh.keyboard"' 2>/dev/null \
     | grep -o 'OBADH-PROBE.*' | tail -3 > "$OUT/$slug-$host-$app.probe.txt" || true
 }
 

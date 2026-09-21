@@ -60,7 +60,7 @@ final class KeyboardInstallStateTests: XCTestCase {
 
     /// Guards against a substring match reporting a different vendor's keyboard.
     func testDoesNotMatchAnUnrelatedKeyboardSharingOurPrefix() {
-        setEnabledKeyboards(["com.nsssayom.obadh.keyboard.evil", "com.example.obadh.keyboard"])
+        setEnabledKeyboards(["\(obadh).evil", "com.example.obadh.keyboard"])
 
         XCTAssertFalse(read().isKeyboardInstalled)
     }

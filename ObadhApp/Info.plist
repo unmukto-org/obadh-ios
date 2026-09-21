@@ -20,14 +20,16 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>OBADHGitRevision</key>
-	<string>$(OBADH_GIT_SHA)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
 	<key>OBADHAppGroup</key>
 	<string>$(OBADH_APP_GROUP)</string>
 	<key>OBADHBuildTime</key>
 	<string>$(OBADH_BUILD_TIME)</string>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
+	<key>OBADHGitRevision</key>
+	<string>$(OBADH_GIT_SHA)</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
