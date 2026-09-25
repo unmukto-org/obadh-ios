@@ -170,3 +170,11 @@ It contains the accessibility/material changes and **no margin workaround**.
 The diagnostic keyboard instance was terminated and both temporary diagnostic
 apps were removed. The dedicated simulator was restored to the normal Debug
 keyboard and shut down. Physical checks of the iOS 27 slider remain pending.
+
+The installed app subsequently launched successfully. A physical Settings
+inspection did not locate the expected Liquid Glass row; its follow-up was
+blocked by another device lock before it could capture the actual controls.
+This is an incomplete inspection, not evidence that the setting is unsupported.
+No phone appearance preference was changed. Queued tests were stopped and the
+temporary runner removed again; an uninterrupted unlocked-device session is
+needed to complete those checks.
