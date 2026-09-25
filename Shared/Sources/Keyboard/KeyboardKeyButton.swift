@@ -111,7 +111,9 @@ final class KeyboardKeyButton: UIButton {
         spaceLanguageTrailingConstraint?.constant = -max(8, metrics.keySpacing + 5)
         spaceLanguageBottomConstraint?.constant = -max(5, metrics.keyboardInsets.bottom + 3)
 
-        applyPressedState(animated: false)
+        // Rows style keys before attaching them. A detached key's own traits
+        // can still be light even when the controller is already dark.
+        applyPressedState(animated: false, traits: traitCollection)
         setTitleColor(KeyboardTheme.textColor(for: traitCollection), for: .normal)
         tintColor = KeyboardTheme.textColor(for: traitCollection)
         setPreferredSymbolConfiguration(
@@ -361,6 +363,11 @@ final class KeyboardKeyButton: UIButton {
     }
 
     private func configure() {
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (button: KeyboardKeyButton, _) in
+            // Inheritance can change after attachment without another controller
+            // appearance pass. Correct the fill before drawing that environment.
+            button.applyPressedState(animated: false)
+        }
         translatesAutoresizingMaskIntoConstraints = true
         layer.cornerRadius = KeyboardTheme.defaultMetrics.keyCornerRadius
         layer.cornerCurve = .continuous
@@ -460,7 +467,8 @@ final class KeyboardKeyButton: UIButton {
         }
     }
 
-    private func applyPressedState(animated: Bool) {
+    private func applyPressedState(animated: Bool, traits: UITraitCollection? = nil) {
+        let appearance = traits ?? traitCollection
         let updates = {
             if #available(iOS 26.0, *), let effectView = self.glassEffectView,
                let effect = effectView.effect as? UIGlassEffect {
@@ -468,7 +476,7 @@ final class KeyboardKeyButton: UIButton {
                 // it (brighter when pressed) instead of swapping a solid color.
                 self.backgroundColor = .clear
                 effect.tintColor = KeyboardTheme.glassKeyTint(
-                    for: self.traitCollection,
+                    for: appearance,
                     highlighted: self.isHighlighted
                 )
                 effectView.effect = effect
@@ -476,12 +484,12 @@ final class KeyboardKeyButton: UIButton {
                 // Flat translucent fill: native-like "simple transparency" with
                 // no specular rim / raised edge.
                 self.backgroundColor = KeyboardTheme.glassKeyTint(
-                    for: self.traitCollection,
+                    for: appearance,
                     highlighted: self.isHighlighted
                 )
             } else {
                 self.backgroundColor = self.backgroundColor(
-                    for: self.traitCollection,
+                    for: appearance,
                     highlighted: self.isHighlighted
                 )
             }

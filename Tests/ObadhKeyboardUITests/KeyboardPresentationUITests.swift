@@ -2,6 +2,36 @@ import XCTest
 
 @MainActor
 final class KeyboardPresentationUITests: XCTestCase {
+    func testNormalLaunchClearsExperimentalRibbonSizing() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--keyboard-test", "--experimental-sizing"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Next keyboard"].firstMatch.waitForExistence(timeout: 10))
+        let bandless = app.buttons["Band-less"].firstMatch
+        let scroll = app.scrollViews.firstMatch
+        scroll.swipeUp()
+        for _ in 0..<5 where !bandless.isHittable { scroll.swipeUp() }
+        XCTAssertTrue(bandless.isHittable)
+        bandless.tap()
+        XCTAssertTrue(bandless.isSelected)
+
+        app.terminate()
+        app.launchArguments = ["--keyboard-test"]
+        app.launch()
+        XCTAssertFalse(app.buttons["Band-less"].exists,
+                       "Experimental layout controls must not be everyday settings")
+
+        // Reopen the explicit experiment screen to inspect the stored selection.
+        app.terminate()
+        app.launchArguments = ["--keyboard-test", "--experimental-sizing"]
+        app.launch()
+        let automatic = app.buttons["Auto"].firstMatch
+        XCTAssertTrue(automatic.waitForExistence(timeout: 5))
+        XCTAssertTrue(automatic.isSelected, "A normal launch must clear the persisted override")
+        app.terminate()
+    }
+
     func testEnableAndPresentKeyboard() throws {
         continueAfterFailure = false
         let app = XCUIApplication()

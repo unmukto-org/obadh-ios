@@ -60,6 +60,7 @@
 		7E7505AE67FE8CD5F09DA8AB /* KeyboardGeometryProbeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6A112F2B098CDC6A3EDB88 /* KeyboardGeometryProbeView.swift */; };
 		7FF5AAE45C7EC0DADDE56ABB /* EmojiVariantPreferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 256744416FB780EEC1BCE05B /* EmojiVariantPreferenceStore.swift */; };
 		8026033F77CA1ED0C5F7C01C /* EmojiPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F17B39BFA64FEDB13A98224 /* EmojiPanelView.swift */; };
+		80EAC5A491CFC2CBF093E9E3 /* KeyboardKeyAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97D481F4E6A82EE36C8B539B /* KeyboardKeyAppearanceTests.swift */; };
 		82B24D2169B92E97FB63BF21 /* KeystrokeProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C69984AC573FFF5A2CC2467 /* KeystrokeProfile.swift */; };
 		82E2B295081B60F1369104A3 /* BanglaTypingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CDAB14409BFF075910B4EC0 /* BanglaTypingEngine.swift */; };
 		8431FF85CDAC265A57822A13 /* AppSetupState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58131B6EC338178D54A4EEBB /* AppSetupState.swift */; };
@@ -205,6 +206,7 @@
 		86492A9D653BD7ADC7768E20 /* KeyboardFeedbackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardFeedbackController.swift; sourceTree = "<group>"; };
 		8D1E50431B09FA409A06E116 /* PrivacyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyView.swift; sourceTree = "<group>"; };
 		94B56BEB7F3697DA4E57C7F6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		97D481F4E6A82EE36C8B539B /* KeyboardKeyAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardKeyAppearanceTests.swift; sourceTree = "<group>"; };
 		9A52704B5167E0CA0199DD32 /* EngineContentionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineContentionTests.swift; sourceTree = "<group>"; };
 		9BFF57B1CEF3C39D97D6A19D /* ObadhKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ObadhKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		9D65EFAF37CE3C5028ECCF93 /* SuggestionBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionBarView.swift; sourceTree = "<group>"; };
@@ -307,6 +309,7 @@
 			isa = PBXGroup;
 			children = (
 				B5E96460CF4A9DFDCE73AA9D /* KeyboardDebugChannelTests.swift */,
+				97D481F4E6A82EE36C8B539B /* KeyboardKeyAppearanceTests.swift */,
 				3602F14AB04542BA4D98A6FD /* KeyboardLifecycleTests.swift */,
 				043F3A4E497B9A02D9673725 /* KeyboardTypographyTests.swift */,
 			);
@@ -744,6 +747,7 @@
 				3BE298D51F1DBE80FEF2AB0E /* KeyboardDebugChannel.swift in Sources */,
 				C61816EF70A87B39976C9211 /* KeyboardDebugChannelTests.swift in Sources */,
 				4E05DA997BA4A95995A4EC69 /* KeyboardFeedbackController.swift in Sources */,
+				80EAC5A491CFC2CBF093E9E3 /* KeyboardKeyAppearanceTests.swift in Sources */,
 				DD9DE2910DB60E12C42B5ADD /* KeyboardKeyButton.swift in Sources */,
 				A5C8AD23BF0EF1AABB0BED2B /* KeyboardKeyPreviewCallout.swift in Sources */,
 				B530D9B4CB91EF4690A6CBDD /* KeyboardLayout.swift in Sources */,

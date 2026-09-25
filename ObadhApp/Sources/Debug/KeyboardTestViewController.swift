@@ -47,6 +47,9 @@ final class KeyboardTestViewController: UIViewController {
     private var startsWithMeasureBackground: Bool {
         ProcessInfo.processInfo.arguments.contains("--measure-bg")
     }
+    private var allowsSizingExperiments: Bool {
+        ProcessInfo.processInfo.arguments.contains("--experimental-sizing")
+    }
     /// Sizing investigation: attach a host `inputAccessoryView` (what a chat
     /// composer like Messenger's uses) so we can test whether the system's
     /// container band above the extension depends on the host, not on us.
@@ -90,6 +93,13 @@ final class KeyboardTestViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        // A sizing experiment persisted across installs on a real phone and
+        // enlarged the everyday ribbon. Normal testing always uses Auto; the
+        // deliberately distorting controls require an explicit launch argument.
+        if !allowsSizingExperiments, prefs.debugPinnedPresentation != 0 {
+            prefs.debugPinnedPresentation = 0
+            KeyboardPreferences.postKeyTintChanged()
+        }
         buildLabel.accessibilityIdentifier = "keyboard-host-geometry"
         geometryRecorder.onKeyboardHeightChange = { [weak self] height in
             self?.buildLabel.accessibilityValue = String(Double(height))
@@ -256,15 +266,18 @@ final class KeyboardTestViewController: UIViewController {
             rows: [paddedRow(backgroundControl)],
             footer: "Gradient shows the key material's translucency. Solid matches a plain app."
         )
+        var diagnosticRows: [UIView] = [switchRow("Probe overlay", presentationProbeSwitch)]
+        if allowsSizingExperiments {
+            diagnosticRows.append(paddedRow(pinnedPresentationControl))
+        }
+        diagnosticRows.append(paddedRow(sizingLogButton))
         let diagnostics = sectionCard(
             symbol: "ruler",
             title: "Diagnostics",
-            rows: [
-                switchRow("Probe overlay", presentationProbeSwitch),
-                paddedRow(pinnedPresentationControl),
-                paddedRow(sizingLogButton)
-            ],
-            footer: "Probe draws measurement fiducials and a geometry readout on the keyboard; screenshots become self-measuring. Presentation class: Auto detects it per presentation (shipping behavior); Banded/Band-less pin it, so our asked height never changes and the system's own container band can be measured in isolation."
+            rows: diagnosticRows,
+            footer: allowsSizingExperiments
+                ? "Experimental sizing: Banded/Band-less can make the ribbon too short or too tall. Use Auto for normal testing. Launching Obadh normally restores Auto."
+                : "Probe shows keyboard measurements. Sizing log records requested and actual ribbon heights. Normal testing uses automatic presentation sizing."
         )
 
         let note = UILabel()

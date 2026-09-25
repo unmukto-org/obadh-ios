@@ -97,8 +97,13 @@ Honest gaps, so nobody reads a green run as more than it is:
   container: edge-to-edge, square, band-less, with its own geometry. There is
   no API for this either; the transient intermediates are class-quantized and
   disjoint (modern {294, 444, 452} vs legacy {260, 411, 419} across all width
-  classes), so the keyboard detects legacy presentations the same way. iOS 27
-  removed the legacy fallback entirely, so the detector is iOS 26-only.
+  classes), so the keyboard detects legacy presentations from those measurements
+  on iOS 26. Those anchors have not been validated on iOS 27, where the detector
+  is disabled. Compatibility mode is **not universally removed on iOS 27**:
+  [Apple clarified](https://developer.apple.com/forums/thread/838637) that apps
+  built with Xcode 26 can retain it on iOS 27; the Xcode 27 SDK is what makes
+  `UIDesignRequiresCompatibility` ineffective. A host's appearance must be
+  measured rather than inferred from its name or the OS version alone.
 
 ## Geometry (all device-measured)
 
