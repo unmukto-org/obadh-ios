@@ -24,8 +24,12 @@ def analyze(source, output):
     output.mkdir(parents=True, exist_ok=True)
     raw = source.read_bytes()
     session = json.loads(raw)
-    report = json.loads(subprocess.check_output(
-        ['swift', 'run', 'typing-accuracy-report', str(source)], cwd=ROOT))
+    # Session-scoped participant annotations are auditable and separate from raw input.
+    policy_path = ROOT / 'Tools/TypingAccuracy/ReferencePolicies' / (session['sessionID'] + '.json')
+    command = ['swift', 'run', 'typing-accuracy-report', str(source)]
+    if policy_path.is_file():
+        command.append(str(policy_path))
+    report = json.loads(subprocess.check_output(command, cwd=ROOT))
     replay = json.loads(subprocess.check_output(
         [str(ROOT / 'scripts/replay-accuracy-session.sh'), str(source)], cwd=ROOT))
     (output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
@@ -63,6 +67,8 @@ def analyze(source, output):
         trials.append(dict(
             id=trial['id'], posture=trial['posture'], variant=trial['variant'],
             durationSeconds=trial['endedAt'] - trial['startedAt'], score=scores[trial['id']]['score'],
+            exactCopyScore=scores[trial['id']]['exactCopyScore'],
+            acceptedReference=scores[trial['id']]['acceptedReference'],
             backspaces=trial['backspaces'], deliveredContacts=len(contacts),
             overlaps=sum(c['overlapsEarlierContact'] for c in contacts),
             malformedContacts=resolved['malformedContacts'], spatialReplayMatches=comparable,
@@ -88,13 +94,14 @@ def analyze(source, output):
             latency = [ms for t in subset for ms in t['releaseToCommitMs']]
             groups.append(dict(posture=posture, variant=variant, trials=len(subset), referenceUnits=reference,
                                durationSeconds=seconds, finalEdits=edits, cer=edits/reference,
+                               exactCopyEdits=sum(t['exactCopyScore']['edits'] for t in subset),
                                graphemesPerMinute=entered * 60 / seconds,
                                backspaces=sum(t['backspaces'] for t in subset),
                                latencyMedianMs=statistics.median(latency) if latency else None,
                                latencyP95Ms=percentile95(latency) if latency else None))
     result = dict(sessionID=session['sessionID'], sourceSHA256=hashlib.sha256(raw).hexdigest(),
                   sourceRevision=session['sourceRevision'], provenance=session['provenance'],
-                  coverage=report['coverage'], framesIdentical=all(t['frames'] == session['trials'][0]['frames'] for t in session['trials']),
+                  coverage=report['coverage'], referencePolicy=report.get('referencePolicy'), framesIdentical=all(t['frames'] == session['trials'][0]['frames'] for t in session['trials']),
                   groups=groups, trials=trials,
                   limitations=['One-person prompted pilot; no causal or population claim.',
                                'Baseline may suppress contacts before logging.',
@@ -117,7 +124,7 @@ def plot(result, output):
     fig, axes = plt.subplots(1, 3, figsize=(12, 4.1), layout='constrained')
     for panel, (key, title, ylabel) in enumerate([
         ('graphemesPerMinute', 'Typing rate', 'Roman characters / minute'),
-        ('finalEdits', 'Uncorrected errors', 'Edit operations / 64 reference characters'),
+        ('finalEdits', 'Errors after accepting dialect variants', 'Edit operations / 64 reference characters'),
         ('latencyMedianMs', 'Input handling', 'Median release-to-commit time (ms)'),
     ]):
         ax = axes[panel]

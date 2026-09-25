@@ -23,16 +23,18 @@ No keyboard behavior was changed during this analysis. Work is on `research/touc
 
 These checks establish internal consistency of this export. They do not establish every physical touch was delivered by UIKit, nor turn the study app into an extension-host test.
 
-## Observed results
+## Observed results — corrected for accepted dialect variants
 
-Each condition contains the same two phrases: 64 reference Roman characters including spaces. Rates below pool characters and elapsed typing time across the two phrases. They are **characters/minute, not words/minute**. Errors are case-sensitive final-text edit operations against the exact prompt.
+Each condition contains the same two phrases: 64 reference Roman characters including spaces. Rates below pool characters and elapsed typing time across the two phrases. They are **characters/minute, not words/minute**. Errors below are case-sensitive final-text edit operations against the nearest accepted reference. After the study, the participant explicitly confirmed that `bikale` and `bikele` are both acceptable transliterations for this word depending on dialect. This annotation is applied equally to both study arms; it is not a global A/E substitution.
 
 | Recorded posture | Routing | Final errors / 64 | Backspaces | Typing time | Characters/minute | Median release → commit |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| One thumb | Release 112 control | 2 | 0 | 12.50 s | 307.2 | 20.30 ms |
-| One thumb | Ordered rollover | 3 | 0 | 26.32 s | 145.9 | 20.41 ms |
-| Two thumbs | Release 112 control | 1 | 0 | 12.49 s | 307.4 | 20.38 ms |
+| One thumb | Release 112 control | 1 | 0 | 12.50 s | 307.2 | 20.30 ms |
+| One thumb | Ordered rollover | 2 | 0 | 26.32 s | 145.9 | 20.41 ms |
+| Two thumbs | Release 112 control | 0 | 0 | 12.49 s | 307.4 | 20.38 ms |
 | Two thumbs | Ordered rollover | 1 | 1 | 15.21 s | 252.5 | 20.34 ms |
+
+The original exact-copy counts were 2/3 (one thumb, control/candidate) and 1/1 (two thumbs). Those counts remain in `exactCopyScore` for auditability, but include valid dialect choices and must not be presented as typing-accuracy errors. The revised counts are 1/2 and 0/1. Timing, backspaces, and raw touch records are unchanged. This is a post-study reference correction, not a predeclared scoring policy.
 
 The candidate's observed rate is about **17.9% lower with two thumbs** and **52.5% lower with one thumb**. These are descriptive differences from this session, not causal estimates. Equal-weight posture averaging would conceal too much; keep the conditions separate.
 
@@ -59,22 +61,22 @@ The baseline may suppress second touches before the logging view sees them, so �
 
 The spatial resolver and frames are shared between the two study arms. The same coordinate therefore gets the same key in either arm. A different wrong key in two separately typed attempts is not evidence that rollover changed the key boundaries.
 
-## What the wrong taps reveal
+## Valid dialect choices and targeting misses
 
-The intended letters in this table come from the exact prompt, with direct position alignment in trials without edits. They are prompt labels, not independent measurements of what the user meant to press.
+The table retains the original prompt and observed input so the analysis can be audited. A/E cases in this word are now confirmed valid variants and are not targeting errors. Other expected letters come from prompt alignment; the coordinates alone do not independently establish user intent.
 
 | Round | Prompt / observed | Recorded lift-off point | Interpretation |
 | --- | --- | --- | --- |
 | 1, candidate/two thumbs | Final `o` initially became `i`, then was corrected | x 343.33, y 26.33 | About 6.33 pt inside the I side of the I/O boundary; one explicit correction. Final phrase is exact. |
 | 2, candidate/two thumbs | `bikale` → `bimale` (`k` → `m`) | x 358.33, y 106.67 | The K/M row boundary is y 106.50. The sample is only **0.17 pt** into the lower row. A useful ambiguous-boundary example. |
-| 4, control/two thumbs | `bikale` → `bikele` (`a` → `e`) | x 106.00, y 15.33 | Inside E, far from A. Not a plausible tiny A-boundary miss. |
+| 4, control/two thumbs | `bikale` → `bikele` (`a` → `e`) | x 106.00, y 15.33 | **Accepted dialect variant; zero accuracy error.** The E coordinate agrees with the chosen spelling. |
 | 6, control/one thumb | `k` → `j` | x 326.33, y 81.33 | About **2 pt** on the J side of the J/K boundary. Another useful boundary case. |
-| 6, control/one thumb | `a` → `e` | x 106.00, y 18.00 | Again inside E. Do not relabel this as an A touch for calibration. |
-| 8, candidate/one thumb | `a` → `e` | x 125.00, y 34.67 | Inside E; same prompt mismatch again. |
+| 6, control/one thumb | `a` → `e` | x 106.00, y 18.00 | **Accepted dialect variant; zero accuracy error.** The separate K→J mistake still counts. |
+| 8, candidate/one thumb | `a` → `e` | x 125.00, y 34.67 | **Accepted dialect variant; zero accuracy error.** The separate O→I and E→R mistakes still count. |
 | 8, candidate/one thumb | `nodir` → `nidir` (`o` → `i`) | x 349.67, y 31.33 | Essentially on the I/O boundary. The resolver picks I. The exact boundary tie is not evidence of a numerical bug with an objectively correct O outcome. |
 | 8, candidate/one thumb | `hobe` → `hobr` (`e` → `r`) | x 162.00, y 17.00 | Inside R, around 29 pt beyond the E/R boundary. A small local offset is not a justified remedy. |
 
-The repeated `bikale`/`bikele` discrepancy may reflect transcription, an intended Roman spelling variant, or another user decision. The coordinates alone do not distinguish those causes. Exact-prompt CER counts it as an error, but training an A target from these central E taps would contaminate the touch model and make deliberate E input less predictable.
+The participant has resolved the earlier ambiguity: `bikale` and `bikele` are acceptable dialect-dependent transliterations here. Treat these as valid intended spellings. The scorer compares against both full-sentence references, preserving exact-copy scores separately. Do not train A targets from these E contacts or make the keyboard autocorrect this dialect choice away. Other substitutions (`bimale`, `bijele`, `nidir`, `hobr`) remain errors relative to the accepted references.
 
 The K/M event also shows why “nearest center” is not an automatic fix: this point is slightly closer to M's visual center than K's. A useful improvement needs calibrated spatial evidence and/or word-level interpretation, not merely replacing row-first selection with Euclidean distance.
 
@@ -97,7 +99,7 @@ scripts/analyze-accuracy-pilot.py /path/to/complete-session.json
 
 Outputs under ignored `build/TypingAccuracyPilot/`:
 
-- `report.json`: Swift text scores, paired deltas and completeness.
+- `report.json`: Swift scores against accepted references, separate exact-copy scores, applied reference policy, paired deltas and completeness.
 - `replay.json`: actual-production-resolver decisions for recorded down/up points.
 - `audit.json`: source hash, consistency checks, trial timing and condition summaries.
 - `pilot-summary.png` / `.svg`: standalone comparison chart.
@@ -105,3 +107,14 @@ Outputs under ignored `build/TypingAccuracyPilot/`:
 The spatial replay deliberately rejects unsupported key tokens and does not claim to simulate UIKit delivery, predict physical touches that were never logged, or infer the user's intent. The Python text-event audit is limited to this ASCII Roman motor task; Unicode string scoring remains in Swift.
 
 Verification: seven metric/report tests passed, including partial-export detection. The complete human export passed the spatial, event-count and final-text integrity checks described above. No raw human trace was turned into a unit-test fixture or a training set.
+
+## Accepted-reference correction
+
+The participant's clarification is recorded in `Tools/TypingAccuracy/ReferencePolicies/3568675C-1587-4437-BFDF-4B873A15F15B.json`. The analysis script loads this explicit session policy; the standalone scorer accepts the policy as an optional second file argument:
+
+```sh
+swift run typing-accuracy-report /path/to/complete-session.json \
+  Tools/TypingAccuracy/ReferencePolicies/3568675C-1587-4437-BFDF-4B873A15F15B.json
+```
+
+Without a policy, the scorer still computes exact-copy scores. Policies are session-scoped and full-prompt-scoped. Case sensitivity and all other differences remain significant. Nine metric/report tests pass, including acceptance of both spellings, preservation of the other errors, and rejection of a policy from another session. The chart and aggregate report have been regenerated with the accepted-reference counts. Production keyboard behavior has not been changed.
