@@ -140,7 +140,10 @@ def cmd_select_obadh(udid: str, extra_launch_args: list[str] | None = None) -> N
     subprocess.run(["xcrun", "simctl", "launch", udid, OBADH_APP,
                     "--keyboard-test", *launch_args], capture_output=True, check=False)
     time.sleep(3)
-    print("obadh" if obadh_appeared_recently(udid, 8) else "select-obadh: not confirmed")
+    if not obadh_appeared_recently(udid, 4):
+        sys.exit("select-obadh: not confirmed; enable Obadh in Settings first "
+                 "(ObadhKeyboardUITests/testEnableAndPresentKeyboard automates this).")
+    print("obadh")
 
 
 # ---------------------------------------------------------------------------

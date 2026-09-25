@@ -6,7 +6,7 @@
 # Prereqs: both simulator app builds exist (run.sh builds them), the iOS 26.5
 # runtime is installed, and nothing else is using the booted simulator. Devices
 # are created on demand (named "Obadh Sweep <name>") and keyboards are enabled
-# headlessly. MOUSE-FREE by construction: everything is simctl + the DEBUG
+# through XCTest Settings automation. Mouse-free: XCTest, simctl and the DEBUG
 # control channel.
 #
 # Usage: sweep.sh OUT_DIR "iPhone 17 Pro" "iPhone 16" ...
@@ -50,12 +50,18 @@ capture_appearance() { # udid slug host appearance
   local udid=$1 slug=$2 host=$3 app=$4
   xcrun simctl ui "$udid" appearance "$app" || true
   sleep 1
-  python3 "$ROOT/scripts/sim-kbd.py" select-obadh --measure-bg || true
+  python3 "$ROOT/scripts/sim-kbd.py" select-obadh --measure-bg || {
+    echo "sweep: refusing to capture native as Obadh ($slug/$host/$app)" >&2
+    exit 2
+  }
   sleep 2
   python3 "$ROOT/scripts/sim-kbd.py" debug probe:on || true
   sleep 2
   python3 "$ROOT/scripts/sim-kbd.py" shot "$OUT/$slug-$host-$app-obadh.png"
-  python3 "$ROOT/scripts/sim-kbd.py" debug advance || true
+  # Name the reference input mode explicitly. Advancing once can select Emoji
+  # or a bilingual keyboard depending on the simulator's remembered order.
+  xcrun simctl terminate "$udid" "$APP_ID" 2>/dev/null || true
+  xcrun simctl launch "$udid" "$APP_ID" --keyboard-test --measure-bg --input-language=en-US
   sleep 3
   python3 "$ROOT/scripts/sim-kbd.py" shot "$OUT/$slug-$host-$app-native.png"
   xcrun simctl spawn "$udid" log show --last 3m \
@@ -96,6 +102,14 @@ for NAME in "$@"; do
   done
 
   xcrun simctl install "$udid" "$APP_MODERN"
+  # Writing AppleKeyboards alone did not register the extension with active
+  # input modes on a freshly erased iOS 26.5 simulator (2026-09-25). Enable it
+  # through the actual Settings UI; preference writes are only selection hints.
+  xcodebuild test -project "$ROOT/Obadh.xcodeproj" -scheme ObadhKeyboardUITests \
+    -destination "platform=iOS Simulator,id=$udid" -derivedDataPath "$ROOT/build/DerivedData" \
+    -parallel-testing-enabled NO -collect-test-diagnostics never -jobs 2 CODE_SIGNING_ALLOWED=NO \
+    -only-testing:ObadhKeyboardUITests/KeyboardPresentationUITests/testEnableAndPresentKeyboard \
+    > "$OUT/$slug-enable.log" 2>&1 || { echo "sweep: Settings activation failed; see $slug-enable.log" >&2; exit 2; }
   capture_appearance "$udid" "$slug" modern light
   capture_appearance "$udid" "$slug" modern dark
 

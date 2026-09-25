@@ -111,7 +111,71 @@ targets:
     dependencies:
       - framework: Frameworks/ObadhBridge.xcframework
         embed: false
+  ObadhKeyboardLifecycleTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/ObadhKeyboardLifecycleTests
+      - path: ObadhKeyboard/Sources
+      - path: Shared/Sources/Design
+      - path: Shared/Sources/Engine
+      - path: Shared/Sources/Keyboard
+      - path: Shared/Sources/Settings/KeyboardPreferences.swift
+      - path: Shared/Sources/Settings/ObadhIdentity.swift
+      - path: Shared/Sources/Settings/KeyboardSizingLog.swift
+      - path: Shared/Sources/Settings/KeystrokeProfile.swift
+      - path: Shared/Sources/Settings/LearnedWordStore.swift
+      - path: Shared/Sources/Settings/AppBuildInfo.swift
+      - path: Resources/ObadhModels
+        buildPhase: resources
+        type: folder
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(OBADH_APP_BUNDLE_ID).lifecycletests
+        GENERATE_INFOPLIST_FILE: YES
+    configFiles:
+      Debug: Config/Signing.xcconfig
+      Debug-Legacy: Config/Signing.xcconfig
+      Release: Config/Signing.xcconfig
+    dependencies:
+      - framework: Frameworks/ObadhBridge.xcframework
+        embed: false
+  ObadhKeyboardUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Tests/ObadhKeyboardUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(OBADH_APP_BUNDLE_ID).uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Obadh
+    configFiles:
+      Debug: Config/Signing.xcconfig
+      Debug-Legacy: Config/Signing.xcconfig
+      Release: Config/Signing.xcconfig
+    dependencies:
+      - target: Obadh
 schemes:
+  ObadhKeyboardUITests:
+    build:
+      targets:
+        Obadh: all
+        ObadhKeyboardUITests: all
+    test:
+      config: Debug
+      targets:
+        - ObadhKeyboardUITests
+  ObadhKeyboardLifecycleTests:
+    build:
+      targets:
+        ObadhKeyboardLifecycleTests: all
+    test:
+      config: Debug
+      environmentVariables:
+        OBADH_FONT_ATLAS: $(OBADH_FONT_ATLAS)
+      targets:
+        - ObadhKeyboardLifecycleTests
   # Runs the Debug-Legacy config: same debug tooling, but the container app opts out
   # of Liquid Glass so the keyboard can be observed in the legacy host presentation.
   Obadh-Legacy:

@@ -19,6 +19,7 @@ import os
 /// to the handler. Every command is echoed to os_log for observability.
 @MainActor
 protocol KeyboardDebugCommandHandler: AnyObject {
+    var canHandleDebugCommands: Bool { get }
     func handleDebugCommand(_ command: String, argument: String?)
 }
 
@@ -75,7 +76,10 @@ final class KeyboardDebugChannel {
     }
 
     private func poll() {
-        guard let commandURL,
+        // A host can disconnect without a balanced disappearance callback.
+        // Never let its detached controller steal a new controller's command.
+        guard handler?.canHandleDebugCommands == true,
+              let commandURL,
               let raw = try? String(contentsOf: commandURL, encoding: .utf8) else { return }
         let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !line.isEmpty else { return }

@@ -31,7 +31,8 @@ struct KeyboardTestScreen: UIViewControllerRepresentable {
 }
 
 final class KeyboardTestViewController: UIViewController {
-    private let textView = UITextView()
+    private let geometryRecorder = HostKeyboardGeometryRecorder()
+    private let textView = KeyboardProbeTextView()
     private let buildLabel = UILabel()
     // A vibrant gradient behind everything (incl. behind the keyboard) so the
     // key material's translucency is visible for native-vs-Obadh comparison.
@@ -89,6 +90,11 @@ final class KeyboardTestViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        buildLabel.accessibilityIdentifier = "keyboard-host-geometry"
+        geometryRecorder.onKeyboardHeightChange = { [weak self] height in
+            self?.buildLabel.accessibilityValue = String(Double(height))
+        }
+        geometryRecorder.start(in: view)
         title = "Keyboard Test"
         view.backgroundColor = startsWithMeasureBackground
             ? UIColor(white: 0.5, alpha: 1)   // appearance-independent mid-gray
@@ -103,6 +109,7 @@ final class KeyboardTestViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         requestLandscapeIfAsked()
+        print("OBADH-INPUT-MODES \(UITextInputMode.activeInputModes.map { $0.primaryLanguage ?? "nil" })")
         textView.becomeFirstResponder()
     }
 
@@ -163,7 +170,8 @@ final class KeyboardTestViewController: UIViewController {
         textView.autocapitalizationType = .none
         textView.autocorrectionType = .yes
         textView.spellCheckingType = .yes
-        textView.keyboardType = .alphabet
+        textView.keyboardType = ProcessInfo.processInfo.arguments.contains("--keyboard-default")
+            ? .default : .alphabet
         // `--seed=<text>` prefills the field. The native keyboard's prediction row
         // is only populated when there is context, and `simctl` has no tap
         // primitive, so this is the only way to capture native predictions as a
@@ -449,6 +457,18 @@ final class KeyboardTestViewController: UIViewController {
             // instead of being collapsed to zero by a growing text field.
             textView.heightAnchor.constraint(equalToConstant: 92)
         ])
+    }
+}
+/// An explicit public-API selector for diagnostic captures. Simulator preference
+/// writes can be accepted on disk while the keyboard daemon keeps its cached mode.
+private final class KeyboardProbeTextView: UITextView {
+    override var textInputMode: UITextInputMode? {
+        let prefix = "--input-language="
+        guard let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix(prefix) }) else {
+            return super.textInputMode
+        }
+        let language = String(argument.dropFirst(prefix.count))
+        return UITextInputMode.activeInputModes.first { $0.primaryLanguage == language } ?? super.textInputMode
     }
 }
 #endif

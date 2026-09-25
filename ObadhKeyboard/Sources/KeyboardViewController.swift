@@ -284,7 +284,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         probeTopHairline.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: hairline)
         probeStripHairline.frame = CGRect(
             x: 0,
-            y: currentMetrics.suggestionHeight,
+            y: suggestionBar.convert(suggestionBar.bounds, to: view).maxY,
             width: view.bounds.width,
             height: hairline
         )
@@ -368,10 +368,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     private func configureInputViewShell() {
         guard let inputView else { return }
-        // Self-sizing + one height constraint is the deterministic mechanism: the
-        // keyboard is exactly `preferredKeyboardHeight` in every host and on every
-        // presentation path. Letting the system size us instead (allowsSelfSizing
-        // false, no constraint) was measured to be untrustworthy: the granted height
+        // Self-sizing + one height constraint requests our intended content size.
+        // UIKit can still supply transient bounds or add host-owned margins; this
+        // does not guarantee the outer container height on every presentation.
+        // Letting the system size us instead (allowsSelfSizing false, no constraint)
+        // was measured to be untrustworthy: the granted height
         // ratchets across presentations (253→290→314 on the same sim) and renders a
         // container visibly taller than native. See the native-parity notes.
         inputView.allowsSelfSizing = true
@@ -442,6 +443,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         // Switching to another keyboard (or dismissing): the word in progress is already
         // ordinary text, so we only stop tracking it. Nothing is lost or stranded.
         resetCompositionBookkeeping()
+        keyboardTouchSurface.cancelTracking()
+        hideKeyPreview(animated: false)
+        backspaceRepeater.end() // The emoji panel can own a repeat without an active key.
+        spaceLanguageIntroDismissal?.cancel()
+        spaceLanguageIntroDismissal = nil
+        viewWillAppearWasCalled = false
         #if DEBUG
         stopFrameMonitor()
         // Capture short presentations too, before the deferred write would fire.
@@ -489,6 +496,13 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
 
     @objc private func frameTick(_ link: CADisplayLink) {
+        guard viewIfLoaded?.window != nil else {
+            // CADisplayLink retains its target. Host termination can detach us
+            // without viewWillDisappear; release the monitor and polling then.
+            stopFrameMonitor()
+            debugChannel.stop()
+            return
+        }
         let now = link.timestamp
         // `targetTimestamp - timestamp` is the display's current frame budget, which
         // varies with ProMotion, so the threshold is derived rather than hardcoded.
@@ -570,6 +584,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         sizingRecordIdentifier = KeyboardSizingLog.shared.nextIdentifier()
         presentationUptime = CACurrentMediaTime() - processStart
         layoutTrace.append("|")
+        lastTracedHeight = -1 // Record the first pass even if a warm return has the same height.
         let write = DispatchWorkItem { [weak self] in self?.writeSizingRecord() }
         sizingRecordWrite = write
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: write)
@@ -617,7 +632,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                 screen: "\(Int(screen.width))x\(Int(screen.height))",
                 systemVersion: UIDevice.current.systemVersion,
                 dark: traitCollection.userInterfaceStyle == .dark,
-                lateHeights: late
+                lateHeights: late,
+                actualStrip: Double(suggestionBar.bounds.height)
             )
         )
         layoutTrace.removeAll()
@@ -635,6 +651,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         if layoutTrace.count > 32 {
             layoutTrace.removeFirst(layoutTrace.count - 32)
         }
+        lifecycleLog.notice("OBADH-GEOMETRY stripRequested=\(self.currentMetrics.suggestionHeight) stripActual=\(self.suggestionBar.bounds.height) stripY=\(self.suggestionBar.frame.minY) keysY=\(self.keyboardStack.convert(self.keyboardStack.bounds, to: self.view).minY)")
         lifecycleLog.notice(
             """
             OBADH-TRACE n\(self.presentationCount) t\(Int((CACurrentMediaTime() - self.processStart) * 1000)) \
@@ -701,20 +718,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     private func classifyPresentation(screenHeight: CGFloat) {
         presentationClassified = true
-        // iOS 27 removed the legacy keyboard fallback: native renders the modern
-        // container even in pre-iOS-26-SDK hosts (measured in Messenger on an
-        // iOS 27 device: native zone ~51pt = modern). The anchors below are
-        // iOS 26 measurements and misfire against iOS 27 host layouts (Messenger
-        // classified legacy -> 53pt strip + 17pt band = 70pt zone, 18pt taller
-        // than native), so the legacy detector is iOS 26 only.
-        // NOTE: a band-less-cold-launch detector used to live here, keyed off a
-        // sizing intermediate below our ask. It is gone deliberately. The system's
-        // container band is a per-OS constant (16.0pt measured on iOS 26.5 and
-        // invariant under a swept ask, repeated presentations, and host accessory
-        // views; 17.3pt measured on an iOS 27 device), so there is nothing to detect
-        // — and because the system pins our view's bottom edge, acting on a wrong
-        // guess moved every key row ~18pt, which is the height instability it was
-        // meant to fix. See KeyboardTheme.referenceSuggestionHeight.
+        // Existing device captures showed modern framing in Messenger on iOS 27.
+        // Keep the iOS 26 transient-height classifier off there: its anchors are
+        // empirical, not an API contract. A matching 17pt host-margin regression
+        // is independently reported on iOS 27 (FB24460699); extension bounds do
+        // not reliably reveal it. Do not infer a missing band from a transient
+        // root height or grow our strip to compensate. See keyboard-investigation.md.
         if #available(iOS 27.0, *) {
             return
         }
@@ -835,7 +844,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         keyboardStack.alignment = .fill
         keyboardStack.distribution = .fill
         keyboardStack.spacing = metrics.rowSpacing
-        keyboardStack.isUserInteractionEnabled = false
+        keyboardStack.isUserInteractionEnabled = true
         keyboardStack.translatesAutoresizingMaskIntoConstraints = false
 
         // On iOS 26 the key rows live inside one Liquid Glass container so the
@@ -848,7 +857,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             let containerEffect = UIGlassContainerEffect()
             containerEffect.spacing = 0
             let container = UIVisualEffectView(effect: containerEffect)
-            container.isUserInteractionEnabled = false
+            container.isUserInteractionEnabled = true
             container.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(container)
             container.contentView.addSubview(keyboardStack)
@@ -875,28 +884,19 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let leadingConstraint = keyLayoutAnchor.leadingAnchor.constraint(equalTo: view.leadingAnchor)
         let trailingConstraint = keyLayoutAnchor.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         let topConstraint = keyLayoutAnchor.topAnchor.constraint(equalTo: suggestionBar.bottomAnchor, constant: insets.top)
-        // iPhone's bottom inset (3/6pt) was calibrated WITH the safe-area guide in
-        // the chain, so it stays on the guide. iPad's measured 28pt is from the
-        // SCREEN edge — native draws its bottom row into the home-indicator band —
-        // and anchoring it to the safe area instead lifted the whole key block 25pt.
-        // Which edge drives the key block differs by idiom, and this matters more
-        // than it looks. iPhone positions from the TOP (strip height + inset), which
-        // is how its geometry was calibrated. iPad cannot: the system hands the
-        // extension a view TALLER than the height we request — it adds the bottom
-        // safe area — so a top-driven block floats ~20pt above where native's sits.
-        // Native's 28pt is measured from the screen edge, so anchor to it and let
-        // the strip above absorb whatever height the system actually gave us.
-        let bottomConstraint = isPadIdiom
-            ? keyLayoutAnchor.bottomAnchor.constraint(
-                equalTo: view.bottomAnchor,
-                constant: -insets.bottom
-            )
-            : keyLayoutAnchor.bottomAnchor.constraint(
-                lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor,
-                constant: -insets.bottom
-            )
-        if isPadIdiom {
-            bottomConstraint.priority = UILayoutPriority(999)
+        // UIKit can offer fullscreen/intermediate root heights even after
+        // viewDidAppear. Keep the fixed key block at the bottom while it settles;
+        // top anchoring moved the rows by the entire transient excess height.
+        // iPhone's measured inset is relative to the safe area; iPad's is from
+        // the screen edge. The requested root size and ribbon height stay fixed.
+        let bottomConstraint = keyLayoutAnchor.bottomAnchor.constraint(
+            equalTo: isPadIdiom ? view.bottomAnchor : view.safeAreaLayoutGuide.bottomAnchor,
+            constant: -insets.bottom
+        )
+        bottomConstraint.priority = UILayoutPriority(999)
+        let suggestionTopConstraint = suggestionBar.topAnchor.constraint(equalTo: view.topAnchor)
+        if !isPadIdiom {
+            suggestionTopConstraint.priority = .defaultLow
         }
         let heightConstraint = keyLayoutAnchor.heightAnchor.constraint(equalToConstant: keyRowsHeight(for: metrics))
         heightConstraint.priority = UILayoutPriority(999)
@@ -914,7 +914,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         NSLayoutConstraint.activate([
             suggestionBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             suggestionBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            suggestionBar.topAnchor.constraint(equalTo: view.topAnchor),
+            suggestionTopConstraint,
 
             leadingConstraint,
             trailingConstraint,
@@ -960,9 +960,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     private func reloadKeyboardRows() {
         let metrics = currentMetrics
+        keyboardTouchSurface.cancelTracking()
         hideKeyPreview(animated: false)
-        clearHighlightedKey()
-        activeTouchKey = nil
+        backspaceRepeater.end()
         keyButtons.removeAll(keepingCapacity: true)
         NSLayoutConstraint.deactivate(rowHeightConstraints)
         rowHeightConstraints.removeAll(keepingCapacity: true)
@@ -990,6 +990,13 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
             for (keyIndex, key) in row.keys.enumerated() {
                 let button = KeyboardKeyButton(key: key)
+                button.onAccessibilityActivate = { [weak self] in
+                    guard let self else { return }
+                    self.keyboardTouchSurface.cancelTracking()
+                    self.handleKeyTouchDown(key)
+                    self.handleKeyRelease(key)
+                    self.handleKeyPress(key)
+                }
                 // Only the letters page carries flick-down glyphs, and only on the
                 // families where native shows them: the extended layout has a real
                 // number row, so its letters are bare exactly like native's.
@@ -1228,7 +1235,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                         traitCollection: self.traitCollection,
                         metrics: self.currentMetrics,
                         showsSpaceIntro: false,
-                        spaceCaption: self.spaceCaption
+                        spaceCaption: self.spaceCaption,
+                        capsLocked: self.capsLocked
                     )
                 }
             }
@@ -1281,7 +1289,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             #else
             composer.append(shifted ? value.uppercased() : value)
             #endif
-            shifted = false
+            shifted = capsLocked
             refreshCompositionPreview()
         case let .symbol(symbol):
             // A symbol that is part of Bangla's roman orthography joins the word
@@ -1666,6 +1674,16 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     /// keyboard is switching away, or the host changed the field. Because there is no
     /// marked region, there is nothing to strand and the cursor is never trapped.
     private func resetCompositionBookkeeping() {
+        // Invalidate before the next context callback or appearance. A query can
+        // already have posted its completion to the main queue; cancelling the
+        // work item alone cannot prevent that result from restoring stale choices.
+        suggestionGeneration &+= 1
+        pendingSuggestionWork?.cancel()
+        pendingSuggestionWork = nil
+        activeCursorWord = nil
+        deterministicIsOOV = false
+        carriedEmojis = []
+        suggestionBar.update(suggestions: [])
         composer.clear()
         compositionController.resetHostState()
         previousKeyWasSpace = false
@@ -1886,7 +1904,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                 traitCollection: traitCollection,
                 metrics: metrics,
                 showsSpaceIntro: showsSpaceLanguageIntro && !isEmojiSearchActive,
-                spaceCaption: spaceCaption
+                spaceCaption: spaceCaption,
+                capsLocked: capsLocked
             )
         }
         updateKeyboardTouchRegions()
@@ -2375,6 +2394,10 @@ private struct DocumentProxyEditor: TextDocumentEditing {
 
 #if DEBUG
 extension KeyboardViewController: KeyboardDebugCommandHandler {
+    var canHandleDebugCommands: Bool {
+        viewWillAppearWasCalled && viewIfLoaded?.window != nil
+    }
+
     /// DEBUG-only. Drives the keyboard from the agentic control channel so tooling
     /// can switch keyboards, pages, and key materials without simulating touches.
     /// Compile-excluded from Release (see KeyboardDebugChannel).

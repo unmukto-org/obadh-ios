@@ -12,6 +12,18 @@ final class BackspaceRepeatController: NSObject {
         super.init()
     }
 
+    deinit {
+        timer?.invalidate()
+    }
+
+    // Timer retains its target. A weak forwarding target lets a discarded
+    // keyboard release the repeater even if no disappearance callback arrived.
+    private final class TimerTarget: NSObject {
+        weak var owner: BackspaceRepeatController?
+        init(owner: BackspaceRepeatController) { self.owner = owner }
+        @objc func timerFired(_ timer: Timer) { owner?.tick() }
+    }
+
     var isActive: Bool {
         timer != nil
     }
@@ -26,8 +38,8 @@ final class BackspaceRepeatController: NSObject {
 
         timer = Timer.scheduledTimer(
             timeInterval: 0.03,
-            target: self,
-            selector: #selector(timerFired(_:)),
+            target: TimerTarget(owner: self),
+            selector: #selector(TimerTarget.timerFired(_:)),
             userInfo: nil,
             repeats: true
         )
@@ -39,10 +51,6 @@ final class BackspaceRepeatController: NSObject {
         startedAt = nil
         lastFireAt = nil
         action = nil
-    }
-
-    @objc private func timerFired(_ timer: Timer) {
-        tick()
     }
 
     private func tick() {
