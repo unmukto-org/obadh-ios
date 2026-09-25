@@ -517,3 +517,54 @@ diagnostic validation results, not a production fix. Both temporary host apps
 and runners were removed from the phone and dedicated simulator. The normal
 Obadh simulator app was restored, and that simulator was shut down. Phone build
 112 and system appearance preferences are retained. No Messenger text was touched.
+
+## Single-surface contract experiment
+
+Branch: `investigate/keyboard-surface-contract`, based on `ac9a043`.
+
+The full keyboard can now be built experimentally with
+`SWIFT_ACTIVE_COMPILATION_CONDITIONS='DEBUG OBADH_SINGLE_INPUT_SURFACE'` (omit
+`DEBUG` for Release). It uses the existing `.keyboard` material view directly as
+the controller's `inputView`, without inserting a second material child. This
+flag is absent from normal project settings. The experiment leaves the root
+interactive; the diagnostic backdrop-hide command cannot hide that root.
+
+The complete simulator switching/foreground test still measures **389 → 372 →
+389**. Key-frame and text-preservation checks complete, and the known 17-point
+assertion fails as expected. Thus the single-surface layout is not a simulator
+height fix. The signed Release candidate built successfully as **113,
+`ac9a043-surface-experiment`**, and was temporarily installed on the phone.
+
+Two physical test attempts failed before executing any test, with
+“Timed out while enabling automation mode.” They supply **no** physical verdict
+on the candidate. The previously verified phone artifact is
+`build/DerivedData/Build/Products/Debug-iphoneos/Obadh.app` (112, `a0abe326`);
+the Release artifact in that same directory is an older build and must not be
+used for restoration. The Release candidate also differs from the Debug baseline
+in diagnostic compilation, so any apparent visual improvement would require a
+matching-configuration control before attribution to the surface change.
+
+A separate minimal `self-sizing-refresh` variant toggles `allowsSelfSizing`
+false/true after appearance, invalidates intrinsic size, and requests constraint
+layout. Its completed simulator sequence remains **316 → 299 → 316** with
+unchanged text. Renewing the public sizing contract does not repair this case.
+
+The standalone host adds `testKeyboardHeightIsStable`: it records settled states
+after English, Emoji and foregrounding, verifies unchanged text, and asserts
+equal total heights without treating the discrepancy as an expected success.
+This gives future physical candidates an explicit acceptance gate. Its physical
+execution is pending the automation connection being available.
+
+Logs are saved under `build/host-margin-investigation/logs/`:
+`obadh-single-surface-simulator.log`, `obadh-single-surface-device-build.log`,
+`obadh-single-surface-device-test.log`, `obadh-single-surface-device-retry.log`,
+and `obadh-self-sizing-refresh.log`. The current Apple
+[UIInputViewController documentation](https://developer.apple.com/documentation/uikit/uiinputviewcontroller)
+was rechecked; it does not document a method for an extension to reset another
+app's keyboard container. No new margin workaround is enabled in normal builds.
+
+After the automation failures, the exact Debug build 112 was restored to the
+phone and the temporary host and runner were removed. The dedicated simulator
+was restored to the normal keyboard and shut down. The candidate remains an
+opt-in experiment on this branch; physical verification is pending. No device
+settings or Messenger text were changed.

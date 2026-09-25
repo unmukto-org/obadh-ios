@@ -100,6 +100,15 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        #if PROBE_SELF_SIZING_REFRESH
+        inputView?.allowsSelfSizing = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.inputView?.allowsSelfSizing = true
+            self?.inputView?.invalidateIntrinsicContentSize()
+            self?.view.setNeedsUpdateConstraints()
+            self?.view.layoutIfNeeded()
+        }
+        #endif
         #if PROBE_COLLAPSE
         heightConstraint?.constant = 0
         view.setNeedsUpdateConstraints()

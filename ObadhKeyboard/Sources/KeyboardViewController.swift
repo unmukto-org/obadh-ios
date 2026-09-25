@@ -184,6 +184,13 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         true
     }
 
+    #if OBADH_SINGLE_INPUT_SURFACE
+    // Isolated experiment: one native keyboard material at the input-view root.
+    override func loadView() {
+        inputView = keyboardBackgroundView
+    }
+    #endif
+
     override func viewDidLoad() {
         super.viewDidLoad()
         lifecycleLog.notice("OBADH-LIFECYCLE viewDidLoad — extension loaded, backdrop=\(String(describing: type(of: self.keyboardBackgroundView)), privacy: .public)")
@@ -812,6 +819,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         // rectangle around the key area) and, being non-transparent, it is what
         // lets touches over the gaps between keys reach the extension at all —
         // the clear touch surface on top then resolves them.
+        #if !OBADH_SINGLE_INPUT_SURFACE
         keyboardBackgroundView.isUserInteractionEnabled = false
         keyboardBackgroundView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(keyboardBackgroundView)
@@ -821,6 +829,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             keyboardBackgroundView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             keyboardBackgroundView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
+        #endif
 
         let heightConstraint = view.heightAnchor.constraint(equalToConstant: preferredActiveKeyboardHeight)
         heightConstraint.priority = UILayoutPriority.required - 1
@@ -2431,7 +2440,9 @@ extension KeyboardViewController: KeyboardDebugCommandHandler {
             // Structural test: does the system's container paint keyboard material
             // BEHIND our view? If it does, our own backdrop is redundant and is what
             // creates the band/strip seam; if it does not, we must keep painting it.
-            keyboardBackgroundView.isHidden = argument == "off"
+            if keyboardBackgroundView !== view {
+                keyboardBackgroundView.isHidden = argument == "off"
+            }
             lifecycleLog.notice("OBADH-DEBUG backdrop hidden=\(self.keyboardBackgroundView.isHidden)")
         case "ask":
             // Sizing investigation: force the asked height without touching what we
