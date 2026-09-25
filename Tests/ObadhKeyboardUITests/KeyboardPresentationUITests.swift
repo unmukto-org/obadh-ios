@@ -152,6 +152,7 @@ final class KeyboardPresentationUITests: XCTestCase {
         capture("from-system-emoji-with-accessory", app: app)
         let fromEmojiHeight = try XCTUnwrap(Double(try XCTUnwrap(
             app.staticTexts["keyboard-host-geometry"].value as? String)))
+        print("MARGIN-COMPARISON english=\(fromEnglishHeight) emoji=\(fromEmojiHeight)")
         if abs((fromEnglishHeight - fromEmojiHeight) - 17) <= 1 {
             XCTExpectFailure("System-owned top margin changes after Emoji: FB21449121 / FB24460699") {
                 XCTAssertEqual(fromEmojiHeight, fromEnglishHeight, accuracy: 1)

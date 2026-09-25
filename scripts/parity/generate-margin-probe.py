@@ -6,11 +6,15 @@ Outputs build/MarginProbe/project.yml. Requires PyYAML and xcodegen. The normal
 project is untouched. Installing this on a dedicated simulator temporarily
 replaces its Obadh keyboard; reinstall the normal build after the experiment.
 """
+import argparse
 import json
 from pathlib import Path
 import subprocess
 import yaml
 
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--variant", choices=["inherited", "keyboard", "default", "system-sizing", "pulse", "intrinsic", "system-default", "fitting", "recreate"], default="inherited")
+args = parser.parse_args()
 root = Path(__file__).resolve().parents[2]
 spec = yaml.safe_load((root / "project.yml").read_text())
 spec["name"] = "ObadhMarginProbe"
@@ -20,6 +24,8 @@ spec["schemes"] = {"ObadhKeyboardUITests": spec["schemes"]["ObadhKeyboardUITests
 keyboard = spec["targets"]["ObadhKeyboard"]
 keyboard["sources"] = [{"path": "Tests/KeyboardMarginProbe/MinimalKeyboardViewController.swift"}]
 keyboard["dependencies"] = []
+if args.variant != "inherited":
+    keyboard["settings"]["base"]["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = "$(inherited) PROBE_" + args.variant.upper().replace("-", "_")
 
 # Resolve all paths against the repository, not the generated project directory.
 def absolute_paths(node):

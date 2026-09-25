@@ -1,22 +1,20 @@
 import UIKit
 
-/// How keys are filled. The native iOS 26 keyboard reads as a flat translucent
-/// material WITHOUT a prominent specular rim; `UIGlassEffect(.regular)` adds a
-/// raised white edge highlight that the native keys lack, so `.translucent`
-/// (a plain semi-transparent fill) is the shipped default. DEBUG builds can flip
-/// this at runtime via the debug channel to dial the material in on real
-/// hardware (the simulator cannot render Liquid Glass faithfully); Release is
-/// fixed to the shipped value.
+/// Keyboard chrome uses UIKit's native UIInputView(.keyboard) material. Keys
+/// are thin overlays on that material, as on the native keyboard. Stacking
+/// generic glass on each key produces a different appearance (particularly
+/// with accessibility settings), so those styles remain diagnostic comparisons.
 enum KeyboardGlassStyle: String {
     case regular      // UIGlassEffect(.regular) — Liquid Glass with specular rim
     case clear        // UIGlassEffect(.clear) — flatter/clearer glass
     case translucent  // plain semi-transparent fill, no rim (native-like)
     case solid        // opaque fill (pre-iOS 26 fallback look)
 
+    static let shipped: KeyboardGlassStyle = .translucent
     #if DEBUG
-    @MainActor static var current: KeyboardGlassStyle = .translucent
+    @MainActor static var current: KeyboardGlassStyle = shipped
     #else
-    static var current: KeyboardGlassStyle { .translucent }
+    static var current: KeyboardGlassStyle { shipped }
     #endif
 }
 
@@ -827,8 +825,12 @@ enum KeyboardTheme {
     @MainActor
     static func glassKeyTint(for traitCollection: UITraitCollection, highlighted: Bool) -> UIColor {
         let isDark = traitCollection.userInterfaceStyle == .dark
-        if legacyPresentation {
-            // Measured against legacy native: dark key 129 over panel 74 → white
+        if legacyPresentation || traitCollection.accessibilityContrast == .high
+            || UIAccessibility.isReduceTransparencyEnabled {
+            // Native uses this stronger overlay with Reduce Transparency or
+            // Increase Contrast too (verified on the modern keyboard). The
+            // UIInputView backdrop itself becomes opaque under those settings.
+            // Measured against native: dark key 129 over panel 74 → white
             // @ (129−74)/(255−74) ≈ 0.30; light keys are opaque white (255).
             if isDark {
                 return UIColor.white.withAlphaComponent(highlighted ? 0.51 : 0.30)
