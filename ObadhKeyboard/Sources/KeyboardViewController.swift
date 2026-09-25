@@ -1341,6 +1341,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         case .emoji:
             showEmojiPanel()
         case .globe:
+            keyboardTouchSurface.cancelTracking()
             advanceToNextInputMode()
         case .tab:
             textDocumentProxy.insertText("\t")
@@ -1348,6 +1349,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             capsLocked.toggle()
             shifted = capsLocked
         case .hideKeyboard:
+            keyboardTouchSurface.cancelTracking()
             dismissKeyboard()
         }
         previousKeyWasSpace = key == .space
@@ -1355,6 +1357,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
 
     private func showEmojiPanel() {
+        // A second finger may already have released on the letter surface.
+        // Switching away invalidates those queued contacts immediately, before
+        // UIKit's eventual cancellation/disappearance callbacks.
+        keyboardTouchSurface.cancelTracking()
         if composer.hasActiveInput {
             _ = commitActiveInputIfNeeded()
         }

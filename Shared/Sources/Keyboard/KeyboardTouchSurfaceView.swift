@@ -23,21 +23,41 @@ protocol KeyboardTouchSurfaceViewDelegate: AnyObject {
     func keyboardTouchSurfaceDidCancel(_ view: KeyboardTouchSurfaceView)
 }
 
-final class KeyboardTouchSurfaceView: UIView {
+class KeyboardTouchSurfaceView: UIView {
     weak var delegate: KeyboardTouchSurfaceViewDelegate?
     /// Downward travel that turns a tap into a secondary-glyph insert. Zero
     /// disables the gesture entirely, which is what iPhone uses — no iPhone key
     /// has a secondary, so a flick there would be a mystery keystroke.
     var flickThreshold: CGFloat = 0
-    private var touchBeganLocation: CGPoint = .zero
-    /// The key the touch STARTED on. A flick must insert this key's secondary, not
-    /// whatever the finger happens to be over when it lifts — dragging down far
-    /// enough to count as a flick is often far enough to reach the row below.
-    private var touchBeganKey: KeyboardKey?
+    private final class Contact {
+        let touch: UITouch
+        let beganLocation: CGPoint
+        let beganKey: KeyboardKey
+        var location: CGPoint
+        var region: KeyboardTouchResolvedRegion?
+        var ended = false
+        var announced = false
+
+        init(touch: UITouch, location: CGPoint, region: KeyboardTouchResolvedRegion) {
+            self.touch = touch
+            beganLocation = location
+            beganKey = region.key
+            self.location = location
+            self.region = region
+        }
+    }
+
+    // Serialize commits by touch-down order. A second thumb may lift before the
+    // first: retain its final position, but never insert ahead of the first key.
+    // Delegate callbacks remain serial because delete repeat, shift and preview
+    // currently have one active owner. No unfinished contact is committed early.
+    private var contacts: [Contact] = []
 
     var keyRows: [[KeyboardTouchKeyRegion]] = [] {
         didSet {
-            activeRegion = activeTouch.flatMap { resolve($0.location(in: self)) }
+            for contact in contacts where !contact.ended {
+                contact.region = resolve(contact.location)
+            }
         }
     }
 
@@ -48,7 +68,6 @@ final class KeyboardTouchSurfaceView: UIView {
     var keyAreaTop: CGFloat = 0
 
     private weak var activeTouch: UITouch?
-    private var activeRegion: KeyboardTouchResolvedRegion?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -61,85 +80,103 @@ final class KeyboardTouchSurfaceView: UIView {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard activeTouch == nil, let touch = touches.first else { return }
-        activeTouch = touch
-        guard let region = resolve(touch.location(in: self)) else {
-            activeRegion = nil
-            return
+        // Set iteration is not chronological. Exact timestamp ties have no
+        // observable intended order; position provides a reproducible tie break.
+        let ordered = touches.sorted { lhs, rhs in
+            if lhs.timestamp != rhs.timestamp { return lhs.timestamp < rhs.timestamp }
+            let a = lhs.location(in: self), b = rhs.location(in: self)
+            return a.x != b.x ? a.x < b.x : a.y < b.y
         }
-        activeRegion = region
-        touchBeganLocation = touch.location(in: self)
-        touchBeganKey = region.key
-        delegate?.keyboardTouchSurface(self, didBegin: region.key)
+        for touch in ordered where !contacts.contains(where: { $0.touch === touch }) {
+            let point = touch.location(in: self)
+            guard let region = resolve(point) else { continue }
+            contacts.append(Contact(touch: touch, location: point, region: region))
+        }
+        drainContacts()
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touch(from: touches) else { return }
-        let point = touch.location(in: self)
-        if flickThreshold > 0, let began = touchBeganKey {
-            delegate?.keyboardTouchSurface(
-                self,
-                didUpdateFlickProgress: max(0, min(1, (point.y - touchBeganLocation.y) / flickThreshold)),
-                on: began
-            )
-        }
-        let region = resolve(point)
-        guard region?.key != activeRegion?.key else { return }
-        activeRegion = region
-        if let region {
-            delegate?.keyboardTouchSurface(self, didMoveTo: region.key)
-        } else {
-            delegate?.keyboardTouchSurfaceDidCancel(self)
+        for contact in contacts where !contact.ended && touches.contains(contact.touch) {
+            let previousKey = contact.region?.key
+            update(contact)
+            guard contact === contacts.first, contact.announced else { continue }
+            reportFlick(contact)
+            guard contact === contacts.first else { return }
+            if let region = contact.region, region.key != previousKey {
+                delegate?.keyboardTouchSurface(self, didMoveTo: region.key)
+            }
         }
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touch(from: touches) else { return }
-        let end = touch.location(in: self)
-        let region = resolve(end) ?? activeRegion
-        // Judged against the key the touch BEGAN on, and against nothing else.
-        //
-        // This used to require `region?.key == activeRegion?.key`, meaning "the
-        // finger never left the key" — but `touchesMoved` reassigns `activeRegion`
-        // as the finger travels, so that compared the end region against itself and
-        // was always true. Worse, the insert used the END key: a downward drag long
-        // enough to be a flick usually reaches the row below, so flicking `q` typed
-        // the secondary of `a`. Both halves are why this read as "doesn't work".
-        let began = touchBeganKey
-        let flicked = flickThreshold > 0
-            && began != nil
-            && (end.y - touchBeganLocation.y) >= flickThreshold
-        activeTouch = nil
-        activeRegion = nil
-        touchBeganLocation = .zero
-        touchBeganKey = nil
-        if let began, flickThreshold > 0 {
-            delegate?.keyboardTouchSurface(self, didUpdateFlickProgress: 0, on: began)
+        for contact in contacts where !contact.ended && touches.contains(contact.touch) {
+            update(contact)
+            contact.ended = true
         }
-        delegate?.keyboardTouchSurface(
-            self,
-            didEnd: flicked ? began : region?.key,
-            flickedDown: flicked
-        )
+        drainContacts()
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard touch(from: touches) != nil else { return }
-        cancelTracking()
+        let first = contacts.first
+        contacts.removeAll { touches.contains($0.touch) }
+        if let first, touches.contains(first.touch) {
+            activeTouch = nil
+            resetFlick(first)
+            delegate?.keyboardTouchSurfaceDidCancel(self)
+        }
+        drainContacts()
     }
 
-    /// Row replacement and keyboard dismissal invalidate the gesture, including
-    /// a later touchesEnded delivered for the old row. Clearing only controller
-    /// highlighting leaves that touch able to insert a key from the new layout.
+    /// Row replacement and dismissal invalidate every contact, including queued
+    /// second-thumb releases. Later events from those fingers cannot type.
     func cancelTracking() {
-        if let began = touchBeganKey, flickThreshold > 0 {
-            delegate?.keyboardTouchSurface(self, didUpdateFlickProgress: 0, on: began)
-        }
+        let first = contacts.first
+        contacts.removeAll()
         activeTouch = nil
-        activeRegion = nil
-        touchBeganLocation = .zero
-        touchBeganKey = nil
+        if let first { resetFlick(first) }
         delegate?.keyboardTouchSurfaceDidCancel(self)
+    }
+
+    private func update(_ contact: Contact) {
+        contact.location = contact.touch.location(in: self)
+        contact.region = resolve(contact.location) ?? contact.region
+    }
+
+    private func reportFlick(_ contact: Contact) {
+        guard flickThreshold > 0 else { return }
+        delegate?.keyboardTouchSurface(
+            self,
+            didUpdateFlickProgress: max(0, min(1, (contact.location.y - contact.beganLocation.y) / flickThreshold)),
+            on: contact.beganKey
+        )
+    }
+
+    private func resetFlick(_ contact: Contact) {
+        guard flickThreshold > 0 else { return }
+        delegate?.keyboardTouchSurface(self, didUpdateFlickProgress: 0, on: contact.beganKey)
+    }
+
+    private func drainContacts() {
+        while let contact = contacts.first {
+            if !contact.announced {
+                contact.announced = true
+                activeTouch = contact.touch
+                delegate?.keyboardTouchSurface(self, didBegin: contact.region?.key ?? contact.beganKey)
+                // A delegate may replace the layout or dismiss the keyboard.
+                guard contact === contacts.first else { return }
+            }
+            guard contact.ended else { return }
+            let flicked = flickThreshold > 0
+                && contact.location.y - contact.beganLocation.y >= flickThreshold
+            contacts.removeFirst()
+            activeTouch = nil
+            resetFlick(contact)
+            delegate?.keyboardTouchSurface(
+                self,
+                didEnd: flicked ? contact.beganKey : contact.region?.key,
+                flickedDown: flicked
+            )
+        }
     }
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
@@ -182,14 +219,9 @@ final class KeyboardTouchSurfaceView: UIView {
         }
         isOpaque = false
         isUserInteractionEnabled = true
-        isMultipleTouchEnabled = false
+        isMultipleTouchEnabled = true
         translatesAutoresizingMaskIntoConstraints = false
         accessibilityViewIsModal = false
-    }
-
-    private func touch(from touches: Set<UITouch>) -> UITouch? {
-        guard let activeTouch else { return nil }
-        return touches.first { $0 === activeTouch }
     }
 
     private func resolve(_ point: CGPoint) -> KeyboardTouchResolvedRegion? {
