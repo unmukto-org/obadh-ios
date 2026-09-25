@@ -154,9 +154,19 @@ refresh, including the pressed fill.
   check. Do not equate the accessibility tests with verification of that slider.
 - The physical-device refresh trial is inconclusive as explained above. A fully
   completed repeat and the iOS 27 glass slider check require the phone to remain
-  unlocked. Installed build 1.0 (108) is unchanged at the end of this investigation.
+  unlocked. Build 1.0 (108) was retained throughout the margin experiments.
 
 Local evidence is in `build/host-margin-investigation/`. Test logs use
 `/tmp/obadh-margin-*.log`, `/tmp/obadh-native-material-*.log`, and
 `/tmp/obadh-contrast-baseline.log`. These capture geometry and the test harness;
 no conversation text is needed for this report.
+
+## Installed verified appearance changes
+
+After simulator verification, build **1.0 (109), code revision `1780584a`** was
+installed on the iPhone 16 Pro Max. CoreDevice independently reports installed
+bundle version 109; app and extension carry the same revision and build number.
+It contains the accessibility/material changes and **no margin workaround**.
+The diagnostic keyboard instance was terminated and both temporary diagnostic
+apps were removed. The dedicated simulator was restored to the normal Debug
+keyboard and shut down. Physical checks of the iOS 27 slider remain pending.
