@@ -20,6 +20,51 @@ settings:
     # or a project-level value would override the xcconfig.
     GENERATE_INFOPLIST_FILE: NO
 targets:
+  ObadhAccuracyLabUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Tests/ObadhAccuracyLabUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(OBADH_APP_BUNDLE_ID).accuracylab.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: ObadhAccuracyLab
+    configFiles:
+      Debug: Config/Signing.xcconfig
+      Debug-Legacy: Config/Signing.xcconfig
+      Release: Config/Signing.xcconfig
+    dependencies:
+      - target: ObadhAccuracyLab
+  ObadhAccuracyLab:
+    type: application
+    platform: iOS
+    sources:
+      - path: Tools/TypingAccuracy/App
+      - path: Tools/TypingAccuracy/Core
+      - path: Shared/Sources/Design
+      - path: Shared/Sources/Keyboard
+      - path: Shared/Sources/Engine
+      - path: Shared/Sources/Settings
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(OBADH_APP_BUNDLE_ID).accuracylab
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Tools/TypingAccuracy/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Obadh Accuracy
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIFileSharingEnabled: YES
+        INFOPLIST_KEY_UISupportsDocumentBrowser: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        ACCURACY_SOURCE_REVISION: unrecorded
+        TARGETED_DEVICE_FAMILY: "1"
+    configFiles:
+      Debug: Config/Signing.xcconfig
+      Debug-Legacy: Config/Signing.xcconfig
+      Release: Config/Signing.xcconfig
+    dependencies:
+      - framework: Frameworks/ObadhBridge.xcframework
+        embed: false
   Obadh:
     type: application
     platform: iOS
@@ -157,6 +202,16 @@ targets:
     dependencies:
       - target: Obadh
 schemes:
+  ObadhAccuracyLab:
+    build:
+      targets:
+        ObadhAccuracyLab: all
+    run:
+      config: Release
+    test:
+      config: Release
+      targets:
+        - ObadhAccuracyLabUITests
   ObadhKeyboardUITests:
     build:
       targets:
