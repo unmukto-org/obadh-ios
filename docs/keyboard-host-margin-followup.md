@@ -627,3 +627,71 @@ their runners are removed from the phone. Obadh build 112 is retained. The
 production controller is identical to the pre-experiment version at `ac9a043`.
 The ZIP passes integrity and portable-path checks and excludes local signing
 data. No macOS, Xcode, appearance setting or Messenger content was changed.
+
+## Public documentation and input handoff investigation
+
+Branch: `investigate/keyboard-handoff-research`, based on `ee91404`.
+The official API/template audit is [keyboard-official-api-audit.md](keyboard-official-api-audit.md).
+It identifies source-level gaps to verify separately, but no documented missing
+initialization step or supported outer-margin reset. No production code changes
+are included in this pass.
+
+The previously ambiguous standalone post-foreground input failure is now
+instrumented. Tests independently check button action delivery and insertion
+into the seeded host editor. The diagnostic UI records context lengths and the
+public document identifier; the host reports its focus and selection.
+
+| Environment / sequence | Result |
+| --- | --- |
+| iOS 27 physical, English → minimal → Emoji → minimal | Tap reaches button; `a` inserts. Host height 299. Repeated successfully with connection diagnostics. |
+| iOS 27 physical, same sequence then Home → activate | Tap reaches button; no text inserts within 3 seconds. Host height 316, focus retained. Reproduced with and without connection diagnostics. |
+| iOS 27 physical, English → minimal → Home → activate | Same input failure without visiting Emoji. Height is 316 both before/after foregrounding; a height change is not necessary for the input failure. |
+| iOS 27 physical, native English → Home → activate | Native `a` inserts successfully in the same host. |
+| iOS 26.5 simulator, English → minimal → Emoji → minimal → Home → activate | Button action and insertion both pass; height is 316 after foregrounding. |
+
+In the physical diagnostic failures, `documentIdentifier` changes between the
+last `viewDidAppear` observation and the post-foreground button action, while
+context-before remains length 6 and `hasText` remains true. In the simulator
+control, the identifier remains unchanged. This is evidence of a changed input
+session, not proof of the mechanism that drops insertion. The button action uses
+the controller's current proxy; it does not cache an old proxy. The controller
+is confirmed alive. Native input passing narrows the host/automation explanation,
+but a direct human-operated reproduction remains unverified.
+
+These findings distinguish the margin error from input delivery: the short
+container still accepts input, and a failed foreground insertion can occur
+without any height change.
+
+Evidence: `logs/obadh-handoff-input.log`, `logs/obadh-handoff-connection.log`,
+`logs/obadh-handoff-controls.log`, `logs/obadh-handoff-simulator.log`, and
+captures in `device-handoff-input/` and `device-handoff-connection/`.
+
+### Installed Obadh input control and an automation false positive
+
+The independent host also tests the unchanged installed Obadh build 112. An
+initial query, `app.buttons["Return"]`, appeared to pass after foregrounding,
+but the fresh-presentation test found multiple matches: a retained native key
+with identifier `Return` and lowercase label `return`, plus Obadh's uppercase
+label `Return`. The initial pass is excluded: it could target the native key.
+
+The corrected query matches the case-sensitive accessibility **label** `Return`.
+The completed physical run then **passes on a fresh presentation** and **fails
+after Home → activate**: the seeded editor remains `hello ` instead of gaining
+a newline. The exported screenshot shows both native and Obadh keyplanes, with
+the host height at 391. This establishes an automated insertion regression in
+the installed build under this reproduction. It does not establish frequency
+in ordinary use or that a keyboard-only workaround can repair the system state.
+Human observation was requested but is not yet available.
+
+Evidence: `logs/obadh-handoff-obadh.log` (ambiguous, excluded initial result),
+`logs/obadh-handoff-obadh-labelled.log` (corrected query), and captures in
+`device-obadh-handoff/`. The initial standalone test compilation failed because
+the expectation initializer used the wrong argument label; it was corrected
+before any tests executed. That build failure provides no behavioral evidence.
+
+Cleanup: all four temporary physical diagnostic apps/runners were removed;
+removing Margin Repro also removes its keyboard. The separately identified
+simulator reproduction and runner were removed and the dedicated simulator was
+shut down. Normal Obadh was never replaced during this pass. No appearance
+settings, OS/toolchain version, or Messenger content was changed. Height remains
+unresolved; no experimental workaround is included in production.

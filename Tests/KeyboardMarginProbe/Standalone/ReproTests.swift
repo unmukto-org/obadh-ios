@@ -63,14 +63,77 @@ final class ReproTests: XCTestCase {
         continueAfterFailure = false
         app.launch()
         select("Margin Repro")
+        verifyInput("fresh")
+    }
+
+    func testInputAfterEmoji() {
+        continueAfterFailure = false
+        app.launch()
+        select("English (US)")
+        select("Margin Repro")
+        select("Emoji")
+        select("Margin Repro")
+        Thread.sleep(forTimeInterval: 2)
+        verifyInput("after-emoji")
+    }
+
+    func testInputAfterForeground() {
+        continueAfterFailure = false
+        app.launch()
+        select("English (US)")
+        select("Margin Repro")
+        select("Emoji")
+        select("Margin Repro")
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        Thread.sleep(forTimeInterval: 2)
+        verifyInput("after-foreground")
+    }
+
+    func testInputAfterForegroundWithoutEmoji() {
+        continueAfterFailure = false
+        app.launch()
+        select("English (US)")
+        select("Margin Repro")
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        Thread.sleep(forTimeInterval: 2)
+        verifyInput("foreground-without-emoji")
+    }
+
+    func testNativeInputAfterForeground() {
+        continueAfterFailure = false
+        app.launch()
+        select("English (US)")
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        Thread.sleep(forTimeInterval: 2)
+        let editor = app.textViews["probe-editor"]
+        XCTAssertEqual(editor.value as? String, "hello ")
+        app.keys["a"].tap()
+        let insertion = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "hello a"), object: editor)
+        let result = XCTWaiter.wait(for: [insertion], timeout: 3)
+        print("STANDALONE-NATIVE foreground text=\(editor.value ?? "missing") result=\(result.rawValue)")
+        capture("native-foreground-after-input")
+        XCTAssertEqual(result, .completed)
+    }
+
+    private func verifyInput(_ stage: String) {
         let key = app.buttons["Insert a"]
-        print("STANDALONE-KEY frame=\(key.frame)")
+        let editor = app.textViews["probe-editor"]
+        XCTAssertEqual(editor.value as? String, "hello ")
+        XCTAssertEqual(key.value as? String, "untapped")
+        print("STANDALONE-KEY stage=\(stage) frame=\(key.frame) hittable=\(key.isHittable) height=\(app.staticTexts["probe-host-height"].value ?? "missing")")
+        capture("\(stage)-before-input")
+        print("STANDALONE-CONNECTION stage=\(stage) before=\(app.staticTexts["extension-connection"].value ?? "missing") host=\(app.staticTexts["probe-reload-result"].value ?? "missing")")
         key.tap()
-        expectation(for: NSPredicate(format: "value == %@", "tapped"), evaluatedWith: key)
-        waitForExpectations(timeout: 3)
-        expectation(for: NSPredicate(format: "value == %@", "hello a"),
-                    evaluatedWith: app.textViews["probe-editor"])
-        waitForExpectations(timeout: 3)
+        let action = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "tapped"), object: key)
+        let insertion = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "hello a"), object: editor)
+        let result = XCTWaiter.wait(for: [action, insertion], timeout: 3)
+        print("STANDALONE-INPUT stage=\(stage) action=\(key.value ?? "missing") text=\(editor.value ?? "missing") result=\(result.rawValue)")
+        print("STANDALONE-CONNECTION stage=\(stage) after=\(app.staticTexts["extension-connection"].value ?? "missing") host=\(app.staticTexts["probe-reload-result"].value ?? "missing")")
+        capture("\(stage)-after-input")
+        XCTAssertEqual(result, .completed, "Tap must reach the extension and insert into the original editor")
     }
 
     private func select(_ name: String) {

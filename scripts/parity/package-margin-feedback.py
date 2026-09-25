@@ -80,6 +80,11 @@ For UI automation, run testEnableKeyboard once, then testHeightIsStable. The lat
 has an ordinary failing assertion when total height changes; it also verifies
 content height and preserves test text through switching. testInputWorks separately
 checks that a real tap reaches the button and then inserts text into the host.
+testInputAfterEmoji, testInputAfterForeground, and
+testInputAfterForegroundWithoutEmoji isolate input delivery across transitions.
+testNativeInputAfterForeground is a control using Apple's English keyboard.
+The connection label reports context lengths and the document identifier, not
+the contents of the document. A received tap alone is not an insertion success.
 Only the local seeded editor is used. Device runs should include
 `-collect-test-diagnostics never`. The generated project requires no XcodeGen
 installation to open; project.yml is included for regenerating it if desired.
