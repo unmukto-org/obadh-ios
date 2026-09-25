@@ -153,15 +153,29 @@ final class KeyboardPresentationUITests: XCTestCase {
         let fromEmojiHeight = try XCTUnwrap(Double(try XCTUnwrap(
             app.staticTexts["keyboard-host-geometry"].value as? String)))
         print("MARGIN-COMPARISON english=\(fromEnglishHeight) emoji=\(fromEmojiHeight)")
+        XCTAssertEqual(app.textViews.firstMatch.value as? String, "hello ")
+
+        // The same responder can gain the missing margin on foregrounding.
+        // Record this separately: a stable key frame alone misses the bug.
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(a.waitForExistence(timeout: 10))
+        capture("emoji-return-after-foreground-with-accessory", app: app)
+        let foregroundHeight = try XCTUnwrap(Double(try XCTUnwrap(
+            app.staticTexts["keyboard-host-geometry"].value as? String)))
+        print("MARGIN-FOREGROUND before=\(fromEmojiHeight) after=\(foregroundHeight) english=\(fromEnglishHeight)")
+        XCTAssertEqual(foregroundHeight, fromEnglishHeight, accuracy: 1)
+        XCTAssertEqual(a.frame.minY, baseline.minY, accuracy: 1)
+        XCTAssertEqual(app.textViews.firstMatch.value as? String, "hello ")
+        // Keep this last: with continueAfterFailure=false, even an expected
+        // assertion failure ends the method before subsequent checks can run.
         if abs((fromEnglishHeight - fromEmojiHeight) - 17) <= 1 {
             XCTExpectFailure("System-owned top margin changes after Emoji: FB21449121 / FB24460699") {
                 XCTAssertEqual(fromEmojiHeight, fromEnglishHeight, accuracy: 1)
             }
         } else {
-            // A fix passes; a different height regression must fail normally.
             XCTAssertEqual(fromEmojiHeight, fromEnglishHeight, accuracy: 1)
         }
-        XCTAssertEqual(app.textViews.firstMatch.value as? String, "hello ")
     }
 
     func testLandscapeSwitchingKeepsRowsInsideKeyboard() throws {
