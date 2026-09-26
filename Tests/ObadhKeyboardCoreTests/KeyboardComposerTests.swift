@@ -94,13 +94,14 @@ final class KeyboardComposerTests: XCTestCase {
         XCTAssertEqual(composer.romanBuffer, "q", "a single q must be untouched")
     }
 
-    func testTqqReturnsToTheCanonicalKhandaTaSignal() {
-        let composer = KeyboardComposer(engine: KhandaTaAliasFixtureEngine())
-        for key in "tqq" { composer.append(String(key)) }
-        XCTAssertEqual(composer.preview, "তঁ")
-        XCTAssertTrue(composer.deleteBackward())
-        XCTAssertEqual(composer.romanBuffer, "tq")
-        XCTAssertEqual(composer.preview, "ৎ")
+    func testTqAndTqqDeleteTheirWholeModifier() {
+        for typed in ["tq", "tqq"] {
+            let composer = KeyboardComposer(engine: KhandaTaAliasFixtureEngine())
+            for key in typed { composer.append(String(key)) }
+            XCTAssertTrue(composer.deleteBackward())
+            XCTAssertEqual(composer.romanBuffer, "t", typed)
+            XCTAssertEqual(composer.preview, "ত", typed)
+        }
     }
 
     func testIOSShortcutNormalizationPreservesOtherEngineSignals() {

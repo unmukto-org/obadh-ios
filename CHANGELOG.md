@@ -22,14 +22,20 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
   removing the duplicate rewrite must not turn chandrabindu backspace into a
   stray ক. The earlier `baqq` → `baq` behavior and its test expectations were
   inappropriate. Repeated pairs now delete together; an unpaired final Q deletes
-  separately. The `tqq` → `tq` exception now uses the iOS mapping described below.
+  separately. The later modifier-deletion refinement below removes the initial
+  `tqq` → `tq` exception.
 
 - Implemented the iOS `tq` / `Tq` → ৎ shortcut (KI-013) using the existing engine
   double-backtick signal. `sotq`, `utqsob` and `bidyutq` produce সৎ, উৎসব and
-  বিদ্যুৎ. `qq` has precedence: `tqq` → তঁ; backspace returns to ৎ, then ত.
+  বিদ্যুৎ. `qq` has precedence: `tqq` → তঁ.
   Preserved raw keystrokes and used identical canonical input for preview,
   suggestions and detailed correction queries. No engine update or global Q
   remapping was made. Removed the resolved issue from KNOWN-ISSUES.md.
+
+- Refined modifier deletion after user testing: one backspace removes the whole
+  Q modifier, so both `tqq` and `tq` return directly to `t`. The same rule applies
+  inside words and after uppercase T. Repeated Q pairs retain their existing
+  grouping; ordinary `qq` still deletes as one unit.
 
 - Stabilized key-row positions during transient keyboard heights. Cancelled stale
   suggestions and touches on context changes, cleaned up held-delete timers, restored
@@ -112,6 +118,10 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
   ancestry). Preserved the published `v1.0` tag and the existing phone installation.
 
 #### Integration verification
+
+- The whole-modifier deletion regression failed before the correction; afterward,
+  all 147 Swift and 43 UIKit tests passed. Coverage includes `tq` / `tqq`, uppercase
+  T, modifiers inside words and repeated Q pairs against the bundled engine.
 
 - The new `tq` word regressions failed before implementation. Afterward, 147
   Swift and 43 UIKit tests passed, including the real controller's asynchronous

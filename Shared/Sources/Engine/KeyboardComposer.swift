@@ -170,15 +170,8 @@ final class KeyboardComposer {
         if trailingQs > 0, trailingQs.isMultiple(of: 2) {
             // qq is one chandrabindu input unit. An odd trailing q is instead
             // the unpaired fallback letter: qqq → qq, but qqqq → qq.
+            // This also applies after t: both tq and tqq delete back to t.
             removeCount = 2
-            if trailingQs == 2 {
-                let shorterInput = String(romanBuffer.dropLast())
-                // tqq can return to the meaningful tq → ৎ intermediate.
-                // Judge the same normalized input used by preview/corrections.
-                if engine.transliterate(Self.engineInput(for: shorterInput)).hasSuffix("\u{09CE}") {
-                    removeCount = 1
-                }
-            }
         }
         romanBuffer.removeLast(removeCount)
         refreshDeterministic()
