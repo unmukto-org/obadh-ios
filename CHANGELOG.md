@@ -38,6 +38,8 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 - Audited the eight-round phone typing pilot with production-resolver replay, timing and event consistency checks. Added incomplete-export detection. The pilot did not demonstrate improved human typing accuracy or exercise candidate overlap handling.
 
+- Accepted the participant-confirmed bikale/bikele dialect variants through an explicit session-scoped scoring policy. Preserved exact-copy scores and other errors; keyboard transliteration behavior did not change.
+
 ## v1.0 — 2026-09-21 baseline
 
 Version: `1.0` (build `105`). Tag: `v1.0` (annotated).

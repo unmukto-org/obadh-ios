@@ -3,6 +3,43 @@ import XCTest
 @testable import TypingAccuracyMetrics
 
 final class TypingAccuracyMetricsTests: XCTestCase {
+    func testAcceptedDialectVariantDoesNotHideOtherMistakes() throws {
+        let prompt = "aj bikale nodir pare dekha hobe"
+        let policy = try JSONSerialization.data(withJSONObject: [
+            "sessionID": "dialect-test", "reason": "Participant accepts both spellings",
+            "alternatives": [prompt: ["aj bikele nodir pare dekha hobe"]]
+        ])
+        for (entered, expected, exact) in [
+            ("aj bikale nodir pare dekha hobe", 0, 0),
+            ("aj bikele nodir pare dekha hobe", 0, 1),
+            ("aj bijele nodir pare dekha hobe", 1, 2),
+            ("aj bimale nodir pare dekha hobe", 1, 1),
+            ("aj bikele nidir pare dekha hobr", 2, 3)
+        ] {
+            let trial = AccuracyTrial(id: 0, variant: "baseline-112", posture: "one-thumb", prompt: prompt, entered: entered,
+                                      startedAt: 1, endedAt: 2, actions: 31, backspaces: 0, invalidReason: nil,
+                                      surfaceWidth: 100, surfaceHeight: 100, frames: [], samples: [], commits: [])
+            let session = AccuracySession(schemaVersion: 1, sessionID: "dialect-test", provenance: "synthetic-unit-test",
+                                          sourceRevision: "test", osVersion: "test", deviceModel: "test", createdAt: "test",
+                                          trialOrder: ["control"], trials: [trial])
+            let data = try TypingAccuracyReport.generate(from: JSONEncoder().encode(session), referencePolicyData: policy)
+            let report = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let trials = try XCTUnwrap(report["trials"] as? [[String: Any]])
+            XCTAssertEqual((trials[0]["score"] as? [String: Any])?["edits"] as? Int, expected)
+            XCTAssertEqual((trials[0]["exactCopyScore"] as? [String: Any])?["edits"] as? Int, exact)
+        }
+    }
+
+    func testDialectPolicyCannotBeAppliedToAnotherSession() throws {
+        let policy = try JSONSerialization.data(withJSONObject: [
+            "sessionID": "wrong-session", "reason": "Scoped annotation", "alternatives": ["a": ["e"]]
+        ])
+        let session = AccuracySession(schemaVersion: 1, sessionID: "different-session", provenance: "synthetic-unit-test",
+                                      sourceRevision: "test", osVersion: "test", deviceModel: "test", createdAt: "test",
+                                      trialOrder: [], trials: [])
+        XCTAssertThrowsError(try TypingAccuracyReport.generate(from: JSONEncoder().encode(session), referencePolicyData: policy))
+    }
+
     func testInsertionsAreNotHiddenByClampingCER() {
         let score = AccuracyScore(reference: "a", entered: "abc", seconds: 2, actions: 3, backspaces: 0)
         XCTAssertEqual(score.edits, 2)

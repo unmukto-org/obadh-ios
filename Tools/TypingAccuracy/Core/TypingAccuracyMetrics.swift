@@ -92,15 +92,41 @@ struct AccuracyScore: Codable {
 }
 
 public enum TypingAccuracyReport {
-    public static func generate(from data: Data) throws -> Data {
+    private struct ReferencePolicy: Codable {
+        let sessionID: String
+        let reason: String
+        let alternatives: [String: [String]]
+    }
+
+    public static func generate(from data: Data, referencePolicyData: Data? = nil) throws -> Data {
         let session = try JSONDecoder().decode(AccuracySession.self, from: data)
         guard session.schemaVersion == 1 else { throw ReportError.unsupportedSchema }
+        let policy = try referencePolicyData.map { try JSONDecoder().decode(ReferencePolicy.self, from: $0) }
+        if let policy, policy.sessionID != session.sessionID { throw ReportError.policySessionMismatch }
+        // An explicit, reviewed alternative for a full prompt; never a global
+        // character substitution. Keep the original prompt on equal distances.
+        func acceptedReference(_ trial: AccuracyTrial) -> String {
+            let actual = Array(trial.entered.precomposedStringWithCanonicalMapping)
+            var best = trial.prompt
+            var distance = AccuracyScore.distance(Array(best.precomposedStringWithCanonicalMapping), actual)
+            for alternative in policy?.alternatives[trial.prompt] ?? [] where !alternative.isEmpty {
+                let next = AccuracyScore.distance(Array(alternative.precomposedStringWithCanonicalMapping), actual)
+                if next < distance { best = alternative; distance = next }
+            }
+            return best
+        }
+        func score(_ trial: AccuracyTrial, reference: String) -> AccuracyScore {
+            AccuracyScore(reference: reference, entered: trial.entered, seconds: trial.endedAt - trial.startedAt,
+                          actions: trial.actions, backspaces: trial.backspaces)
+        }
         struct TrialScore: Encodable {
             let id: Int
             let variant: String
             let posture: String
             let invalidReason: String?
             let score: AccuracyScore?
+            let exactCopyScore: AccuracyScore?
+            let acceptedReference: String
         }
         struct Report: Encodable {
             let sessionID: String
@@ -110,6 +136,7 @@ public enum TypingAccuracyReport {
             let trials: [TrialScore]
             let pairs: [Pair]
             let coverage: Coverage
+            let referencePolicy: ReferencePolicy?
         }
         struct Coverage: Encodable {
             let plannedTrials: Int
@@ -147,11 +174,8 @@ public enum TypingAccuracyReport {
             let controls = valid.filter { $0.variant == "baseline-112" && $0.posture == candidate.posture && $0.prompt == candidate.prompt }
             let candidates = valid.filter { $0.variant == candidate.variant && $0.posture == candidate.posture && $0.prompt == candidate.prompt }
             guard controls.count == 1, candidates.count == 1, let baseline = controls.first else { continue }
-            func score(_ trial: AccuracyTrial) -> AccuracyScore {
-                AccuracyScore(reference: trial.prompt, entered: trial.entered, seconds: trial.endedAt - trial.startedAt,
-                              actions: trial.actions, backspaces: trial.backspaces)
-            }
-            let a = score(baseline), b = score(candidate)
+            let a = score(baseline, reference: acceptedReference(baseline))
+            let b = score(candidate, reference: acceptedReference(candidate))
             pairs.append(Pair(posture: candidate.posture, prompt: candidate.prompt,
                               baselineTrial: baseline.id, candidateTrial: candidate.id,
                               cerChange: b.cer! - a.cer!,
@@ -163,13 +187,14 @@ public enum TypingAccuracyReport {
             let invalid = $0.invalidReason ?? (duration <= 0 ? "invalid timing" : nil)
             return TrialScore(id: $0.id, variant: $0.variant, posture: $0.posture,
                               invalidReason: invalid,
-                              score: invalid == nil ? AccuracyScore(reference: $0.prompt, entered: $0.entered,
-                                  seconds: duration, actions: $0.actions, backspaces: $0.backspaces) : nil)
-        }, pairs: pairs, coverage: coverage)
+                              score: invalid == nil ? score($0, reference: acceptedReference($0)) : nil,
+                              exactCopyScore: invalid == nil ? score($0, reference: $0.prompt) : nil,
+                              acceptedReference: acceptedReference($0))
+        }, pairs: pairs, coverage: coverage, referencePolicy: policy)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try encoder.encode(report)
     }
 
-    private enum ReportError: Error { case unsupportedSchema }
+    private enum ReportError: Error { case unsupportedSchema, policySessionMismatch }
 }
