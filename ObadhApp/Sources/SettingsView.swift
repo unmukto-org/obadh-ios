@@ -9,6 +9,7 @@ struct SettingsView: View {
     private let preferences = KeyboardPreferences()
     private let hapticPreview = UISelectionFeedbackGenerator()
 
+    @State private var typingSoundsEnabled: Bool
     @State private var hapticFeedbackEnabled: Bool
     @State private var emojiSearchLanguage: EmojiSearchLanguage
     @State private var autoInsertTopCorrection: Bool
@@ -16,6 +17,7 @@ struct SettingsView: View {
     init(install: KeyboardInstallState) {
         self.install = install
         let preferences = KeyboardPreferences()
+        _typingSoundsEnabled = State(initialValue: preferences.typingSoundsEnabled)
         _hapticFeedbackEnabled = State(initialValue: preferences.hapticFeedbackEnabled)
         _emojiSearchLanguage = State(initialValue: preferences.defaultEmojiSearchLanguage)
         _autoInsertTopCorrection = State(initialValue: preferences.autoInsertTopCorrection)
@@ -82,6 +84,11 @@ struct SettingsView: View {
 
     private var keyboardSection: some View {
         Section {
+            Toggle("Typing Sounds", isOn: $typingSoundsEnabled)
+                .accessibilityIdentifier("typing-sounds-toggle")
+                .onChange(of: typingSoundsEnabled) { _, enabled in
+                    preferences.typingSoundsEnabled = enabled
+                }
             Toggle("Haptic Feedback", isOn: $hapticFeedbackEnabled)
                 .onChange(of: hapticFeedbackEnabled) { _, enabled in
                     preferences.hapticFeedbackEnabled = enabled
@@ -92,13 +99,14 @@ struct SettingsView: View {
         } header: {
             Text("Keyboard")
         } footer: {
+            Text("Typing sounds follow Silent Mode and Settings › Sounds & Haptics › Keyboard Feedback › Sound.")
             // Shown only while unconfirmed. The stamp is written by the extension, which
             // runs only when the user actually types — so granting Full Access and coming
             // straight back here leaves it unconfirmed, and saying "Obadh doesn't have it"
             // would be a claim we cannot make. Say what is true instead: it clears itself.
             if !install.isFullAccessConfirmed {
                 Button(action: openSystemSettings) {
-                    Text("Haptics need Full Access, granted in Settings › Keyboards. This clears once you've typed with Obadh.")
+                    Text("Sounds and haptics need Full Access, granted in Settings › Keyboards. This clears once you've typed with Obadh.")
                         .font(.footnote)
                         .multilineTextAlignment(.leading)
                 }

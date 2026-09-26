@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// First-run setup. Three questions, asked once: do you want it, is it added, do you
-/// want haptics. Nothing here is ever shown again.
+/// want sounds and haptics. Nothing here is ever shown again.
 struct OnboardingView: View {
     /// One setup step, not two. `Settings › Obadh › Keyboards` enables the keyboard and
     /// Full Access on the same screen, so splitting them sent the user to the same place
@@ -153,7 +153,7 @@ struct OnboardingView: View {
                 } else {
                     // Settings' own wording, so the sentence and the switch the user is
                     // hunting for read the same.
-                    Text("Allow Full Access to enable haptics.")
+                    Text("Allow Full Access to enable typing sounds and haptics.")
                         .font(BrandFont.caption)
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)

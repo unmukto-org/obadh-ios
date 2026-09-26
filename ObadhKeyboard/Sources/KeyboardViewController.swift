@@ -1,7 +1,7 @@
 import UIKit
 import os
 
-final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedback {
+final class KeyboardViewController: UIInputViewController {
     /// Lifecycle telemetry so the running extension can be observed on the
     /// Simulator via: `xcrun simctl spawn booted log stream --predicate
     /// 'subsystem == "org.unmukto.obadh.keyboard"'`.
@@ -180,8 +180,14 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private var presentationUptime: Double = 0
     #endif
 
-    var enableInputClicksWhenVisible: Bool {
-        true
+    override func loadView() {
+        // Match UIKit's previous default shell; the separate keyboard-style
+        // background continues to own material rendering and sizing is unchanged.
+        let input = KeyboardInputView(frame: .zero, inputViewStyle: .default)
+        input.inputClicksEnabled = { [weak feedbackController] in
+            feedbackController?.inputClicksEnabled ?? false
+        }
+        inputView = input
     }
 
     override func viewDidLoad() {

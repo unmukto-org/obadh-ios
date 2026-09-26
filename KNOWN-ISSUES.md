@@ -23,6 +23,7 @@ while consolidating this file. Local evidence under `build/` is git-ignored.
 | [KI-006](#ki-006) | Custom globe long press | Behavioral verification needed |
 | [KI-007](#ki-007) | Native appearance coverage | Incomplete verification |
 | [KI-012](#ki-012) | Human typing accuracy | No demonstrated improvement yet |
+| [KI-014](#ki-014) | Typing sound hardware acceptance / native parity | Public API integrated; listening checks pending |
 
 <!-- feedback-draft:start -->
 <a id="ki-001"></a>
@@ -297,3 +298,29 @@ resolver replay and the explicit session reference policy in
 accepted variants; raw phone traces are not committed or used as training fixtures.
 Outputs: `build/TypingAccuracyPilot/{report,replay,audit}.json` and summary charts.
 The standalone lab logs prompted study input only, not everyday keyboard typing.
+
+<a id="ki-014"></a>
+
+## KI-014 — Typing sound hardware acceptance / native parity
+
+**Known (2026-09-25):** Obadh now requests the standard UIKit input click. A failing
+regression test confirmed the previous root input view did not adopt the required
+`UIInputViewAudioFeedback` protocol; the corrected view retains its previous
+`.default` style and self-sizing. The app preference and Full Access gate both the
+view opt-in and all click requests. Settings reload when the keyboard reappears.
+
+**Research:** Apple's [click API](https://developer.apple.com/documentation/uikit/uidevice/playinputclick%28%29)
+requires an enabled, visible input view and the system keyboard sound preference.
+Its [audio guidance](https://developer.apple.com/design/human-interface-guidelines/playing-audio)
+requires keyboard clicks to respect Silent Mode. Apple's
+[Designing Sound talk](https://developer.apple.com/videos/play/wwdc2017/803/)
+describes distinct native modifier/delete sounds and speed-dependent volume;
+`playInputClick()` exposes no public controls for these. Exact parity is unproven.
+No private sound IDs or audio-session overrides were introduced.
+
+**Acceptance:** On iOS 27 hardware, compare letters, space, return, delete/held
+delete and suggestions against Apple English; check cold start and switching.
+Verify silence with Silent Mode, system Keyboard Feedback Sound off, Obadh Typing
+Sounds off and Full Access revoked, independently; restore each and verify sound
+returns. Check volume/routing and music continuity. Simulator policy tests cannot
+establish audibility, hardware mute behavior or perceptual parity.
