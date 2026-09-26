@@ -122,6 +122,13 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Investigation and testing
 
+- Installed and launched signed Release **1.0 (166)** from `6ab7ab68` on the
+  iPhone 16 Pro Max: engine **0.9.4** and exact-loanword defaults are now on the
+  phone. Verified strict signatures, matching app/extension build and source
+  stamps, and CoreDevice's installed version/build. This installation does not
+  establish device acceptance for the remaining keyboard issues.
+
+
 - Verified engine 0.9.4 using fresh DerivedData: 19 real-engine integration
   tests and 16 keyboard tests passed, including 14 scalar-level spelling cases,
   ABI/version checks, pinned artifact fingerprints, `tq`/`qq`, About's version,
