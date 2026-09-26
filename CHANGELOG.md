@@ -13,6 +13,12 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Fixes and changes
 
+- Removed iOS's duplicate `qq` → `^` rewrite after verifying that the bundled
+  engine already handles chandrabindu. The composer now preserves typed Roman
+  keys: `baqq` still produces বাঁ, and backspace restores `baq` (বাক) before
+  another `q` restores বাঁ. Previously the rewrite discarded one input step.
+  Single `q`, case distinctions and explicit `^` remain engine-defined.
+
 - Stabilized key-row positions during transient keyboard heights. Cancelled stale
   suggestions and touches on context changes, cleaned up held-delete timers, restored
   accessible key activation, and retained caps lock when typing.
@@ -88,6 +94,12 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
   ancestry). Preserved the published `v1.0` tag and the existing phone installation.
 
 #### Integration verification
+
+- The `qq` follow-up reproduced the lost-input-step behavior before the fix,
+  while the bundled-engine alias check passed. Afterward, all 145 Swift tests
+  and 38 UIKit tests passed, including real-engine checks of incremental input,
+  backspace/retyping, repeated and mixed-case Q sequences, suggestions and commit
+  boundaries. No engine update or phone installation was needed for verification.
 
 - Passed 145 Swift core/metric tests, 33 UIKit lifecycle/touch tests, and 17
   real Swift/C engine integration tests on the integrated source.

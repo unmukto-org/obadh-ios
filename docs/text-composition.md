@@ -62,7 +62,9 @@ midpoint boundaries. The keys themselves are non-interactive.
 - Numerals and punctuation are handled on the iOS layer: the number pad emits
   Bangla numerals ০–৯, `৳` and `।` sit on the punctuation pages, and
   Apple-style smart punctuation applies (`--`→`—`, `...`→`…`, curly quotes).
-- `qq` (q tapped twice) is a mobile shortcut for `^`, the চন্দ্রবিন্দু marker.
+- The engine interprets `qq` as চন্দ্রবিন্দু, like its `^` marker. iOS preserves
+  the original Roman keys; backspace during composition removes one typed key,
+  so `qq` → `q` → empty rather than deleting a locally collapsed `^`.
 
 ## Backspace
 

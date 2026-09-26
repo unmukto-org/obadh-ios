@@ -73,16 +73,20 @@ final class KeyboardComposerTests: XCTestCase {
         XCTAssertEqual(composer.activeSuggestions.map(\.text), ["মাদার"])
     }
 
-    func testDoubleQRewritesToChandrabinduMarker() {
+    func testDoubleQPreservesTypedKeysForTheEngineAndBackspace() {
         let composer = KeyboardComposer(engine: FixtureEngine())
 
         composer.append("q")
         composer.append("q")
-        XCTAssertEqual(composer.romanBuffer, "^")
+        XCTAssertEqual(composer.romanBuffer, "qq")
+        XCTAssertTrue(composer.deleteBackward())
+        XCTAssertEqual(composer.romanBuffer, "q")
+        composer.append("q")
+        XCTAssertEqual(composer.romanBuffer, "qq")
 
         composer.clear()
         for scalar in "aqq" { composer.append(String(scalar)) }
-        XCTAssertEqual(composer.romanBuffer, "a^")
+        XCTAssertEqual(composer.romanBuffer, "aqq")
 
         composer.clear()
         composer.append("q")
