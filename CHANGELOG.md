@@ -20,6 +20,13 @@ source; the tag and binary continue to identify the tested source above.
 
 ### Release verification
 
+- Pushed `main` and the annotated `v1.0.1` tag to the canonical repository,
+  `unmukto-org/obadh-ios`; verified the remote tag points to the tested archive
+  source and preserved `v1.0`. Created a
+  [GitHub release draft](https://github.com/unmukto-org/obadh-ios/releases/tag/untagged-97e5b1bbe8f36f331d42)
+  pending App Store publication. The archive and ready-to-paste App Store notes
+  are retained locally under `build/Release-v1.0.1/`.
+
 - Uploaded build 168 through Xcode's signed-in account. Xcode reported
   **Upload succeeded** and **Uploaded package is processing** on 2026-09-25.
   The owner will finish App Store Connect build selection, metadata and App Review
