@@ -78,6 +78,8 @@ final class HostViewController: UIViewController {
         ])
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardChanged(_:)),
             name: UIResponder.keyboardDidChangeFrameNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(recordEditorState),
+            name: UIApplication.didBecomeActiveNotification, object: nil)
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -91,6 +93,11 @@ final class HostViewController: UIViewController {
         heightLabel.text = "Keyboard frame: \(height) pt"
         heightLabel.accessibilityValue = String(Double(height))
         print("DEVICE-HOST height=\(height)")
+        recordEditorState()
+    }
+
+    @objc private func recordEditorState() {
+        resultLabel.accessibilityValue = "focus=\(editor.isFirstResponder) selection=\(editor.selectedRange) textLength=\(editor.text.count)"
     }
 
     private func reloadEditor(represent: Bool = false) {

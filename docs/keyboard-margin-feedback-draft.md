@@ -21,10 +21,11 @@ and its 44-point accessory remain unchanged throughout.
 4. Select Emoji, then the same custom keyboard; record again.
 5. Press Home and foreground the host without changing the focused text field.
 
-The minimal extension contains one button, with no suggestion engine or custom
-touch handling. Generate the project's `inherited` probe variant to reproduce
-using only public APIs. `host-trace` additionally enables simulator-only runtime
-observation; it is not needed to reproduce and cannot build for physical devices.
+The portable minimal extension contains an insertion button and a keyboard
+switching button, with no suggestion engine or custom touch handling. Open the
+packaged `KeyboardMarginRepro.xcodeproj` to reproduce with public APIs. The
+repository's separate `host-trace` variant adds simulator-only runtime observation;
+it is not included in the ZIP and is not needed to reproduce.
 
 ## Measurements
 
@@ -56,6 +57,32 @@ their outcomes distinguishable. The completed separated run records the ordinary
 17-point height assertion failure and **passes** `testInputWorks` on a fresh
 presentation, verifying that the button receives its tap and inserts `a` into
 the seeded host editor. The earlier post-foreground tap failure remains separate.
+
+### Additional input handoff reproduction
+
+Focused follow-up tests now establish that the post-foreground tap reaches the
+minimal extension's button action, but `textDocumentProxy.insertText("a")` does
+not update the still-focused host within three seconds. Context-before remains
+length 6, `hasText` is true, and the public document identifier changes from the
+last appearance observation. This fails with and without first visiting Emoji;
+the latter keeps the host height at 316 throughout. Input immediately after the
+Emoji switch succeeds despite the shorter 299-point container.
+
+The same foreground input test passes on iOS 26.5 simulator. A native English
+foreground control passes on the physical iOS 27 phone. Installed Obadh also
+passes its fresh-presentation input test and fails its foreground input test.
+The Obadh test must select the uppercase accessibility label `Return`, because
+the accessibility tree also retains a native key whose identifier is `Return`
+and whose label is lowercase `return`. An initial ambiguous-query pass was
+discarded. The native and custom layers remain visible in exported captures.
+
+Standalone test methods: `testInputAfterEmoji`, `testInputAfterForeground`,
+`testInputAfterForegroundWithoutEmoji`, and `testNativeInputAfterForeground`.
+These are separate from the height assertion. The relationship between the
+input failure and retained native layout is a hypothesis, not an established
+implementation mechanism. Direct human-operated confirmation is still pending.
+
+### Host-side repair controls
 
 An independent public-API host using the installed Obadh keyboard measures
 **391 → 374 points** after English versus Emoji on that phone. Calling

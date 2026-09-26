@@ -154,3 +154,5 @@ Evidence and integration date: 2026-09-25.
 <!-- Integration: investigate/keyboard-native-state-refresh at ac9a043; 2026-09-25. -->
 
 <!-- Integration: investigate/keyboard-surface-contract at ee91404; 2026-09-25. -->
+
+<!-- Integration: investigate/keyboard-handoff-research at df627ea; 2026-09-25. -->

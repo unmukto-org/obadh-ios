@@ -49,6 +49,39 @@ final class HostTests: XCTestCase {
         try checkSettledSwitchAppearance(requireStableHeight: true)
     }
 
+    func testObadhInputOnFreshPresentation() {
+        checkObadhInput(foreground: false)
+    }
+
+    func testObadhInputAfterForeground() {
+        checkObadhInput(foreground: true)
+    }
+
+    private func checkObadhInput(foreground: Bool) {
+        continueAfterFailure = false
+        let app = XCUIApplication(bundleIdentifier: "org.unmukto.obadh.marginhostprobe")
+        app.launch()
+        select("English (US)", in: app)
+        select("Obadh", in: app)
+        if foreground {
+            XCUIDevice.shared.press(.home)
+            app.activate()
+        }
+        Thread.sleep(forTimeInterval: 2)
+        let editor = app.textViews["probe-editor"]
+        XCTAssertEqual(editor.value as? String, "hello ")
+        // Native preview keys use identifier "Return" but label "return".
+        // Match Obadh's label explicitly so a retained native key is not tapped.
+        let key = app.buttons.matching(NSPredicate(format: "label == %@", "Return")).firstMatch
+        XCTAssertTrue(key.waitForExistence(timeout: 5))
+        key.tap()
+        let insertion = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "hello \n"), object: editor)
+        let result = XCTWaiter.wait(for: [insertion], timeout: 3)
+        print("OBADH-HOST-INPUT foreground=\(foreground) text=\(String(reflecting: editor.value)) result=\(result.rawValue)")
+        capture("obadh-input-foreground-\(foreground)", in: app)
+        XCTAssertEqual(result, .completed)
+    }
+
     private func checkSettledSwitchAppearance(requireStableHeight: Bool) throws {
         continueAfterFailure = false
         let app = XCUIApplication(bundleIdentifier: "org.unmukto.obadh.marginhostprobe")
