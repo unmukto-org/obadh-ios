@@ -130,14 +130,30 @@ final class KeyboardComposer {
 
     func append(_ scalar: String) {
         // The engine owns Roman aliases, including qq → chandrabindu. Preserve
-        // the typed keys so deletion can restore the preceding input exactly.
+        // raw input; editing units are handled separately in deleteBackward.
         romanBuffer.append(scalar)
         refreshDeterministic()
     }
 
     func deleteBackward() -> Bool {
         guard hasActiveInput else { return false }
-        romanBuffer.removeLast()
+        var removeCount = 1
+        let trailingQs = romanBuffer.reversed().prefix { $0 == "q" }.count
+        if trailingQs > 0, trailingQs.isMultiple(of: 2) {
+            // qq is one chandrabindu input unit. An odd trailing q is instead
+            // the unpaired fallback letter: qqq → qq, but qqqq → qq.
+            removeCount = 2
+            if trailingQs == 2 {
+                let shorterInput = String(romanBuffer.dropLast())
+                // A future tq alias can be a meaningful intermediate in tqq.
+                // Only retain it if the engine actually renders khanda ta;
+                // the current defensive tq → ৎক fallback does not qualify.
+                if engine.transliterate(shorterInput).hasSuffix("\u{09CE}") {
+                    removeCount = 1
+                }
+            }
+        }
+        romanBuffer.removeLast(removeCount)
         refreshDeterministic()
         return true
     }
