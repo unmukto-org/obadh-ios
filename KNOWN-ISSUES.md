@@ -21,6 +21,7 @@ while consolidating this file. Local evidence under `build/` is git-ignored.
 | [KI-006](#ki-006) | Custom globe long press | Behavioral verification needed |
 | [KI-007](#ki-007) | Native appearance coverage | Incomplete verification |
 | [KI-012](#ki-012) | Human typing accuracy | No demonstrated improvement yet |
+| [KI-013](#ki-013) | Letter-key shortcut for ৎ | iOS mapping design pending |
 
 <!-- feedback-draft:start -->
 <a id="ki-001"></a>
@@ -294,3 +295,27 @@ resolver replay and the explicit session reference policy in
 accepted variants; raw phone traces are not committed or used as training fixtures.
 Outputs: `build/TypingAccuracyPilot/{report,replay,audit}.json` and summary charts.
 The standalone lab logs prompted study input only, not everyday keyboard typing.
+
+<a id="ki-013"></a>
+
+## KI-013 — Letter-key shortcut for খণ্ড ত (ৎ)
+
+**Known:** Engine 0.9.3 supports <code>t``</code> / <code>T``</code> for ৎ, but
+there is no convenient letter-only alias on the phone. Current `tq` produces ৎক
+through defensive `q` → ক matching; that fallback is not a reason to reserve the
+combination, per user clarification.
+
+**2026-09-25 design feedback:** The engine team recommends mapping keyboard input
+to the existing canonical signals in iOS. Globally redefining `q` would affect
+`iraq` and other clients. A contextual `tq` alias would not redefine all `q`s,
+but an iOS-only mapping is also viable. Single-Q handling and `qq` precedence
+must be explicit; blindly emitting two backticks on every Q loses that distinction.
+Keep original keys separately from any normalized engine input.
+
+**Constraints / acceptance:** Preserve `tt` → ত্ত, `tqq` → তঁ, existing explicit
+signals and deliberate case rules. Verify whole words, correction queries and
+incremental input through whichever mapping is selected. `qq` deletes as one
+chandrabindu unit; `tqq` → `tq` should restore ৎ once that input actually renders
+the intended intermediate form. The deletion exception has a contract fixture,
+but neither the bundled engine nor the iOS input path currently implements the
+new shortcut. No new Q remapping has been enabled.

@@ -14,10 +14,16 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 #### Fixes and changes
 
 - Removed iOS's duplicate `qq` → `^` rewrite after verifying that the bundled
-  engine already handles chandrabindu. The composer now preserves typed Roman
-  keys: `baqq` still produces বাঁ, and backspace restores `baq` (বাক) before
-  another `q` restores বাঁ. Previously the rewrite discarded one input step.
+  engine already handles chandrabindu. The composer preserves raw Roman input
+  while treating completed `qq` as one deletion unit: `baqq` (বাঁ) → `ba` (বা).
   Single `q`, case distinctions and explicit `^` remain engine-defined.
+
+- Corrected the initial follow-up's deletion policy after user clarification:
+  removing the duplicate rewrite must not turn chandrabindu backspace into a
+  stray ক. The earlier `baqq` → `baq` behavior and its test expectations were
+  inappropriate. Repeated pairs now delete together; an unpaired final Q deletes
+  separately. `tqq` can return to `tq` only when the engine renders that prefix
+  as ৎ; the new shortcut's input mapping remains pending.
 
 - Stabilized key-row positions during transient keyboard heights. Cancelled stale
   suggestions and touches on context changes, cleaned up held-delete timers, restored
@@ -95,11 +101,12 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Integration verification
 
-- The `qq` follow-up reproduced the lost-input-step behavior before the fix,
-  while the bundled-engine alias check passed. Afterward, all 145 Swift tests
-  and 38 UIKit tests passed, including real-engine checks of incremental input,
-  backspace/retyping, repeated and mixed-case Q sequences, suggestions and commit
-  boundaries. No engine update or phone installation was needed for verification.
+- The initial `qq` follow-up passed 145 Swift and 38 UIKit tests but encoded the
+  wrong product expectation for deletion. Corrected semantic-deletion regressions
+  failed against that change before repair. After repair, 146 Swift and 39 UIKit
+  tests passed, covering paired/unpaired Qs, case, explicit `^`, suggestions and
+  commit boundaries against the real engine. The future `tq` exception has a
+  separate contract fixture; it is not claimed as a supported bundled-engine alias.
 
 - Passed 145 Swift core/metric tests, 33 UIKit lifecycle/touch tests, and 17
   real Swift/C engine integration tests on the integrated source.

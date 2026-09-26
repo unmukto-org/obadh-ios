@@ -73,14 +73,15 @@ final class KeyboardComposerTests: XCTestCase {
         XCTAssertEqual(composer.activeSuggestions.map(\.text), ["মাদার"])
     }
 
-    func testDoubleQPreservesTypedKeysForTheEngineAndBackspace() {
+    func testDoubleQPreservesRawInputButDeletesAsOneUnit() {
         let composer = KeyboardComposer(engine: FixtureEngine())
 
         composer.append("q")
         composer.append("q")
         XCTAssertEqual(composer.romanBuffer, "qq")
         XCTAssertTrue(composer.deleteBackward())
-        XCTAssertEqual(composer.romanBuffer, "q")
+        XCTAssertEqual(composer.romanBuffer, "")
+        composer.append("q")
         composer.append("q")
         XCTAssertEqual(composer.romanBuffer, "qq")
 
@@ -91,6 +92,17 @@ final class KeyboardComposerTests: XCTestCase {
         composer.clear()
         composer.append("q")
         XCTAssertEqual(composer.romanBuffer, "q", "a single q must be untouched")
+    }
+
+    func testTqqCanReturnToTqWhenTheEngineSupportsKhandaTaAlias() {
+        // Contract test for a future engine alias; the bundled 0.9.3 engine
+        // does not implement tq → ৎ. Do not change its transliteration here.
+        let composer = KeyboardComposer(engine: KhandaTaAliasFixtureEngine())
+        for key in "tqq" { composer.append(String(key)) }
+        XCTAssertEqual(composer.preview, "তঁ")
+        XCTAssertTrue(composer.deleteBackward())
+        XCTAssertEqual(composer.romanBuffer, "tq")
+        XCTAssertEqual(composer.preview, "ৎ")
     }
 
     func testEmojiSuggestionsAreExposedSeparatelyFromText() {
@@ -159,6 +171,19 @@ final class KeyboardComposerTests: XCTestCase {
             ]
         )
     }
+}
+
+private struct KhandaTaAliasFixtureEngine: BanglaTypingEngine {
+    func transliterate(_ input: String) -> String {
+        switch input {
+        case "t": "ত"
+        case "tq": "ৎ"
+        case "tqq": "তঁ"
+        default: ""
+        }
+    }
+    func compositionSuggestions(for romanInput: String, limit: Int) -> [String] { [] }
+    func autosuggestSuggestions(for context: String, limit: Int) -> [String] { [] }
 }
 
 private struct FixtureEmojiSuggester: BanglaEmojiSuggesting {

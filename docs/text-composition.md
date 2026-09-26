@@ -63,8 +63,10 @@ midpoint boundaries. The keys themselves are non-interactive.
   Bangla numerals ০–৯, `৳` and `।` sit on the punctuation pages, and
   Apple-style smart punctuation applies (`--`→`—`, `...`→`…`, curly quotes).
 - The engine interprets `qq` as চন্দ্রবিন্দু, like its `^` marker. iOS preserves
-  the original Roman keys; backspace during composition removes one typed key,
-  so `qq` → `q` → empty rather than deleting a locally collapsed `^`.
+  the original Roman keys, but backspace removes a completed `qq` as one input
+  unit: `baqq` → `ba`. An unpaired final `q` is removed separately (`qqq` → `qq`).
+  If the engine supports `tq` → ৎ, `tqq` can return to that meaningful intermediate
+  form; the current engine's defensive `tq` → ৎক fallback does not qualify.
 
 ## Backspace
 
