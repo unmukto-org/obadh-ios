@@ -330,7 +330,21 @@ English as reference and four accessory buttons: UIKit click, 1104, 1155, 1156.
 It records nothing, sets no audio session and bundles no Apple sound assets. Its
 sources are absent from Obadh's project. Signed probe build **151** (`d55ee623`)
 was installed and launched on the iPhone on 2026-09-25; its Release simulator
-build and visible comparison controls were checked. Listening results are pending.
+build and visible comparison controls were checked. The user subsequently identified
+**delete = 1155** and **return/space/shift/123/emoji = 1156**. Return sounded slightly
+louder; no level difference has been measured, and no gain correction is justified.
+The overall palette sounded right, but the user did not individually confirm 1104.
+Silent Mode and system Sound-off checks are still unanswered.
+
+**Candidate:** `feature/key-specific-typing-sounds` routes the confirmed keys to
+1155/1156, including every held-delete unit, and retains UIKit for letters and
+suggestions. Uncompared iPad/globe/dismiss keys retain their existing sound. The
+app preference and Full Access still gate all requests. This candidate is not
+merged or installed: direct-ID muting and system-preference behavior must be
+resolved first. Mixing UIKit letters with direct special-key playback could
+otherwise leave only special keys audible when system keyboard sounds are off.
+All 148 core tests and three UIKit sound-routing/gating tests pass; these do not
+measure audible output or prove system muting.
 Generate with `mkdir -p build/SoundProbe`
 then `xcodegen generate --spec Tools/KeyboardSoundProbe/project.yml --project build/SoundProbe`.
 Build scheme `ObadhSoundProbe`; generated projects/artifacts stay under `build/`.

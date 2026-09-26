@@ -72,6 +72,13 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Investigation and testing
 
+- Recorded the owner's Sound Probe 151 comparison: delete matches 1155;
+  return/space/shift/123/emoji match 1156. Return loudness is a subjective follow-up,
+  not a measured mismatch. Prepared an isolated key-specific playback candidate
+  with unified app/Full Access gates and held-delete routing. It remains unmerged
+  and uninstalled pending the Silent Mode and system Sound-off checks in KI-014.
+  All 148 core tests and three focused UIKit sound tests passed.
+
 - Built and signed standalone **Obadh Sound Probe 151** (`d55ee623`), inspected
   its simulator layout, and installed/launched it on the iPhone for sound/mute
   comparison. The installed Obadh keyboard remains Release 149. Probe code and
