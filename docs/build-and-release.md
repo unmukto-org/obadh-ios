@@ -67,3 +67,16 @@ timestamp (`scripts/stamp-build.sh` → `Config/BuildInfo.xcconfig`, generated
 and git-ignored). The version shows in the app and is logged by the extension
 on appear: a keyboard extension will otherwise happily keep serving a cached
 old binary, so always confirm the stamp when testing on device.
+
+## Release journal
+
+[CHANGELOG.md](../CHANGELOG.md) records completed work under Unreleased until a
+release is actually made. Each release section records version, build, release
+date, annotated Git tag, full tested source commit, and the comparison range from
+the previous tag. Preserve existing published tags.
+
+Before release, review [KNOWN-ISSUES.md](../KNOWN-ISSUES.md) and complete the relevant
+device checks. That is the sole open-issue/research register; move resolved items
+into the changelog rather than retaining resolved entries or separate reports.
+The changelog's maintenance section defines how to record the final source SHA
+in a following documentation commit without changing the tested release tag.

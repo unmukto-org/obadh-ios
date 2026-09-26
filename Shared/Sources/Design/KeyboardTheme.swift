@@ -106,9 +106,8 @@ struct KeyboardMetrics {
 }
 
 /// Every spatial constant native uses for an iPad keyboard, per layout family and
-/// per orientation. All measured — see docs/native-parity-ipad.md and
-/// `scripts/parity/ipad-geometry.py fit`, which reproduces the whole table from
-/// the captures in Reference/native-ipad/.
+/// per orientation. `scripts/parity/ipad-geometry.py fit` reproduces the table
+/// from captures in Reference/native-ipad/. Coverage limits: KNOWN-ISSUES.md#ki-007.
 ///
 /// Bottom insets are the one derived value: native's are measured from the SCREEN
 /// edge, and an iPad input view does not reach it — the system's keyboard
@@ -388,7 +387,7 @@ enum KeyboardTheme {
     ///
     /// The band's measured size WHEN PRESENT is used as a design estimate, not
     /// an OS guarantee. Its presence can change across iOS 27 presentations
-    /// (see docs/keyboard-investigation.md). Earlier measurements found it on
+    /// (see KNOWN-ISSUES.md#ki-001). Earlier measurements found it on
     /// iOS 26.5 at 16.0pt and invariant under a swept asked height (217→307pt),
     /// repeated presentations, and host `inputAccessoryView`s of 0/44/88pt; measured
     /// on an iOS 27 device at 17.3pt in a third-party host. The earlier notes cite
@@ -626,7 +625,7 @@ enum KeyboardTheme {
         // not vary with width at all: measured across 744/820/834pt native key
         // height moves 0.5pt and total keyboard height 3pt, so both are family
         // constants. The 13-inch family is a different keyboard entirely — five
-        // rows, taller keys, tighter gaps. See docs/native-parity-ipad.md.
+        // rows, taller keys, tighter gaps. See KNOWN-ISSUES.md#ki-007.
         let compactWidthClass = bounds.width < 410
         let keyHeight: CGFloat = padMetrics?.keyHeight ?? (compactWidthClass ? 43 : 45)
         let rowSpacing: CGFloat = padMetrics?.rowSpacing ?? 11

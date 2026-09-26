@@ -41,7 +41,7 @@ xcodebuild test -scheme ObadhKeyboardUITests -destination 'platform=iOS Simulato
 
 The Emoji/accessory test has an explicit expected failure for the system-owned
 17-point margin discrepancy. Do not report that issue as fixed when the suite
-passes. See [the September investigation](keyboard-investigation.md) for evidence,
+passes. See [the September investigation](../KNOWN-ISSUES.md#ki-001) for evidence,
 font audit tooling, and the remaining iOS 27 device checks.
 
 ## The parity suite (`scripts/parity/`)

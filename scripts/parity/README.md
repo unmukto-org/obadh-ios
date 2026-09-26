@@ -102,5 +102,5 @@ The device set covers both measured geometry classes (key 43 / pitch 54 below
 `transition-lines.py` tracks probe markers through simulator recordings.
 `generate-margin-probe.py` creates an isolated project with a minimal 180-point
 keyboard for the system-margin reproduction. These are diagnostic tools, not
-additional gates in `all.sh`. See [the investigation report](../../docs/keyboard-investigation.md)
+additional gates in `all.sh`. See [the investigation report](../../KNOWN-ISSUES.md#ki-001)
 for commands, measurements, and limits.

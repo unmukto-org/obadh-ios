@@ -723,7 +723,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         // empirical, not an API contract. A matching 17pt host-margin regression
         // is independently reported on iOS 27 (FB24460699); extension bounds do
         // not reliably reveal it. Do not infer a missing band from a transient
-        // root height or grow our strip to compensate. See keyboard-investigation.md.
+        // root height or grow our strip to compensate. See KNOWN-ISSUES.md#ki-001.
         if #available(iOS 27.0, *) {
             return
         }

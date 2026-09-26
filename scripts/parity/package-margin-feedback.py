@@ -91,6 +91,16 @@ installation to open; project.yml is included for regenerating it if desired.
 
 See Findings.md for independently measured results and their limits.
 """)
-shutil.copy2(root / "docs/keyboard-margin-feedback-draft.md", out / "Findings.md")
+issues = (root / "KNOWN-ISSUES.md").read_text()
+start = "<!-- feedback-draft:start -->"
+end = "<!-- feedback-draft:end -->"
+if issues.count(start) != 1 or issues.count(end) != 1:
+    raise SystemExit("Expected one feedback excerpt in KNOWN-ISSUES.md")
+findings = issues.split(start, 1)[1].split(end, 1)[0].strip()
+(out / "Findings.md").write_text(
+    "# Open keyboard height and input findings\n\n"
+    "Generated from KNOWN-ISSUES.md. Prepared locally; not submitted.\n\n"
+    + findings + "\n"
+)
 archive = shutil.make_archive(str(root / "build/KeyboardMarginFeedback"), "zip", root_dir=out)
 print(archive)

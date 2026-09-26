@@ -9,7 +9,7 @@
 #
 # Usage: scripts/parity/all.sh [--skip-build]
 #
-# Coverage, and what it does NOT cover, is documented in docs/native-parity.md.
+# Coverage, and what it does NOT cover, is documented in KNOWN-ISSUES.md#ki-007.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRATCH=${OBADH_SCRATCH:?set OBADH_SCRATCH to the directory holding the capture scripts}

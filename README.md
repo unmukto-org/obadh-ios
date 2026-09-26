@@ -33,10 +33,10 @@ You type roman, it composes Bangla live.
 - **Bangla numerals and punctuation** on the iOS layer: ০–৯ on the number pad,
   `৳` and `।` (dari) on the punctuation pages, quick double-space for dari,
   Apple-style smart punctuation.
-- **Indistinguishable from the native keyboard.** Geometry and color are
+- **Measured against the native keyboard.** Geometry and color are
   measured against Apple's keyboard across device classes, host presentations,
   and appearances, and enforced by a screenshot-measurement test suite.
-  ([the measured model](docs/native-parity.md))
+  ([remaining issues and measurement limits](KNOWN-ISSUES.md#ki-007))
 - **Native-feeling haptics**, tuned on device with Core Haptics.
 
 ## Getting started
@@ -67,7 +67,8 @@ records, nothing else.
 |---|---|
 | [architecture.md](docs/architecture.md) | Targets, the engine boundary, the composer boundary, state and storage |
 | [text-composition.md](docs/text-composition.md) | Why not marked text, touch routing, the ribbon, space and dari, backspace |
-| [native-parity.md](docs/native-parity.md) | The measured model of iOS keyboard presentation and how parity is enforced |
+| [KNOWN-ISSUES.md](KNOWN-ISSUES.md) | Open issues, evidence, attempted fixes and remaining verification |
+| [CHANGELOG.md](CHANGELOG.md) | Unreleased work and release versions, dates, tags and commits |
 | [autocorrect.md](docs/autocorrect.md) | The engine/client policy split and the auto-insert confidence gate |
 | [emoji.md](docs/emoji.md) | The CLDR + colloquial data pipeline, ranking, search |
 | [testing.md](docs/testing.md) | Unit tests, engine integration tests, the parity suite, mouse-free simulator automation |

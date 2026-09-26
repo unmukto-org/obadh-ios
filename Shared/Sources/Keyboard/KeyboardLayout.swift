@@ -23,7 +23,7 @@ enum KeyboardKey: Equatable {
     case returnKey
     /// iPad-only keys. Native iPadOS carries a tab and a caps lock on every
     /// layout wider than an iPad mini, and a dismiss-keyboard key at the end of
-    /// the command row on all of them. See docs/native-parity-ipad.md.
+    /// the command row on all of them. See KNOWN-ISSUES.md#ki-007.
     case tab
     case capsLock
     case hideKeyboard
@@ -234,9 +234,9 @@ enum KeyboardLayoutProvider {
 
     // MARK: - iPad
     //
-    // Everything below is measured, not designed. See docs/native-parity-ipad.md
-    // for the captures and the fit; scripts/parity/ipad-geometry.py reproduces
-    // the numbers. The short version: iPad native quantizes the ROW STRUCTURE by
+    // scripts/parity/ipad-geometry.py reproduces the measurements below from
+    // Reference/native-ipad/. Coverage limits are in KNOWN-ISSUES.md#ki-007.
+    // The short version: iPad native quantizes the ROW STRUCTURE by
     // width, not just the key size, so there are three distinct layouts and a
     // ratio table taken from one iPad describes a keyboard the others do not have.
 
