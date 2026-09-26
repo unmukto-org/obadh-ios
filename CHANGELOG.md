@@ -72,6 +72,18 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Investigation and testing
 
+- Built and signed standalone **Obadh Sound Probe 151** (`d55ee623`), inspected
+  its simulator layout, and installed/launched it on the iPhone for sound/mute
+  comparison. The installed Obadh keyboard remains Release 149. Probe code and
+  numeric sound IDs are excluded from all Obadh shipping targets.
+
+- Followed up on the user's Release 149 listening report: clicks are audible, but
+  special keys still use the letter sound. Audited Apple's sound-design guidance,
+  current UIKit/AudioServices docs, SDK headers and KeyboardKit's implementation.
+  Added a separate Release sound-comparison app to test three system sound IDs
+  against UIKit and native English, including mute/settings behavior. Obadh's
+  shipping playback is unchanged pending those checks; details are in KI-014.
+
 - Installed and launched signed Release **1.0 (149)** from `2f72b808` on the
   iPhone 16 Pro Max with typing sounds and the app switch. Verified strict
   signatures, matching app/extension stamps and CoreDevice's installed version.
