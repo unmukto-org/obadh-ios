@@ -15,6 +15,8 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 - Stabilized key-row positions during transient keyboard heights. Cancelled stale suggestions and touches on context changes, cleaned up held-delete timers, restored accessible key activation, and retained caps lock when typing.
 
+- Fixed detached keys using the wrong appearance for their fill and updating only after a touch or refresh. Reset accidental debug sizing overrides that caused an extra 18-point ribbon and isolated deliberate sizing experiments.
+
 #### Investigation and testing
 
 - Started a release journal and a single known-issues and research register.

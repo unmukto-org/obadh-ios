@@ -62,6 +62,7 @@ final class SizingLogViewController: UIViewController {
             let late = entry.lateHeights.isEmpty
                 ? ""
                 : "  LATE " + entry.lateHeights.map { String(Int($0)) }.joined(separator: "›")
+            let actualStrip = entry.actualStrip.map { String(format: "%.1f", $0) } ?? "unknown"
             lines.append(
                 """
                 #\(entry.id)  \(formatter.string(from: entry.date))  n\(entry.presentation) \
@@ -70,6 +71,7 @@ final class SizingLogViewController: UIViewController {
                    ask \(Int(entry.ask))  strip \(Int(entry.strip))  settled \(Int(entry.settled))  \
                 \(entry.presentationClass) (\(entry.mode))  \(entry.dark ? "dark" : "light")  \
                 iOS \(entry.systemVersion)  \(entry.screen)
+                   actual ribbon \(actualStrip)
                 """
             )
         }

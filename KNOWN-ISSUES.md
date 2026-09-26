@@ -124,3 +124,11 @@ Fixed in source; included in installed Release 112. Simulator recordings showed 
 Evidence and integration date: 2026-09-25.
 
 <!-- Integration: fix/keyboard-presentation-lifecycle at d937705; 2026-09-25. -->
+
+### KI-009 — Wrong key fills and diagnostic oversized ribbon
+
+Fixed in source; included in installed Release 112. Appearance regressions failed before the fix and pass afterward. Physical-device logs showed the diagnostic override requested and received a 54 pt ribbon instead of 36 pt; restoring Auto restored 36 pt. Normal debug launches now reset the override. Other tall/short reports are not automatically explained by this defect; KI-001 and KI-003 remain open.
+
+Evidence and integration date: 2026-09-25.
+
+<!-- Integration: fix/keyboard-switch-key-colors at 8ab0abc; 2026-09-25. -->
