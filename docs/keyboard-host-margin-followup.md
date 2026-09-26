@@ -273,7 +273,11 @@ The first corrected simulator capture matches the lowercase w dimensions and
 baseline exactly relative to its key, and reduces capital W size to 18.67 × 15.00
 points. The final uppercase baseline is raised one additional physical pixel
 relative to that capture. The complete 19-test UIKit suite and device Release
-build pass. Physical verification of the newly built revision follows installation.
+build pass. Build **1.0 (112), revision `a0abe326`**, was then installed and
+launched on the iPhone 16 Pro Max. The completed physical case-capture test
+confirms both lowercase and uppercase ink bottoms at 28.67 points relative to
+the key face, matching native. Capital W measures 18.67 × 15.00 points versus
+native 18.33 × 15.33. Lowercase w dimensions also match the native sample.
 
 The diagnostic UI test now waits for the globe menu to dismiss and asserts the
 expected lowercase/uppercase keys exist before capturing. Its first naive run
@@ -283,3 +287,113 @@ Evidence is in `letter-alignment-verified-before/`, `letter-alignment-after/`, a
 
 The 17-point host-margin investigation remains the priority and is continuing.
 These typography changes are independent of a height workaround.
+
+
+## Continued sizing-contract experiments
+
+Branch: `fix/keyboard-host-margin-contract`. These variants remain confined to
+the simulator-only minimal probe; build 112 on the phone contains none of them.
+
+| Additional strategy | Host height after English | After Emoji |
+|---|---:|---:|
+| Refresh primary language (`en-US` → `bn-BD`) after appearance | 316 | 299 |
+| Controller `preferredContentSize = 180`, without height constraint | 360 | 343 |
+| Required (1000) content-height constraint | 316 | 299 |
+| Temporarily set `hasDictationKey = true`, then restore false | 316 | 299 |
+
+The documented dictation-key setter changes the system dictation-button contract;
+reapplying it did not invalidate the stale margin in this reproduction. All four
+experiments retain the 17-point difference. The expected-failure UI test reporting
+success does **not** mean these approaches fixed the height.
+
+Additional public geometry observations also match in normal and short states:
+the root and window are 440 × 180, `keyboardLayoutGuide.layoutFrame` is
+(0, 180, 440, 0), and both accessibility screen conversion and accessibility frame
+report (0, 0, 440, 180). These values do not provide a reliable compensation signal.
+
+Logs: `/tmp/obadh-margin-language-refresh.log`,
+`/tmp/obadh-margin-preferred-only.log`, `/tmp/obadh-margin-required.log`,
+`/tmp/obadh-margin-observe.log`, `/tmp/obadh-margin-observation-values.log`, and
+`/tmp/obadh-margin-dictation-refresh.log`.
+
+
+### Trace of the simulator's host calculation
+
+A debugger inspection of the loaded iOS 26.5 UIKit binary identified the
+rounded-keyboard extra-padding calculation: it returns `24 - keyplanePadding.top`
+when that top padding is nonzero, otherwise zero. The accessory alignment code
+calls that calculation. This is implementation evidence for this runtime,
+**not a public API contract or a verified iOS 27 implementation detail**.
+
+A separate simulator-only observer then read the already existing layout in our
+own test host while the original switching test ran:
+
+| Settled state | Retained native keyplane top | Additional padding | Host height |
+|---|---:|---:|---:|
+| Native English | 7 | 17 | 389 |
+| Minimal Obadh after English | 7 | 17 | 316 |
+| Native Emoji | 0 | 0 | 443 |
+| Minimal Obadh after Emoji | 0 | 0 | 299 |
+
+The retained native layout state changes the extra padding while Obadh's content
+request remains 180. This explains the exact 17-point discrepancy in the
+simulator reproduction, and provides a more specific mechanism than an
+unspecified sizing race. The observer does not change the layout or read text.
+`HostMarginTrace.m` is included only by the generated `host-trace` variant and has
+a compile-time error for physical-device builds. It uses runtime inspection for
+research and must never enter the shipping targets.
+
+Additional public-API probes:
+
+- Input-mode notifications and lifecycle observations: `documentInputMode` is nil
+  and the responder mode is `bn-BD` after both English and Emoji; no reliable
+  previous-keyboard signal was exposed.
+- Same-orientation scene geometry request: iOS rejects it because the keyboard's
+  windowing mode does not permit programmatic orientation changes.
+- Zero-distance cursor request: the host remains 316 versus 299 points.
+- Reapply the unchanged keyboard type: the proxy does not implement the optional
+  public setter (`responds(to:) == false`), so nothing was assigned. Initial Swift
+  attempts to call that optional protocol setter did not compile; these are not
+  runtime results. The final guarded probe built and ran.
+
+The test's expected height failure had also prevented its later text check from
+running because `continueAfterFailure` is false. The expected assertion is now
+last, after text preservation and an added foregrounding capture. Previously green
+runs establish the geometry comparison, not completion of those skipped checks.
+
+Evidence: `/tmp/obadh-rounded-container-symbols.log`,
+`/tmp/obadh-container-inset-calculation.log`,
+`/tmp/obadh-margin-host-trace-values.log`, and the `input-mode`,
+`geometry-refresh`, `context-refresh`, and `trait-refresh` experiment logs.
+
+
+The completed foreground trace also verifies the recovery: retained native
+keyplane top changes from 0 to 7; extra padding changes from 0 to 17; host height
+changes from 299 to 316. The key remains in its original position, and both text
+preservation assertions run and pass. The expected 17-point failure occurs last.
+Captures were exported and visually inspected in
+`build/host-margin-investigation/host-trace-foreground/`. The completed run is
+`logs/obadh-margin-host-trace-foreground-completed.log`; matching runtime values
+are in `logs/obadh-margin-host-trace-foreground-values.log`. The other experiment
+logs above have also been copied into the investigation's `logs/` directory.
+
+A fresh review of [KeyboardKit's current release notes](https://github.com/KeyboardKit/KeyboardKit/blob/main/RELEASE_NOTES.md)
+found its own row-height, iPad toolbar and layout-cache corrections, but did not
+identify a remedy for this retained native keyplane padding. Those changes are
+not evidence that this host-margin issue is solved.
+
+
+### Final verification of the full keyboard for this investigation pass
+
+The corrected UI test ran against the normal production implementation (Debug
+build), after reinstalling it over the minimal probe on the dedicated simulator:
+English → Obadh **389 pt**, Emoji → Obadh **372 pt**, then foreground → Obadh
+**389 pt**. Key-position and both text-preservation checks passed, including the
+new assertion that foregrounding returns to the original host height. The known
+17-point assertion still fails as expected. This is a confirmed unresolved
+regression, not a fixed-height result. Log: `logs/obadh-production-margin-sequence.log`.
+
+The normal simulator build succeeds. Phone build 112 remains installed; CoreDevice
+independently reports bundle version 112. Experimental height changes were not
+added to it. The feedback draft is `docs/keyboard-margin-feedback-draft.md` and
+has not been submitted. Height remains an open acceptance criterion.

@@ -13,7 +13,7 @@ import subprocess
 import yaml
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--variant", choices=["inherited", "keyboard", "default", "system-sizing", "pulse", "intrinsic", "system-default", "fitting", "recreate"], default="inherited")
+parser.add_argument("--variant", choices=["inherited", "keyboard", "default", "system-sizing", "pulse", "intrinsic", "system-default", "fitting", "recreate", "language", "language-refresh", "preferred", "preferred-only", "required", "observe", "dictation-refresh", "dictation-false", "input-mode", "geometry-refresh", "context-refresh", "host-trace", "trait-refresh"], default="inherited")
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[2]
 spec = yaml.safe_load((root / "project.yml").read_text())
@@ -24,6 +24,8 @@ spec["schemes"] = {"ObadhKeyboardUITests": spec["schemes"]["ObadhKeyboardUITests
 keyboard = spec["targets"]["ObadhKeyboard"]
 keyboard["sources"] = [{"path": "Tests/KeyboardMarginProbe/MinimalKeyboardViewController.swift"}]
 keyboard["dependencies"] = []
+if args.variant == "host-trace":
+    spec["targets"]["Obadh"]["sources"].append({"path": "Tests/KeyboardMarginProbe/HostMarginTrace.m"})
 if args.variant != "inherited":
     keyboard["settings"]["base"]["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = "$(inherited) PROBE_" + args.variant.upper().replace("-", "_")
 

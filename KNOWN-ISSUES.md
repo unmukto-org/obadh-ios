@@ -148,3 +148,5 @@ Fixed for measured modern portrait iPhone cases in source; included in installed
 Evidence and integration date: 2026-09-25.
 
 <!-- Integration: fix/phone-letter-case-typography at a0abe32; 2026-09-25. -->
+
+<!-- Integration: fix/keyboard-host-margin-contract at dcd5c6f; 2026-09-25. -->
