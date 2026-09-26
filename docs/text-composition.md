@@ -67,7 +67,8 @@ midpoint boundaries. The keys themselves are non-interactive.
   unit: `baqq` → `ba`. An unpaired final `q` is removed separately (`qqq` → `qq`).
 - iOS maps `tq` / `Tq` to the engine's existing double-backtick খণ্ড ত signal:
   `sotq` → সৎ, `utqsob` → উৎসব, `bidyutq` → বিদ্যুৎ. A following `qq` takes
-  precedence: `tqq` → তঁ. Backspace walks `tqq` → `tq` → `t` (তঁ → ৎ → ত).
+  precedence: `tqq` → তঁ. Backspace removes the whole modifier: both `tqq` and
+  `tq` return directly to `t` (তঁ → ত, or ৎ → ত).
   Other Q spellings keep their engine meaning. The composer retains raw keys
   separately from `engineInput`; preview, correction suggestions and detailed
   auto-insert queries all use the same canonical input. The core engine is unchanged.

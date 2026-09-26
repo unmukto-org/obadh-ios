@@ -42,7 +42,7 @@ final class KeyboardEngineShortcutTests: XCTestCase {
             composer.append(key)
             XCTAssertEqual(composer.preview, expected)
         }
-        for (remaining, expected) in [("tqq", "তঁ"), ("tq", "ৎ"), ("t", "ত"), ("", "")] {
+        for (remaining, expected) in [("tqq", "তঁ"), ("t", "ত"), ("", "")] {
             XCTAssertTrue(composer.deleteBackward())
             XCTAssertEqual(composer.romanBuffer, remaining)
             XCTAssertEqual(composer.preview, expected)
@@ -131,7 +131,9 @@ final class KeyboardEngineShortcutTests: XCTestCase {
             ("baqqd", "baqq", "বাঁ"), ("baqq", "ba", "বা"),
             ("ba^", "ba", "বা"), ("qQ", "q", "ক"), ("Qq", "Q", "ক"),
             ("QQ", "Q", "ক"), ("iraq", "ira", "ইরা"),
-            ("tqq", "tq", "ৎ"), ("tq", "t", "ত")
+            ("tqq", "t", "ত"), ("tq", "t", "ত"),
+            ("Tqq", "T", "ট"), ("Tq", "T", "ট"),
+            ("sotqq", "sot", "সত"), ("sotq", "sot", "সত")
         ] {
             let composer = KeyboardComposer(engine: engine)
             for key in typed { composer.append(String(key)) }
