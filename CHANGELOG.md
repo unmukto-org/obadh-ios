@@ -6,17 +6,24 @@ Current limitations and verification requirements live in [KNOWN-ISSUES.md](KNOW
 
 ## Unreleased — planned v1.0.1
 
+Release date: not set. Release tag and commit: not created.
+Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
+
 ### 2026-09-25
 
 #### Fixes and changes
 
 #### Investigation and testing
 
-- Started a release journal and an evidence-based known-issues register. Reviewed
-  the day's branches for sequential integration; the detailed branch and test
-  record is in [the integration journal](docs/integration-2026-09-25.md).
+- Started a release journal and a single known-issues and research register.
+  Reviewed the day's branches for sequential integration.
 
 ## v1.0 — 2026-09-21 baseline
+
+Version: `1.0` (build `105`). Tag: `v1.0` (annotated).
+Commit: `94c8132d594a4af5beec7ec12a5ef90b0ec8b169`.
+Date: 2026-09-21 (App Review submission/tag date).
+Comparison: first release baseline; no earlier release recorded here.
 
 - Prepared Obadh 1.0 (105) for App Review under `org.unmukto.obadh`.
 - The existing annotated `v1.0` tag identifies `94c8132`. The pre-patch `main`
@@ -33,6 +40,15 @@ Current limitations and verification requirements live in [KNOWN-ISSUES.md](KNOW
   the issue ID and supporting report instead of copying raw logs into this file.
 - Correct inaccurate claims explicitly. Keep released entries intact and add
   dated corrections when necessary.
+- For each new release, use a `vX.Y.Z — YYYY-MM-DD` section and record the
+  marketing version, build number, actual release date, annotated tag, full
+  40-character release commit, and a comparison link/range from the previous
+  release tag. Preserve the dated work entries below that metadata.
+- Build and test the release commit first. Record that exact source SHA here in
+  a following documentation commit, and point the annotated release tag at the
+  tested source commit. This avoids inventing a self-referential commit hash or
+  tagging a different binary source. Record the distinction if documentation
+  changed after the build; never silently move an existing published tag.
 - When v1.0.1 ships, move the accumulated Unreleased entries into its dated
-  version section, create an annotated tag for the tested release commit, and
-  start a fresh Unreleased section. Do not create a release tag for ongoing work.
+  version section and start a fresh Unreleased section based on that tag. Do not
+  create a release tag or claim a release date for ongoing work.
