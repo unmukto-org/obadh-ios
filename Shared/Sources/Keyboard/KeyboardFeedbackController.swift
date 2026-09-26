@@ -1,3 +1,4 @@
+import AudioToolbox
 import CoreHaptics
 import UIKit
 
@@ -24,16 +25,25 @@ final class KeyboardFeedbackController {
     private var engine: CHHapticEngine?
 
     private let preferences: KeyboardPreferences
-    private let requestSystemClick: () -> Void
+    private let requestSystemClick: (KeyboardClickSound) -> Void
     private var typingSoundsEnabled = true
 
     /// Shared by the input view's audio opt-in and every feedback entry point.
-    /// UIKit owns visibility, Silent Mode, volume and the system sound preference.
+    /// The UIKit input click retains its visibility/system-preference gate.
+    /// Direct modifier/delete playback still requires hardware policy acceptance.
     var inputClicksEnabled: Bool { fullAccessGranted && typingSoundsEnabled }
 
     init(
         preferences: KeyboardPreferences = KeyboardPreferences(),
-        requestSystemClick: @escaping () -> Void = { UIDevice.current.playInputClick() }
+        requestSystemClick: @escaping (KeyboardClickSound) -> Void = { sound in
+            switch sound {
+            case .input: UIDevice.current.playInputClick()
+            // Undocumented IDs, matched by the owner in Sound Probe 151.
+            // Candidate only: system Sound-off behavior still needs verification.
+            case .delete: AudioServicesPlaySystemSound(1155)
+            case .modifier: AudioServicesPlaySystemSound(1156)
+            }
+        }
     ) {
         self.preferences = preferences
         self.requestSystemClick = requestSystemClick
@@ -142,14 +152,14 @@ final class KeyboardFeedbackController {
         if hapticFeedbackEnabled, key != .emoji {
             emit(Self.standardTick)
         }
-        playInputClick()
+        playInputClick(KeyboardClickSound(key: key))
     }
 
     func suggestionAccepted() {
         if hapticFeedbackEnabled {
             emit(Self.standardTick)
         }
-        playInputClick()
+        playInputClick(.input)
     }
 
     func backspaceRepeated(unit: BackspaceDeletionUnit) {
@@ -161,15 +171,15 @@ final class KeyboardFeedbackController {
                 emit(Tick(0.6, 0.9, fallback: 0.65)) // a touch firmer for a larger delete
             }
         }
-        playInputClick()
+        playInputClick(.delete)
     }
 
     // MARK: Playback
 
-    private func playInputClick() {
+    private func playInputClick(_ sound: KeyboardClickSound) {
         guard inputClicksEnabled else { return }
-        // No audio session or private sound IDs: leave system audio policy intact.
-        requestSystemClick()
+        // No custom audio session, duplicate click or per-key volume adjustment.
+        requestSystemClick(sound)
     }
 
     private func emit(_ tick: Tick) {
