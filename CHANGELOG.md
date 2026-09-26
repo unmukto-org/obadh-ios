@@ -8,12 +8,29 @@ Current limitations and verification requirements live in [KNOWN-ISSUES.md](KNOW
 
 No changes after the v1.0.1 release preparation yet.
 
-## v1.0.1 — 2026-09-25 (release preparation)
+## v1.0.1 — 2026-09-25 (uploaded for release)
 
-Version: `1.0.1`. Engine: `0.9.4`.
-Prepared: 2026-09-25. App Store publication date: pending.
-Build, tested source commit and annotated tag: recorded after archive verification.
-Comparison: `v1.0..v1.0.1` (tag pending).
+Version: `1.0.1` (build `168`). Engine: `0.9.4`.
+Prepared and uploaded: 2026-09-25. App Store publication date: pending.
+Tag: `v1.0.1` (annotated).
+Tested source commit: `a254af68e39a4ddaac4da55196a971f06d9526cc`.
+Comparison: [v1.0…v1.0.1](https://github.com/nsssayom/obadh-ios/compare/v1.0...v1.0.1).
+This metadata is recorded in a documentation commit after the tagged archive
+source; the tag and binary continue to identify the tested source above.
+
+### Release verification
+
+- Uploaded build 168 through Xcode's signed-in account. Xcode reported
+  **Upload succeeded** and **Uploaded package is processing** on 2026-09-25.
+  The owner will finish App Store Connect build selection, metadata and App Review
+  submission. This is an upload, not confirmation of review approval or publication.
+
+- Passed all 152 Swift and 54 UIKit tests on the release source. Engine 0.9.4
+  had already passed the 19 real-engine integration tests before the version bump.
+- Created a signed Release archive from the clean tagged source. Verified matching
+  app/extension version `1.0.1`, build `168`, source `a254af68` and strict signatures.
+- Corrected the build-stamping console message to read the marketing version
+  from project.yml instead of reporting the obsolete hard-coded `0.1.0`.
 
 ### App Store update notes
 

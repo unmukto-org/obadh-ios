@@ -5,7 +5,7 @@ Resolved work belongs in [CHANGELOG.md](CHANGELOG.md). Do not create separate
 research reports. Add dated evidence to the relevant issue; remove the entry when
 its acceptance checks pass and record the resolution in the changelog.
 
-**Scope:** unreleased v1.0.1 source. The phone uses engine 0.9.4 in
+**Scope:** v1.0.1 release source (build 168; App Store publication pending). The phone uses engine 0.9.4 in
 Release 166 (`6ab7ab68`),
 installed and launched on 2026-09-25. This installation is not a new hardware
 acceptance pass for the issues below; earlier device observations used Release 112.
