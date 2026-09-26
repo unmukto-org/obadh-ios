@@ -24,6 +24,7 @@
 		17F09C66AABE1DA16B8F7224 /* EmojiRecentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A590DD924D6A20FFDF0681E /* EmojiRecentStore.swift */; };
 		1956E5EE4EE1FF04FD15BBE6 /* SmartPunctuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A08118AF11C65C61B57AA1DA /* SmartPunctuation.swift */; };
 		1C71B28A74195439D3374947 /* KeyboardInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DAC7140E3D047C0497C569 /* KeyboardInputView.swift */; };
+		1C774E1F50653404E9283DA4 /* KeyboardLoanwordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0DFE4DFA25DFB1B513F6D36 /* KeyboardLoanwordTests.swift */; };
 		1E29DA45C1A8A352AD8EB170 /* SuggestionBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D65EFAF37CE3C5028ECCF93 /* SuggestionBarView.swift */; };
 		1F7E4C37A232069143660A4B /* AppBuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E75F5DA9835F870053E7D8 /* AppBuildInfo.swift */; };
 		254F7FB13B4E81C2E797AB2A /* BanglaTypingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CDAB14409BFF075910B4EC0 /* BanglaTypingEngine.swift */; };
@@ -284,6 +285,7 @@
 		9BFF57B1CEF3C39D97D6A19D /* ObadhKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ObadhKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		9D65EFAF37CE3C5028ECCF93 /* SuggestionBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionBarView.swift; sourceTree = "<group>"; };
 		A08118AF11C65C61B57AA1DA /* SmartPunctuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPunctuation.swift; sourceTree = "<group>"; };
+		A0DFE4DFA25DFB1B513F6D36 /* KeyboardLoanwordTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardLoanwordTests.swift; sourceTree = "<group>"; };
 		A140FAB27D1F3192798424FA /* ObadhBridge.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = ObadhBridge.xcframework; path = Frameworks/ObadhBridge.xcframework; sourceTree = "<group>"; };
 		A47007187215709D9F7A376C /* KeyboardTouchSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTouchSurfaceView.swift; sourceTree = "<group>"; };
 		A511810E19849BD6B9BE166E /* ObadhIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObadhIdentity.swift; sourceTree = "<group>"; };
@@ -405,6 +407,7 @@
 				30E4F73615132C90B929480B /* KeyboardEngineShortcutTests.swift */,
 				97D481F4E6A82EE36C8B539B /* KeyboardKeyAppearanceTests.swift */,
 				3602F14AB04542BA4D98A6FD /* KeyboardLifecycleTests.swift */,
+				A0DFE4DFA25DFB1B513F6D36 /* KeyboardLoanwordTests.swift */,
 				D32B9625D19A384E972278B5 /* KeyboardSoundTests.swift */,
 				81858AF86914EA4942AC51F4 /* KeyboardSpatialSuggestionTests.swift */,
 				50D132A246A97881713FA965 /* KeyboardTouchAccuracyTests.swift */,
@@ -986,6 +989,7 @@
 				B530D9B4CB91EF4690A6CBDD /* KeyboardLayout.swift in Sources */,
 				FE9BC60A410B59CA45BBAE62 /* KeyboardLayoutGeometry.swift in Sources */,
 				69BB0BC2E90D993C65538096 /* KeyboardLifecycleTests.swift in Sources */,
+				1C774E1F50653404E9283DA4 /* KeyboardLoanwordTests.swift in Sources */,
 				6F9FCC3AEF2D09C205E7CCD0 /* KeyboardPreferences.swift in Sources */,
 				7A69B9D494079201F9675D71 /* KeyboardRowView.swift in Sources */,
 				E70E4A5D38EECE366DE25618 /* KeyboardSizingLog.swift in Sources */,

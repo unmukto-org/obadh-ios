@@ -23,6 +23,7 @@ while consolidating this file. Local evidence under `build/` is git-ignored.
 | [KI-006](#ki-006) | Custom globe long press | Behavioral verification needed |
 | [KI-007](#ki-007) | Native appearance coverage | Incomplete verification |
 | [KI-012](#ki-012) | Human typing accuracy | No demonstrated improvement yet |
+| [KI-015](#ki-015) | Loanword Space acceptance and ribbon order | Verified iOS policy/presentation gap |
 
 <!-- feedback-draft:start -->
 <a id="ki-001"></a>
@@ -297,3 +298,36 @@ resolver replay and the explicit session reference policy in
 accepted variants; raw phone traces are not committed or used as training fixtures.
 Outputs: `build/TypingAccuracyPilot/{report,replay,audit}.json` and summary charts.
 The standalone lab logs prompted study input only, not everyday keyboard typing.
+
+<a id="ki-015"></a>
+
+## KI-015 — Exact loanwords are blocked by typo costs; literal stays first
+
+**Verified (2026-09-25, bundled engine 0.9.3 + shipped dictionaries):** All 14
+sampled English inputs returned exact-loanword candidates (source 9, Roman repair
+cost 0). With Auto-Insert Corrections enabled and no protected spellings, only
+`bus` → বাস and `taxi` → ট্যাক্সি passed the current iOS gate. The other 12 were
+blocked by its Bangla edit-cost ceiling of 1, despite exact English matches:
+
+| Input | Literal | Engine's exact loanword | Bangla edit cost |
+| --- | --- | --- | --- |
+| computer | চম্পুতের | কম্পিউটার | 7 |
+| office | অফফিচে | অফিস | 5 |
+| school | সছঅল | স্কুল | 6 |
+
+The engine's compose API intentionally returns the literal first. iOS preserves
+that order and quotes only non-dictionary literals; even accepted `bus` leaves
+বুস first and unquoted (lexicon frequency 15). This does not implement the
+requested preferred-loanword-first / quoted-literal-second arrangement.
+
+**Next fix / acceptance:** Give exact loanwords an appropriate cost rule without
+relaxing fuzzy-loanword or ordinary typo gates. Preserve the app setting and
+protected spellings; check valid Bangla/English ambiguities. Display the Space
+choice first and the tappable quoted literal second while preserving the inline
+literal preview. No engine change is needed for the verified examples.
+
+**Evidence:** `KeyboardLoanwordTests` exercises the actual bridge and composer;
+its `loanword-engine-and-ios-policy` XCTest attachment records candidates, costs,
+frequencies, ribbon order and Space results with the setting off/on. Local output:
+`build/LoanwordInvestigation/engine-ios-policy.json`. Production behavior and the
+phone's Release 162 were unchanged by this investigation.

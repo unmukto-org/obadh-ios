@@ -97,6 +97,13 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Investigation and testing
 
+- Checked 14 loanwords against engine 0.9.3 and the shipped dictionaries. All
+  returned exact-loanword candidates; iOS's ordinary edit-cost ceiling blocked
+  automatic insertion for 12, even with the setting enabled. Confirmed that the
+  ribbon keeps the literal first and quotes it only when absent from the lexicon.
+  Added a reproducible engine/composer probe and recorded KI-015. No production
+  policy or engine behavior changed.
+
 - Installed and launched signed Release **1.0 (162)** from `1fb8c8a3` on the
   iPhone 16 Pro Max with the engine version in About and copied build details.
   Verified matching app/extension stamps, strict signatures and installed build
