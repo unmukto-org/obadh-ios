@@ -7,9 +7,11 @@ final class KeyboardViewController: UIInputViewController {
     private var heightConstraint: NSLayoutConstraint?
     private let log = Logger(subsystem: "org.unmukto.obadh.marginprobe", category: "geometry")
 
-    #if PROBE_KEYBOARD || PROBE_DEFAULT || PROBE_SYSTEM_SIZING || PROBE_PULSE || PROBE_INTRINSIC || PROBE_FITTING
+    #if PROBE_KEYBOARD || PROBE_DEFAULT || PROBE_SYSTEM_SIZING || PROBE_PULSE || PROBE_INTRINSIC || PROBE_FITTING || PROBE_PLAIN_ROOT
     override func loadView() {
-        #if PROBE_KEYBOARD
+        #if PROBE_PLAIN_ROOT
+        view = UIView()
+        #elseif PROBE_KEYBOARD
         inputView = UIInputView(frame: .zero, inputViewStyle: .keyboard)
         #elseif PROBE_INTRINSIC || PROBE_FITTING
         inputView = ProbeInputView(frame: .zero, inputViewStyle: .default)
@@ -21,6 +23,9 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        #if PROBE_EARLY_LANGUAGE
+        primaryLanguage = "en-US"
+        #endif
         #if PROBE_INPUT_MODE
         NotificationCenter.default.addObserver(self, selector: #selector(inputModeChanged(_:)),
             name: UITextInputMode.currentInputModeDidChangeNotification, object: nil)
@@ -58,7 +63,10 @@ final class KeyboardViewController: UIInputViewController {
         #if PROBE_PREFERRED || PROBE_PREFERRED_ONLY
         preferredContentSize = CGSize(width: UIScreen.main.bounds.width, height: 180)
         #endif
-        #if PROBE_SYSTEM_SIZING || PROBE_SYSTEM_DEFAULT
+        #if PROBE_PLAIN_ROOT
+        // Use the inherited UIViewController root contract for this control.
+        // Do not assume the inputView getter returns a UIInputView for this root.
+        #elseif PROBE_SYSTEM_SIZING || PROBE_SYSTEM_DEFAULT
         inputView?.allowsSelfSizing = false
         #else
         inputView?.allowsSelfSizing = true
@@ -92,6 +100,66 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        #if PROBE_COLLAPSE
+        heightConstraint?.constant = 0
+        view.setNeedsUpdateConstraints()
+        view.layoutIfNeeded()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [self] in
+            heightConstraint?.constant = 180
+            view.setNeedsUpdateConstraints()
+            view.layoutIfNeeded()
+            log.notice("MARGIN-COLLAPSE restored request=180")
+        }
+        #endif
+        #if PROBE_DETACH_REBUILD
+        let originalBounds = view.bounds
+        inputView = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [self] in
+            inputView = UIInputView(frame: originalBounds, inputViewStyle: .keyboard)
+            configureProbe()
+            log.notice("MARGIN-DETACH restored input view")
+        }
+        #endif
+        #if PROBE_LEXICON
+        requestSupplementaryLexicon { @Sendable [weak self] _ in
+            Task { @MainActor in
+                self?.log.notice("MARGIN-LEXICON completed")
+            }
+        }
+        #endif
+        #if PROBE_SCENE_OBSERVE
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self, let scene = self.view.window?.windowScene else { return }
+            if #available(iOS 26.0, *) {
+                let space = scene.effectiveGeometry.coordinateSpace
+                let screenFrame = space.convert(space.bounds, to: scene.screen.fixedCoordinateSpace)
+                self.log.notice("MARGIN-SCENE bounds=\(NSCoder.string(for: space.bounds), privacy: .public) screenFrame=\(NSCoder.string(for: screenFrame), privacy: .public) margins=\(NSCoder.string(for: self.view.layoutMargins), privacy: .public) additionalSafe=\(NSCoder.string(for: self.additionalSafeAreaInsets), privacy: .public) traits=\(self.traitCollection.description, privacy: .public)")
+            }
+        }
+        #endif
+        #if PROBE_EMPTY_INSERT
+        // Controlled test text only. An empty insertion can still have editing
+        // side effects, so this experiment is not a shipping workaround.
+        if textDocumentProxy.selectedText?.isEmpty != false {
+            textDocumentProxy.insertText("")
+        }
+        #endif
+        #if PROBE_RELOAD_RESPONDER
+        let reloadSelector = #selector(UIResponder.reloadInputViews)
+        let proxyCanReload = textDocumentProxy.responds(to: reloadSelector)
+        log.notice("MARGIN-RESPONDER proxyCanReload=\(proxyCanReload)")
+        if proxyCanReload { (textDocumentProxy as? NSObject)?.perform(reloadSelector) }
+        log.notice("MARGIN-RESPONDER controller=\(self.isFirstResponder) view=\(self.view.isFirstResponder) window=\(self.view.window?.isFirstResponder ?? false) proxyResponder=\(self.textDocumentProxy is UIResponder)")
+        var responder: UIResponder? = self
+        for _ in 0..<10 {
+            guard let current = responder else { break }
+            log.notice("MARGIN-RESPONDER type=\(String(describing: type(of: current)), privacy: .public) first=\(current.isFirstResponder)")
+            if current.isFirstResponder { current.reloadInputViews() }
+            responder = current.next
+        }
+        // Verify the documented first-responder restriction empirically too.
+        reloadInputViews()
+        #endif
         #if PROBE_TRAIT_REFRESH
         let proxy = textDocumentProxy
         let acceptsSetter = proxy.responds(to: #selector(setter: UITextInputTraits.keyboardType))
@@ -177,6 +245,13 @@ final class KeyboardViewController: UIInputViewController {
         }
         #endif
     }
+
+    #if PROBE_COLLAPSE
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        log.notice("MARGIN-COLLAPSE actual=\(self.view.bounds.height)")
+    }
+    #endif
 }
 
 #if PROBE_INTRINSIC || PROBE_FITTING

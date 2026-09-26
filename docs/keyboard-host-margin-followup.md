@@ -397,3 +397,123 @@ The normal simulator build succeeds. Phone build 112 remains installed; CoreDevi
 independently reports bundle version 112. Experimental height changes were not
 added to it. The feedback draft is `docs/keyboard-margin-feedback-draft.md` and
 has not been submitted. Height remains an open acceptance criterion.
+
+## Native-state refresh investigation
+
+Branch: `investigate/keyboard-native-state-refresh`, based on `dcd5c6f`.
+No production keyboard change is included in this pass. Phone build 112 remains
+the installed keyboard; diagnostic code is confined to generated test projects.
+
+### Host reload: simulator success does not transfer to iOS 27
+
+A focused `UITextView.reloadInputViews()` in the owning host repairs the iOS 26.5
+reproduction. The minimal keyboard changes from 299 to 316 points, and the
+retained native keyplane top changes from 0 to 7. A second, independent UIKit
+host using the normal Obadh keyboard confirms 372 → 389 points, with both an
+insertion point and a selected word. Text, selection and first-responder status
+are preserved. That simulator test passes without an expected height failure.
+
+The same independent host on the iPhone 16 Pro Max, iOS 27.0 (24A435), reports
+391 after English and 374 after Emoji. Calling `reloadInputViews()` leaves it at
+374. Text, selection and focus checks pass; the height assertion correctly fails.
+This rules out shipping the simulator result as an iOS 27 solution.
+
+Same-frame `resignFirstResponder()` / `becomeFirstResponder()` inside
+`UIView.performWithoutAnimation` repairs the first device sequence, 374 → 391,
+but fails the next sequence, 374 → 374. Text, selection, focus and input-mode
+language remain unchanged. Repeating with the selected word in a fresh host
+repairs 374 → 391; selection alone does not explain the preceding failure.
+The refresh is not reliable across these sequences. Neither host operation is
+available to a keyboard extension controlling another app's editor.
+
+A further unselected repeat fails the input-mode preservation check:
+`text=true selection=true focus=true mode=false`. The screen recording shows
+the native English keyboard afterwards (host height 364). It never reaches its
+height assertion. This is an additional reason to reject responder re-presentation
+as a seamless repair, not a successful margin restoration.
+
+The independent host has its own bundle ID and no extension, app-group access,
+or preference writes. It can test the already installed keyboard without replacing
+it. Generate it with `python3 scripts/parity/generate-margin-host.py`, then use
+the `MarginHostTests` scheme under `build/MarginHost/ObadhMarginHost.xcodeproj`.
+Physical tests use `-collect-test-diagnostics never`. The diagnostic tests have
+ordinary failing height assertions: a failure is retained as evidence.
+
+### Additional extension-side controls
+
+All completed simulator comparisons below retain **316 → 299 → 316** for
+English, Emoji and foregrounding, with unchanged test text:
+
+- Extension metadata `PrimaryLanguage = en-US` (built plist independently read).
+- Metadata `IsASCIICapable = false`.
+- Set `primaryLanguage = en-US` early in `viewDidLoad`.
+- Reload the extension's own responder; public responder traversal finds no
+  first responder, and the document proxy does not respond to `reloadInputViews`.
+- Empty text insertion in the controlled, unselected test field. This can have
+  editing side effects and is not a production workaround.
+- Use a plain `UIView` root instead of `UIInputView`.
+- Request a supplementary lexicon after appearance.
+
+The iOS 26 `effectiveGeometry.coordinateSpace` is full-screen in both states;
+converted screen bounds, layout margins, additional safe areas and public traits
+also match. `UIWindowSceneGeometry.systemFrame` is unavailable on iOS, so it
+cannot provide a supported compensation signal.
+
+Two experiments need qualifications:
+
+- Requesting height zero then restoring 180 does not actually collapse the
+  content: UIKit grants 224 then 180. The final heights still differ by 17.
+- Clearing `inputView` and rebuilding asynchronously loses the working test key.
+  That trial is rejected for a functional regression, not counted as a completed
+  height comparison.
+
+The initial lexicon probe crashed because its callback assumed main-actor
+execution while UIKit called it on an XPC reply queue. A `@Sendable` callback
+that explicitly hops to `MainActor` fixes the diagnostic; the completed test
+still reproduces the margin discrepancy. Production does not call this API.
+
+### Capture reliability
+
+In the standalone physical-host tests, both `app.screenshot()` and
+`XCUIScreen.main.screenshot()` include native Emoji/alphabet layers over Obadh
+after switching. Time-matched frames from the XCTest recording also show them;
+later frames after re-presentation show a single keyboard. An initial comparison
+against a later recording frame incorrectly suggested an app-screenshot-only
+artifact. That explanation is withdrawn. This is recorded transition evidence;
+direct observation of the phone and delayed captures are needed before assigning
+the rendering fault to Obadh. Geometry conclusions above use actual keyboard-frame
+notifications, independently of images.
+
+An additional completed capture test waits eight seconds after each switch, with
+no refresh operation. Both English and Emoji layers are still present in its
+delayed screen captures; host heights remain 391 and 374 respectively. This is
+not merely a capture taken before the globe menu closes. It reproduces in the
+independent diagnostic host. The test passes its text-preservation checks; that
+pass is **not** a visual-quality or height-fix assertion. Captures are in
+`device-host-settled/`. A direct on-phone observation is still requested before
+assuming these captured layers explain the user's momentary color change.
+The earlier independent-host simulator capture after Emoji has a single, clean
+Obadh keyplane (`simulator-independent-host/`); the recorded overlay is not present
+in that control.
+
+Evidence is copied to `build/host-margin-investigation/logs/`, including
+`obadh-margin-host-reload-repeated*`, `obadh-margin-independent-host-*`, and
+`obadh-margin-host-device-*`. The physical re-presentation recording and original
+snapshots are exported in `device-host-representation/` under that directory.
+
+Apple's current [custom-keyboard configuration guide](https://developer.apple.com/documentation/uikit/configuring-a-custom-keyboard-interface)
+still describes changing the extension view's height constraints. Its
+[reload contract](https://developer.apple.com/documentation/uikit/uiresponder/reloadinputviews%28%29)
+requires the owning object to be first responder. The related SwiftUI keyboard
+toolbar discussion concerns a host-owned toolbar; its overlay / `safeAreaBar`
+suggestions do not grant an extension control over Messenger's input accessory.
+The matching 17-point forum report remains community evidence, not an
+Apple-confirmed extension workaround.
+
+The final independent-host test targets compile with `build-for-testing` after
+improving failure reporting to capture the actual preservation status before
+asserting it. Generator syntax checks and `git diff --check` pass. These are
+diagnostic validation results, not a production fix. Both temporary host apps
+and runners were removed from the phone and dedicated simulator. The normal
+Obadh simulator app was restored, and that simulator was shut down. Phone build
+112 and system appearance preferences are retained. No Messenger text was touched.

@@ -150,3 +150,5 @@ Evidence and integration date: 2026-09-25.
 <!-- Integration: fix/phone-letter-case-typography at a0abe32; 2026-09-25. -->
 
 <!-- Integration: fix/keyboard-host-margin-contract at dcd5c6f; 2026-09-25. -->
+
+<!-- Integration: investigate/keyboard-native-state-refresh at ac9a043; 2026-09-25. -->

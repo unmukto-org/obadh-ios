@@ -28,6 +28,8 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 - Traced the retained native keyboard padding and added height regression checks. Confirmed that stable Obadh bounds do not imply a stable host-owned suggestion zone; no height fix resulted.
 
+- Tested native-state refresh and sizing variations. Simulator-only successes did not transfer reliably to iOS 27 hardware; retained the unsuccessful results so they are not mistaken for fixes.
+
 ## v1.0 — 2026-09-21 baseline
 
 Version: `1.0` (build `105`). Tag: `v1.0` (annotated).

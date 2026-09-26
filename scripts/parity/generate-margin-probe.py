@@ -8,12 +8,13 @@ replaces its Obadh keyboard; reinstall the normal build after the experiment.
 """
 import argparse
 import json
+import plistlib
 from pathlib import Path
 import subprocess
 import yaml
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--variant", choices=["inherited", "keyboard", "default", "system-sizing", "pulse", "intrinsic", "system-default", "fitting", "recreate", "language", "language-refresh", "preferred", "preferred-only", "required", "observe", "dictation-refresh", "dictation-false", "input-mode", "geometry-refresh", "context-refresh", "host-trace", "trait-refresh"], default="inherited")
+parser.add_argument("--variant", choices=["inherited", "keyboard", "default", "system-sizing", "pulse", "intrinsic", "system-default", "fitting", "recreate", "language", "language-refresh", "preferred", "preferred-only", "required", "observe", "dictation-refresh", "dictation-false", "input-mode", "geometry-refresh", "context-refresh", "host-trace", "trait-refresh", "metadata-english", "metadata-nonascii", "early-language", "reload-responder", "host-reload", "empty-insert", "scene-observe", "plain-root", "collapse", "detach-rebuild", "lexicon"], default="inherited")
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[2]
 spec = yaml.safe_load((root / "project.yml").read_text())
@@ -24,8 +25,10 @@ spec["schemes"] = {"ObadhKeyboardUITests": spec["schemes"]["ObadhKeyboardUITests
 keyboard = spec["targets"]["ObadhKeyboard"]
 keyboard["sources"] = [{"path": "Tests/KeyboardMarginProbe/MinimalKeyboardViewController.swift"}]
 keyboard["dependencies"] = []
-if args.variant == "host-trace":
+if args.variant in ("host-trace", "host-reload"):
     spec["targets"]["Obadh"]["sources"].append({"path": "Tests/KeyboardMarginProbe/HostMarginTrace.m"})
+if args.variant == "host-reload":
+    spec["targets"]["Obadh"]["sources"].append({"path": "Tests/KeyboardMarginProbe/HostReloadProbe.m"})
 if args.variant != "inherited":
     keyboard["settings"]["base"]["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = "$(inherited) PROBE_" + args.variant.upper().replace("-", "_")
 
@@ -47,6 +50,16 @@ def absolute_paths(node):
 
 out = root / "build/MarginProbe"
 out.mkdir(parents=True, exist_ok=True)
+if args.variant in ("metadata-english", "metadata-nonascii"):
+    info = plistlib.loads((root / "ObadhKeyboard/Info.plist").read_bytes())
+    attributes = info["NSExtension"]["NSExtensionAttributes"]
+    if args.variant == "metadata-english":
+        attributes["PrimaryLanguage"] = "en-US"
+    else:
+        attributes["IsASCIICapable"] = False
+    info_path = out / "KeyboardInfo.plist"
+    info_path.write_bytes(plistlib.dumps(info))
+    keyboard["settings"]["base"]["INFOPLIST_FILE"] = str(info_path)
 (out / "project.yml").write_text(json.dumps(absolute_paths(spec), indent=2))
 subprocess.run(["xcodegen", "generate", "--spec", str(out / "project.yml"), "--project", str(out)], check=True)
 print(out / "ObadhMarginProbe.xcodeproj")

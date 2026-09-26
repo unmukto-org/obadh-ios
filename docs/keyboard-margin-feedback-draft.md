@@ -39,6 +39,24 @@ On an iPhone 16 Pro Max with iOS 27.0 (24A435), the actual Obadh keyboard also
 loses approximately 17 points above its root. A fully consumed 255 → 272 → 255
 height pulse did not repair it. Physical implementation internals were not inspected.
 
+An independent public-API host using the installed Obadh keyboard measures
+**391 → 374 points** after English versus Emoji on that phone. Calling
+`reloadInputViews()` on its focused `UITextView` does not repair the height,
+despite preserving text, selection and focus. On iOS 26.5, the same independent
+host and normal keyboard measure 389 → 372, and that call restores 389.
+
+On iOS 27, same-frame resign/become-first-responder restores 391 in the first
+sequence but fails in the next. A fresh selected-word trial succeeds, so the
+failure cannot be attributed to selection alone. This is not a reliable repair,
+and keyboard extensions cannot perform it on other apps' responders anyway.
+Another unselected repeat changes the input-mode language and displays native
+English instead; its preservation assertion fails before height comparison.
+
+Generate the independent host with `scripts/parity/generate-margin-host.py`.
+It has no extension or app-group entitlements and tests the installed keyboard.
+The `MarginHostTests` scheme contains explicit failing height assertions for
+repair attempts; do not interpret these expected research outcomes as fixed.
+
 ## Narrowed mechanism on iOS 26.5
 
 Runtime observation in our own test host shows retained native keyplane top
