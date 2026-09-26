@@ -23,7 +23,6 @@ while consolidating this file. Local evidence under `build/` is git-ignored.
 | [KI-006](#ki-006) | Custom globe long press | Behavioral verification needed |
 | [KI-007](#ki-007) | Native appearance coverage | Incomplete verification |
 | [KI-012](#ki-012) | Human typing accuracy | No demonstrated improvement yet |
-| [KI-014](#ki-014) | Typing sound hardware acceptance / native parity | Audible on phone; special-key sounds differ |
 
 <!-- feedback-draft:start -->
 <a id="ki-001"></a>
@@ -298,59 +297,3 @@ resolver replay and the explicit session reference policy in
 accepted variants; raw phone traces are not committed or used as training fixtures.
 Outputs: `build/TypingAccuracyPilot/{report,replay,audit}.json` and summary charts.
 The standalone lab logs prompted study input only, not everyday keyboard typing.
-
-<a id="ki-014"></a>
-
-## KI-014 — Special-key typing sounds differ from native
-
-**Confirmed (2026-09-25, Release 149, iPhone 16 Pro Max / iOS 27):** The user
-hears Obadh clicks, but space/backspace sound like letters. All three feedback
-paths currently call `playInputClick()`. Silent Mode and system Sound-off behavior
-have not yet been separately confirmed by the user.
-
-**Research:** Apple's [Designing Sound talk](https://developer.apple.com/videos/play/wwdc2017/803/)
-confirms differentiated modifier/delete sounds and slightly reduced volume during
-fast typing. The current [UIKit click API](https://developer.apple.com/documentation/uikit/uidevice/playinputclick%28%29)
-and local Xcode 26.6 headers expose one click, with visibility and system-setting
-gates; there is no key-type argument. That route alone does not meet sound parity.
-
-[KeyboardKit 9 source](https://github.com/KeyboardKit/KeyboardKit/blob/9.0.0/Sources/KeyboardKit/Feedback/KeyboardFeedback%2BAudio.swift)
-maps letter/delete/modifier to **1104 / 1155 / 1156**, and its audio engine calls
-`AudioServicesPlaySystemSound`. [Current KeyboardKit documentation](https://docs.keyboardkit.com/documentation/keyboardkit/developer-feedback/)
-still describes AudioServices playback. This verifies a practical alternative,
-not an Apple guarantee: those IDs are absent from public SDK constants, and
-[AudioServices](https://developer.apple.com/documentation/audiotoolbox/audioservicesplaysystemsound%28_%3A%29)
-does not document the UIKit keyboard-preference gate. `kAudioServicesPropertyIsUISound`
-mentions a general sound-effects preference (the SDK header describes a macOS
-checkbox), so it cannot establish iOS Keyboard Feedback Sound compliance. Direct
-IDs bypassing that setting remains a hypothesis to test on current hardware.
-
-**Experiment:** `Tools/KeyboardSoundProbe` is a separate Release app with Apple
-English as reference and four accessory buttons: UIKit click, 1104, 1155, 1156.
-It records nothing, sets no audio session and bundles no Apple sound assets. Its
-sources are absent from Obadh's project. Signed probe build **151** (`d55ee623`)
-was installed and launched on the iPhone on 2026-09-25; its Release simulator
-build and visible comparison controls were checked. The user subsequently identified
-**delete = 1155** and **return/space/shift/123/emoji = 1156**. Return sounded slightly
-louder; no level difference has been measured, and no gain correction is justified.
-The overall palette sounded right, but the user did not individually confirm 1104.
-Silent Mode and system Sound-off checks are still unanswered.
-
-**Candidate:** `feature/key-specific-typing-sounds` routes the confirmed keys to
-1155/1156, including every held-delete unit, and retains UIKit for letters and
-suggestions. Uncompared iPad/globe/dismiss keys retain their existing sound. The
-app preference and Full Access still gate all requests. This candidate is not
-merged or installed: direct-ID muting and system-preference behavior must be
-resolved first. Mixing UIKit letters with direct special-key playback could
-otherwise leave only special keys audible when system keyboard sounds are off.
-All 148 core tests and three UIKit sound-routing/gating tests pass; these do not
-measure audible output or prove system muting.
-Generate with `mkdir -p build/SoundProbe`
-then `xcodegen generate --spec Tools/KeyboardSoundProbe/project.yml --project build/SoundProbe`.
-Build scheme `ObadhSoundProbe`; generated projects/artifacts stay under `build/`.
-
-**Next gate:** Compare each button with native at the same volume; test Silent Mode
-and system Keyboard Feedback Sound off independently, restoring each afterward.
-If direct IDs ignore a required setting, do not call that full native parity.
-After choosing a viable route, verify it inside the actual extension with the app
-switch, Full Access, held delete, suggestions, rapid typing and audio routing.
