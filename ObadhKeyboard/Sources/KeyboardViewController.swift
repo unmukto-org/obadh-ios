@@ -1126,7 +1126,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             // thread so the FST traversal never blocks typing.
             deterministicIsOOV = false
             updateCompositionSuggestionBar()
-            let buffer = composer.romanBuffer
+            let buffer = composer.engineInput
             let composerGeneration = composer.generation
             let limit = composer.autocorrectFetchLimit
             let autoInsert = keyboardPreferences.autoInsertTopCorrection

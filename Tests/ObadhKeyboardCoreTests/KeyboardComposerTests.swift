@@ -94,15 +94,28 @@ final class KeyboardComposerTests: XCTestCase {
         XCTAssertEqual(composer.romanBuffer, "q", "a single q must be untouched")
     }
 
-    func testTqqCanReturnToTqWhenTheEngineSupportsKhandaTaAlias() {
-        // Contract test for a future engine alias; the bundled 0.9.3 engine
-        // does not implement tq → ৎ. Do not change its transliteration here.
+    func testTqqReturnsToTheCanonicalKhandaTaSignal() {
         let composer = KeyboardComposer(engine: KhandaTaAliasFixtureEngine())
         for key in "tqq" { composer.append(String(key)) }
         XCTAssertEqual(composer.preview, "তঁ")
         XCTAssertTrue(composer.deleteBackward())
         XCTAssertEqual(composer.romanBuffer, "tq")
         XCTAssertEqual(composer.preview, "ৎ")
+    }
+
+    func testIOSShortcutNormalizationPreservesOtherEngineSignals() {
+        for (raw, canonical) in [
+            ("tq", "t``"), ("Tq", "T``"), ("utqsob", "ut``sob"),
+            ("tqq", "tqq"), ("tqqq", "tqqq"), ("baqq", "baqq"),
+            ("tt", "tt"), ("tQ", "tQ"), ("TQ", "TQ"), ("qQ", "qQ"),
+            ("iraq", "iraq"), ("qatar", "qatar"), ("t``", "t``"), ("ba^", "ba^")
+        ] {
+            XCTAssertEqual(KeyboardComposer.engineInput(for: raw), canonical, raw)
+            let composer = KeyboardComposer(engine: FixtureEngine())
+            composer.append(raw)
+            XCTAssertEqual(composer.engineInput, canonical)
+            XCTAssertEqual(composer.romanBuffer, raw)
+        }
     }
 
     func testEmojiSuggestionsAreExposedSeparatelyFromText() {
@@ -177,7 +190,7 @@ private struct KhandaTaAliasFixtureEngine: BanglaTypingEngine {
     func transliterate(_ input: String) -> String {
         switch input {
         case "t": "ত"
-        case "tq": "ৎ"
+        case "t``": "ৎ"
         case "tqq": "তঁ"
         default: ""
         }

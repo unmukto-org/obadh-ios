@@ -10,6 +10,9 @@ native keyboard for iPhone and iPad built on that engine.
 
 You type roman, it composes Bangla live.
 
+Letter-key shortcuts: `tq` → **ৎ**, `qq` → **ঁ**. For example, `sotq` → **সৎ**
+and `baqq` → **বাঁ**.
+
 <p align="center">
   <img src="docs/assets/typing.gif" alt="Typing Bangla with Obadh in Notes" width="330">
 </p>

@@ -22,8 +22,14 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
   removing the duplicate rewrite must not turn chandrabindu backspace into a
   stray ক. The earlier `baqq` → `baq` behavior and its test expectations were
   inappropriate. Repeated pairs now delete together; an unpaired final Q deletes
-  separately. `tqq` can return to `tq` only when the engine renders that prefix
-  as ৎ; the new shortcut's input mapping remains pending.
+  separately. The `tqq` → `tq` exception now uses the iOS mapping described below.
+
+- Implemented the iOS `tq` / `Tq` → ৎ shortcut (KI-013) using the existing engine
+  double-backtick signal. `sotq`, `utqsob` and `bidyutq` produce সৎ, উৎসব and
+  বিদ্যুৎ. `qq` has precedence: `tqq` → তঁ; backspace returns to ৎ, then ত.
+  Preserved raw keystrokes and used identical canonical input for preview,
+  suggestions and detailed correction queries. No engine update or global Q
+  remapping was made. Removed the resolved issue from KNOWN-ISSUES.md.
 
 - Stabilized key-row positions during transient keyboard heights. Cancelled stale
   suggestions and touches on context changes, cleaned up held-delete timers, restored
@@ -101,12 +107,19 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Integration verification
 
+- The new `tq` word regressions failed before implementation. Afterward, 147
+  Swift and 43 UIKit tests passed, including the real controller's asynchronous
+  suggestion path, real-engine correction parity, whole words, commits, raw
+  input preservation and forward/backward `tq` / `tqq` transitions. The Release
+  iOS app/extension build also passed (compile check with signing disabled).
+
 - The initial `qq` follow-up passed 145 Swift and 38 UIKit tests but encoded the
   wrong product expectation for deletion. Corrected semantic-deletion regressions
   failed against that change before repair. After repair, 146 Swift and 39 UIKit
   tests passed, covering paired/unpaired Qs, case, explicit `^`, suggestions and
   commit boundaries against the real engine. The future `tq` exception has a
-  separate contract fixture; it is not claimed as a supported bundled-engine alias.
+  separate contract fixture at that stage; the later iOS mapping is now verified
+  against the bundled engine's existing double-backtick signal.
 
 - Passed 145 Swift core/metric tests, 33 UIKit lifecycle/touch tests, and 17
   real Swift/C engine integration tests on the integrated source.

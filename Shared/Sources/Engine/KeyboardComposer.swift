@@ -45,6 +45,34 @@ final class KeyboardComposer {
         !romanBuffer.isEmpty
     }
 
+    /// Canonical input shared by preview and asynchronous correction queries.
+    /// Keep romanBuffer unchanged so qq precedence and deletion are reversible.
+    var engineInput: String {
+        Self.engineInput(for: romanBuffer)
+    }
+
+    static func engineInput(for input: String) -> String {
+        let keys = Array(input)
+        var result = ""
+        var index = 0
+        while index < keys.count {
+            // Only t/T + a single lowercase q is the iOS khanda-ta shortcut.
+            // A following qq belongs to the engine's chandrabindu rule instead:
+            // tq → t``, but tqq stays tqq. Other Q spellings remain unchanged.
+            if (keys[index] == "t" || keys[index] == "T"),
+               index + 1 < keys.count, keys[index + 1] == "q",
+               index + 2 == keys.count || keys[index + 2] != "q" {
+                result.append(keys[index])
+                result.append("``")
+                index += 2
+            } else {
+                result.append(keys[index])
+                index += 1
+            }
+        }
+        return result
+    }
+
     /// Number of candidates the caller should request for the async autocorrect
     /// fetch (one extra so the deterministic entry never crowds out corrections).
     var autocorrectFetchLimit: Int {
@@ -129,8 +157,8 @@ final class KeyboardComposer {
     }
 
     func append(_ scalar: String) {
-        // The engine owns Roman aliases, including qq → chandrabindu. Preserve
-        // raw input; editing units are handled separately in deleteBackward.
+        // Preserve the actual keys. Platform shortcuts are normalized only at
+        // the engine boundary; editing units are handled in deleteBackward.
         romanBuffer.append(scalar)
         refreshDeterministic()
     }
@@ -145,10 +173,9 @@ final class KeyboardComposer {
             removeCount = 2
             if trailingQs == 2 {
                 let shorterInput = String(romanBuffer.dropLast())
-                // A future tq alias can be a meaningful intermediate in tqq.
-                // Only retain it if the engine actually renders khanda ta;
-                // the current defensive tq → ৎক fallback does not qualify.
-                if engine.transliterate(shorterInput).hasSuffix("\u{09CE}") {
+                // tqq can return to the meaningful tq → ৎ intermediate.
+                // Judge the same normalized input used by preview/corrections.
+                if engine.transliterate(Self.engineInput(for: shorterInput)).hasSuffix("\u{09CE}") {
                     removeCount = 1
                 }
             }
@@ -193,7 +220,7 @@ final class KeyboardComposer {
             return
         }
 
-        let deterministic = engine.transliterate(romanBuffer)
+        let deterministic = engine.transliterate(engineInput)
         if deterministic.isEmpty {
             compositionSuggestions.removeAll(keepingCapacity: true)
             emojiSuggestions.removeAll(keepingCapacity: true)

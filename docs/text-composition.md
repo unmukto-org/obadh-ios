@@ -65,8 +65,12 @@ midpoint boundaries. The keys themselves are non-interactive.
 - The engine interprets `qq` as চন্দ্রবিন্দু, like its `^` marker. iOS preserves
   the original Roman keys, but backspace removes a completed `qq` as one input
   unit: `baqq` → `ba`. An unpaired final `q` is removed separately (`qqq` → `qq`).
-  If the engine supports `tq` → ৎ, `tqq` can return to that meaningful intermediate
-  form; the current engine's defensive `tq` → ৎক fallback does not qualify.
+- iOS maps `tq` / `Tq` to the engine's existing double-backtick খণ্ড ত signal:
+  `sotq` → সৎ, `utqsob` → উৎসব, `bidyutq` → বিদ্যুৎ. A following `qq` takes
+  precedence: `tqq` → তঁ. Backspace walks `tqq` → `tq` → `t` (তঁ → ৎ → ত).
+  Other Q spellings keep their engine meaning. The composer retains raw keys
+  separately from `engineInput`; preview, correction suggestions and detailed
+  auto-insert queries all use the same canonical input. The core engine is unchanged.
 
 ## Backspace
 
