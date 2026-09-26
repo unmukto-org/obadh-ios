@@ -66,6 +66,7 @@
 		63243E96C5C1A4CBEB87B40D /* KeyboardSizingLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A54E6808E9AB6949BF32A08 /* KeyboardSizingLog.swift */; };
 		65962F0473F61D2F35E20AE7 /* EmojiDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A861B35EEA4DB2BBF06DA7ED /* EmojiDataStore.swift */; };
 		663F2946392A763E3794E421 /* SmartPunctuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A08118AF11C65C61B57AA1DA /* SmartPunctuation.swift */; };
+		663F37525070A163F6B80499 /* ObadhBridge.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A140FAB27D1F3192798424FA /* ObadhBridge.xcframework */; };
 		665215EF9A0FC7144DAD5887 /* ObadhBridge.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A140FAB27D1F3192798424FA /* ObadhBridge.xcframework */; };
 		674A3D80E9A858C5E01BBF9A /* PersonalAutosuggestStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DD0D70EB7425ABE2D8E949A /* PersonalAutosuggestStore.swift */; };
 		689DCAC5388528CFA0DCC69D /* ObadhIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A511810E19849BD6B9BE166E /* ObadhIdentity.swift */; };
@@ -335,6 +336,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				665215EF9A0FC7144DAD5887 /* ObadhBridge.xcframework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		98AFF1179FD7C0E858821978 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				663F37525070A163F6B80499 /* ObadhBridge.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -718,6 +727,7 @@
 			buildPhases = (
 				D4355BAFAF5EF51E72598EE1 /* Sources */,
 				DE4885E1C7C9E4115EF88E85 /* Resources */,
+				98AFF1179FD7C0E858821978 /* Frameworks */,
 				6670FC004E9E845C5D97E595 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
@@ -1363,6 +1373,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/Obadh.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Frameworks\"",
+				);
 				INFOPLIST_FILE = "ObadhApp/Info-Legacy.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1447,6 +1461,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/Obadh.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Frameworks\"",
+				);
 				INFOPLIST_FILE = ObadhApp/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1605,6 +1623,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/Obadh.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Frameworks\"",
+				);
 				INFOPLIST_FILE = ObadhApp/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

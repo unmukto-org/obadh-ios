@@ -20,7 +20,7 @@ use obadh_engine::cabi;
 /// through — only the presence of these addresses in a `#[used]` static matters,
 /// which is what pins the symbols into the staticlib.
 #[repr(transparent)]
-struct AbiSymbols([*const (); 21]);
+struct AbiSymbols([*const (); 22]);
 
 // SAFETY: the elements are code addresses that are never dereferenced or
 // mutated; the table is immutable and read by nothing. It is `Sync` trivially.
@@ -29,6 +29,7 @@ unsafe impl Sync for AbiSymbols {}
 #[used]
 static KEEP_ALIVE: AbiSymbols = AbiSymbols([
     cabi::obadh_abi_version as *const (),
+    cabi::obadh_engine_version as *const (),
     cabi::obadh_engine_new as *const (),
     cabi::obadh_engine_free as *const (),
     cabi::obadh_transliterate as *const (),
