@@ -363,11 +363,15 @@ final class KeyboardKeyButton: UIButton {
     }
 
     private func configure() {
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (button: KeyboardKeyButton, _) in
+        registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) { (button: KeyboardKeyButton, _) in
             // Inheritance can change after attachment without another controller
             // appearance pass. Correct the fill before drawing that environment.
             button.applyPressedState(animated: false)
         }
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(accessibilityMaterialDidChange),
+            name: UIAccessibility.reduceTransparencyStatusDidChangeNotification, object: nil
+        )
         translatesAutoresizingMaskIntoConstraints = true
         layer.cornerRadius = KeyboardTheme.defaultMetrics.keyCornerRadius
         layer.cornerCurve = .continuous
@@ -446,6 +450,10 @@ final class KeyboardKeyButton: UIButton {
         ])
     }
 
+    @objc private func accessibilityMaterialDidChange() {
+        applyPressedState(animated: false)
+    }
+
     override var isHighlighted: Bool {
         didSet {
             guard oldValue != isHighlighted else { return }
@@ -497,12 +505,12 @@ final class KeyboardKeyButton: UIButton {
             self.layer.shadowOpacity = self.isHighlighted
                 ? max(0, restShadow - 0.12)
                 : restShadow
-            self.transform = self.isHighlighted
+            self.transform = self.isHighlighted && !UIAccessibility.isReduceMotionEnabled
                 ? CGAffineTransform(scaleX: 0.985, y: 0.985)
                 : .identity
         }
 
-        guard animated else {
+        guard animated && !UIAccessibility.isReduceMotionEnabled else {
             updates()
             return
         }

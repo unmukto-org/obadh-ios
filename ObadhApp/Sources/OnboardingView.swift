@@ -264,9 +264,20 @@ struct OnboardingView: View {
             .transition(.scale.combined(with: .opacity))
     }
 
+    @ViewBuilder
     private func primaryButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(title, action: action)
-            .buttonStyle(BrandButtonStyle())
+        if #available(iOS 26.0, *) {
+            Button(action: action) {
+                Text(title).frame(maxWidth: .infinity)
+            }
+            .font(.system(size: 17, weight: .semibold, design: .rounded))
+            .controlSize(.large)
+            .tint(Color.obadhDeep)
+            .buttonStyle(.glassProminent)
+        } else {
+            Button(title, action: action)
+                .buttonStyle(BrandButtonStyle())
+        }
     }
 
     private func secondaryButton(_ title: String, action: @escaping () -> Void) -> some View {

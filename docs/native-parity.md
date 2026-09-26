@@ -121,6 +121,11 @@ Honest gaps, so nobody reads a green run as more than it is:
 
 ## Color (sampled, then solved)
 
+The [native materials follow-up](keyboard-host-margin-followup.md) extends these
+measurements to Reduce Transparency and Increase Contrast. Their key overlays
+use the stronger 0.30 dark / opaque white light palette, with live preference
+updates. These accessibility checks do not verify the iOS 27 glass slider.
+
 - The panel is `UIInputView(inputViewStyle: .keyboard)`, the system's own
   keyboard material, and it measures pixel-identical to native everywhere.
 - Key fills are white-over-panel alphas solved from screenshot sampling:

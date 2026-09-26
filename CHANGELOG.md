@@ -17,6 +17,8 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 - Fixed detached keys using the wrong appearance for their fill and updating only after a touch or refresh. Reset accidental debug sizing overrides that caused an extra 18-point ribbon and isolated deliberate sizing experiments.
 
+- Updated key overlays for Increase Contrast and Reduce Transparency, respected Reduce Motion for press feedback, and used a native glass primary onboarding button on iOS 26+. Investigated host sizing without shipping an unverified height workaround.
+
 #### Investigation and testing
 
 - Started a release journal and a single known-issues and research register.

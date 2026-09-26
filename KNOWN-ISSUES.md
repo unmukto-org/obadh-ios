@@ -132,3 +132,11 @@ Fixed in source; included in installed Release 112. Appearance regressions faile
 Evidence and integration date: 2026-09-25.
 
 <!-- Integration: fix/keyboard-switch-key-colors at 8ab0abc; 2026-09-25. -->
+
+### KI-010 — Accessibility appearance and motion
+
+Fixed for the identified overlay/feedback defects in source; included in installed Release 112. Simulator dark accessible key-face measurements improved from about RGB 103 versus native 129 to 127 versus 129. Subsequent physical tests cover Liquid Glass slider endpoints. These results do not establish complete native parity or a fix for the host top margin.
+
+Evidence and integration date: 2026-09-25.
+
+<!-- Integration: fix/keyboard-host-top-margin at d89741c; 2026-09-25. -->

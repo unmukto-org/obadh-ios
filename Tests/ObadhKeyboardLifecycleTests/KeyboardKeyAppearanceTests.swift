@@ -9,6 +9,37 @@ final class KeyboardKeyAppearanceTests: XCTestCase {
         KeyboardTheme.legacyPresentation = false
     }
 
+    override func tearDown() {
+        KeyboardGlassStyle.current = KeyboardGlassStyle.shipped
+        super.tearDown()
+    }
+
+    func testKeysFollowInheritedAccessibilityContrastWithoutControllerRefresh() throws {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 440, height: 956))
+        let host = UIViewController()
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.traitOverrides.userInterfaceStyle = .dark
+        host.view.traitOverrides.accessibilityContrast = .normal
+        let button = KeyboardKeyButton(key: .character("a"))
+        host.view.addSubview(button)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        button.updateAppearance(shifted: false, traitCollection: host.view.traitCollection,
+                                metrics: KeyboardTheme.defaultMetrics)
+        XCTAssertEqual(try XCTUnwrap(button.backgroundColor).cgColor.alpha, 0.16, accuracy: 0.001)
+        host.view.traitOverrides.accessibilityContrast = .high
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        XCTAssertEqual(button.traitCollection.accessibilityContrast, .high)
+        XCTAssertEqual(try XCTUnwrap(button.backgroundColor).cgColor.alpha, 0.30, accuracy: 0.001)
+        button.isHighlighted = true
+        XCTAssertEqual(try XCTUnwrap(button.backgroundColor).cgColor.alpha, 0.51, accuracy: 0.001)
+        button.isHighlighted = false
+        host.view.traitOverrides.accessibilityContrast = .normal
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        XCTAssertEqual(try XCTUnwrap(button.backgroundColor).cgColor.alpha, 0.16, accuracy: 0.001)
+    }
+
     func testDetachedKeysUseSuppliedAppearanceForFillAndText() throws {
         for style in [UIUserInterfaceStyle.dark, .light] {
             for key in [KeyboardKey.character("a"), .space, .backspace] {

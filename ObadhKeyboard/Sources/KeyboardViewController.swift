@@ -371,10 +371,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         // Self-sizing + one height constraint requests our intended content size.
         // UIKit can still supply transient bounds or add host-owned margins; this
         // does not guarantee the outer container height on every presentation.
-        // Letting the system size us instead (allowsSelfSizing false, no constraint)
-        // was measured to be untrustworthy: the granted height
-        // ratchets across presentations (253→290→314 on the same sim) and renders a
-        // container visibly taller than native. See the native-parity notes.
+        // The minimal control with system sizing and no height constraint still
+        // reproduces the outer-margin difference and chooses a different content
+        // height. Keep our intended height independent of transient bounds; the
+        // old 290/314 "phantom grants" were our metrics feedback loop (see below).
         inputView.allowsSelfSizing = true
         inputView.clipsToBounds = true
     }
