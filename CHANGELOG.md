@@ -30,6 +30,8 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 - Tested native-state refresh and sizing variations. Simulator-only successes did not transfer reliably to iOS 27 hardware; retained the unsuccessful results so they are not mistaken for fixes.
 
+- Tested an isolated keyboard surface and built a standalone public UIKit reproduction of the height discrepancy. Added a physical-device height check; kept experimental/private tracing code outside shipping targets.
+
 ## v1.0 — 2026-09-21 baseline
 
 Version: `1.0` (build `105`). Tag: `v1.0` (annotated).

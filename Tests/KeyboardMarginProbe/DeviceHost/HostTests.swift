@@ -41,10 +41,19 @@ final class HostTests: XCTestCase {
         try checkRepair(button: "Re-present keyboard", selections: [false, false, false])
     }
 
-    func testSettledSwitchAppearance() {
+    func testSettledSwitchAppearance() throws {
+        try checkSettledSwitchAppearance(requireStableHeight: false)
+    }
+
+    func testKeyboardHeightIsStable() throws {
+        try checkSettledSwitchAppearance(requireStableHeight: true)
+    }
+
+    private func checkSettledSwitchAppearance(requireStableHeight: Bool) throws {
         continueAfterFailure = false
         let app = XCUIApplication(bundleIdentifier: "org.unmukto.obadh.marginhostprobe")
         app.launch()
+        var heights: [Double] = []
         for source in ["English (US)", "Emoji"] {
             select(source, in: app)
             select("Obadh", in: app)
@@ -52,7 +61,19 @@ final class HostTests: XCTestCase {
             // Deliberately observe the settled compositor, not just AX menu exit.
             Thread.sleep(forTimeInterval: 8)
             capture("switch-settled-\(source)", in: app)
+            heights.append(try height(app))
             XCTAssertEqual(app.textViews["probe-editor"].value as? String, "hello ")
+        }
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        Thread.sleep(forTimeInterval: 2)
+        capture("switch-after-foreground", in: app)
+        heights.append(try height(app))
+        XCTAssertEqual(app.textViews["probe-editor"].value as? String, "hello ")
+        print("DEVICE-HOST-STABILITY english=\(heights[0]) emoji=\(heights[1]) foreground=\(heights[2])")
+        if requireStableHeight {
+            XCTAssertEqual(heights[1], heights[0], accuracy: 1, "Switching must preserve total height")
+            XCTAssertEqual(heights[2], heights[0], accuracy: 1, "Foregrounding must preserve total height")
         }
     }
 

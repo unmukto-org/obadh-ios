@@ -14,7 +14,7 @@ import subprocess
 import yaml
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--variant", choices=["inherited", "keyboard", "default", "system-sizing", "pulse", "intrinsic", "system-default", "fitting", "recreate", "language", "language-refresh", "preferred", "preferred-only", "required", "observe", "dictation-refresh", "dictation-false", "input-mode", "geometry-refresh", "context-refresh", "host-trace", "trait-refresh", "metadata-english", "metadata-nonascii", "early-language", "reload-responder", "host-reload", "empty-insert", "scene-observe", "plain-root", "collapse", "detach-rebuild", "lexicon"], default="inherited")
+parser.add_argument("--variant", choices=["inherited", "keyboard", "default", "system-sizing", "pulse", "intrinsic", "system-default", "fitting", "recreate", "language", "language-refresh", "preferred", "preferred-only", "required", "observe", "dictation-refresh", "dictation-false", "input-mode", "geometry-refresh", "context-refresh", "host-trace", "trait-refresh", "metadata-english", "metadata-nonascii", "early-language", "reload-responder", "host-reload", "empty-insert", "scene-observe", "plain-root", "collapse", "detach-rebuild", "lexicon", "self-sizing-refresh"], default="inherited")
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[2]
 spec = yaml.safe_load((root / "project.yml").read_text())
