@@ -33,6 +33,7 @@
 		2A00711A40148437E3B9C247 /* EmojiGridMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413422FB16F61F3C4CEE3424 /* EmojiGridMetrics.swift */; };
 		2A349223A6F87CA10A88D189 /* ObadhBridge.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A140FAB27D1F3192798424FA /* ObadhBridge.xcframework */; };
 		2E19839B4C6301EBEF3AFDFD /* KeyboardTouchSurfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A47007187215709D9F7A376C /* KeyboardTouchSurfaceView.swift */; };
+		2FE4A0F92D80A2456DD74A70 /* KeyboardEngineShortcutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30E4F73615132C90B929480B /* KeyboardEngineShortcutTests.swift */; };
 		30D943E3D23B6BFEF1BBBE3E /* KeyboardDebugChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDD5C1AACA44AA367113C3B /* KeyboardDebugChannel.swift */; };
 		30E0C1068BE02C5E421C3E6C /* ObadhBridge.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A140FAB27D1F3192798424FA /* ObadhBridge.xcframework */; };
 		31F08F06D2E3954F4CA75E41 /* ObadhModels in Resources */ = {isa = PBXBuildFile; fileRef = 62363696E04B4D208F1866B8 /* ObadhModels */; };
@@ -225,6 +226,7 @@
 		2DD1FF9151E1C74445AC2D0C /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = wrapper.cfbundle; path = Settings.bundle; sourceTree = "<group>"; };
 		2DE3855A6D08F626A006C8BF /* Obadh.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Obadh.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2F17B39BFA64FEDB13A98224 /* EmojiPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiPanelView.swift; sourceTree = "<group>"; };
+		30E4F73615132C90B929480B /* KeyboardEngineShortcutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardEngineShortcutTests.swift; sourceTree = "<group>"; };
 		357A2D2EC4233E419470E4C6 /* BanglaEmojiSearchStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BanglaEmojiSearchStore.swift; sourceTree = "<group>"; };
 		35B18AA8869B4393EFF61797 /* BackspaceDeletionPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackspaceDeletionPlanner.swift; sourceTree = "<group>"; };
 		3602F14AB04542BA4D98A6FD /* KeyboardLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardLifecycleTests.swift; sourceTree = "<group>"; };
@@ -379,6 +381,7 @@
 			isa = PBXGroup;
 			children = (
 				B5E96460CF4A9DFDCE73AA9D /* KeyboardDebugChannelTests.swift */,
+				30E4F73615132C90B929480B /* KeyboardEngineShortcutTests.swift */,
 				97D481F4E6A82EE36C8B539B /* KeyboardKeyAppearanceTests.swift */,
 				3602F14AB04542BA4D98A6FD /* KeyboardLifecycleTests.swift */,
 				81858AF86914EA4942AC51F4 /* KeyboardSpatialSuggestionTests.swift */,
@@ -944,6 +947,7 @@
 				70D352D2468AE893909A32A1 /* KeyboardComposer.swift in Sources */,
 				3BE298D51F1DBE80FEF2AB0E /* KeyboardDebugChannel.swift in Sources */,
 				C61816EF70A87B39976C9211 /* KeyboardDebugChannelTests.swift in Sources */,
+				2FE4A0F92D80A2456DD74A70 /* KeyboardEngineShortcutTests.swift in Sources */,
 				4E05DA997BA4A95995A4EC69 /* KeyboardFeedbackController.swift in Sources */,
 				80EAC5A491CFC2CBF093E9E3 /* KeyboardKeyAppearanceTests.swift in Sources */,
 				DD9DE2910DB60E12C42B5ADD /* KeyboardKeyButton.swift in Sources */,

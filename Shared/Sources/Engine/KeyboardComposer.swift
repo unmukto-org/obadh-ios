@@ -129,15 +129,9 @@ final class KeyboardComposer {
     }
 
     func append(_ scalar: String) {
-        // `qq` (q tapped twice) is a mobile shortcut for Obadh's `^` chandrabindu
-        // marker, which has no key on the letter layout. The second `q` rewrites
-        // the pair to `^` so the engine renders ঁ.
-        if scalar == "q", romanBuffer.hasSuffix("q") {
-            romanBuffer.removeLast()
-            romanBuffer.append("^")
-        } else {
-            romanBuffer.append(scalar)
-        }
+        // The engine owns Roman aliases, including qq → chandrabindu. Preserve
+        // the typed keys so deletion can restore the preceding input exactly.
+        romanBuffer.append(scalar)
         refreshDeterministic()
     }
 
