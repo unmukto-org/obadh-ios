@@ -72,6 +72,11 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Investigation and testing
 
+- Built and signed standalone **Obadh Sound Probe 151** (`d55ee623`), inspected
+  its simulator layout, and installed/launched it on the iPhone for sound/mute
+  comparison. The installed Obadh keyboard remains Release 149. Probe code and
+  numeric sound IDs are excluded from all Obadh shipping targets.
+
 - Followed up on the user's Release 149 listening report: clicks are audible, but
   special keys still use the letter sound. Audited Apple's sound-design guidance,
   current UIKit/AudioServices docs, SDK headers and KeyboardKit's implementation.

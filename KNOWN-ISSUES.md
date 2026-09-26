@@ -328,7 +328,10 @@ IDs bypassing that setting remains a hypothesis to test on current hardware.
 **Experiment:** `Tools/KeyboardSoundProbe` is a separate Release app with Apple
 English as reference and four accessory buttons: UIKit click, 1104, 1155, 1156.
 It records nothing, sets no audio session and bundles no Apple sound assets. Its
-sources are absent from Obadh's project. Generate with `mkdir -p build/SoundProbe`
+sources are absent from Obadh's project. Signed probe build **151** (`d55ee623`)
+was installed and launched on the iPhone on 2026-09-25; its Release simulator
+build and visible comparison controls were checked. Listening results are pending.
+Generate with `mkdir -p build/SoundProbe`
 then `xcodegen generate --spec Tools/KeyboardSoundProbe/project.yml --project build/SoundProbe`.
 Build scheme `ObadhSoundProbe`; generated projects/artifacts stay under `build/`.
 
