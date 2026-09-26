@@ -58,6 +58,12 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Investigation and testing
 
+- Built, signed, installed and launched Release **1.0 (143)** on the iPhone 16
+  Pro Max from `1a58dc60` on 2026-09-25. Verified both bundle stamps, strict code
+  signatures and absence of diagnostic trace markers; CoreDevice confirms the
+  installed app's build is 143. Includes the `tq` shortcut and corrected `qq`
+  deletion. This is a development-device installation, not the v1.0.1 release.
+
 - Started a release journal and a single known-issues and research register.
   Reviewed the day's branches for sequential integration.
 
