@@ -97,6 +97,11 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Investigation and testing
 
+- Installed and launched signed Release **1.0 (162)** from `1fb8c8a3` on the
+  iPhone 16 Pro Max with the engine version in About and copied build details.
+  Verified matching app/extension stamps, strict signatures and installed build
+  162. The engine remains **0.9.3**; this change exposes its version, not an upgrade.
+
 - Installed and launched signed Release **1.0 (159)** from `182dde0d` on the
   iPhone 16 Pro Max after merging differentiated sounds and the Full Access
   safeguards. Verified strict signatures, matching app/extension stamps and
