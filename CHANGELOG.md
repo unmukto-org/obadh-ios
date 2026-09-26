@@ -40,6 +40,8 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 - Accepted the participant-confirmed bikale/bikele dialect variants through an explicit session-scoped scoring policy. Preserved exact-copy scores and other errors; keyboard transliteration behavior did not change.
 
+- Recorded bundled-engine suggestions for diagnostic pilot words as a portable XCTest attachment. This is an engine probe only; no spatial decoder or improved suggestion ranking was implemented.
+
 ## v1.0 — 2026-09-21 baseline
 
 Version: `1.0` (build `105`). Tag: `v1.0` (annotated).

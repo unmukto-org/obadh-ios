@@ -97,6 +97,7 @@
 		8E471953129D5F47A9ACAF9A /* KeyboardLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CFF9E5FDDBFC923C946FF4 /* KeyboardLayout.swift */; };
 		8E90797269458789A02FFC76 /* SizingLogViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F66AD0166AD79842FFFD45 /* SizingLogViewController.swift */; };
 		8ECB38284C1273C3061499A7 /* KeyboardSizingLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A54E6808E9AB6949BF32A08 /* KeyboardSizingLog.swift */; };
+		91F85E48F930B1A89DC1AA60 /* KeyboardSpatialSuggestionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81858AF86914EA4942AC51F4 /* KeyboardSpatialSuggestionTests.swift */; };
 		91FED4D335090B87BDCABC53 /* BackspaceRepeatController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E1485BB6F35E3728758EB63 /* BackspaceRepeatController.swift */; };
 		9249FCD6DDEBECFECE0D6F6F /* ObadhModels in Resources */ = {isa = PBXBuildFile; fileRef = 62363696E04B4D208F1866B8 /* ObadhModels */; };
 		93C9FC08E3B748306599367A /* KeyboardTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63A0E44B2BF4ECEBD1F200FA /* KeyboardTheme.swift */; };
@@ -259,6 +260,7 @@
 		7C7BF89E4657EF206E10D3A3 /* ObadhKeyboardLifecycleTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ObadhKeyboardLifecycleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E7A08BDE93B4142634C087E /* ObadhApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObadhApp.swift; sourceTree = "<group>"; };
 		8109D1F633534167E8886D3C /* KeyboardInstallState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardInstallState.swift; sourceTree = "<group>"; };
+		81858AF86914EA4942AC51F4 /* KeyboardSpatialSuggestionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardSpatialSuggestionTests.swift; sourceTree = "<group>"; };
 		823506CDCE3CC47B4525E0AC /* KeyboardComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardComposer.swift; sourceTree = "<group>"; };
 		85E848AE01B636BE2F743371 /* KeyboardKeyPreviewCallout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardKeyPreviewCallout.swift; sourceTree = "<group>"; };
 		86492A9D653BD7ADC7768E20 /* KeyboardFeedbackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardFeedbackController.swift; sourceTree = "<group>"; };
@@ -379,6 +381,7 @@
 				B5E96460CF4A9DFDCE73AA9D /* KeyboardDebugChannelTests.swift */,
 				97D481F4E6A82EE36C8B539B /* KeyboardKeyAppearanceTests.swift */,
 				3602F14AB04542BA4D98A6FD /* KeyboardLifecycleTests.swift */,
+				81858AF86914EA4942AC51F4 /* KeyboardSpatialSuggestionTests.swift */,
 				50D132A246A97881713FA965 /* KeyboardTouchAccuracyTests.swift */,
 				043F3A4E497B9A02D9673725 /* KeyboardTypographyTests.swift */,
 			);
@@ -951,6 +954,7 @@
 				6F9FCC3AEF2D09C205E7CCD0 /* KeyboardPreferences.swift in Sources */,
 				7A69B9D494079201F9675D71 /* KeyboardRowView.swift in Sources */,
 				E70E4A5D38EECE366DE25618 /* KeyboardSizingLog.swift in Sources */,
+				91F85E48F930B1A89DC1AA60 /* KeyboardSpatialSuggestionTests.swift in Sources */,
 				389CC291528BE83F2C15EDF3 /* KeyboardTheme.swift in Sources */,
 				C71B4530B2F4EF567CB43144 /* KeyboardTouchAccuracyTests.swift in Sources */,
 				E358243732DE2F9483384AC4 /* KeyboardTouchResolver.swift in Sources */,
