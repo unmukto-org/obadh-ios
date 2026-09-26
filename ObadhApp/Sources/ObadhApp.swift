@@ -109,6 +109,8 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
         let screenPrefix = "--screen="
         if let argument = arguments.first(where: { $0.hasPrefix(screenPrefix) }) {
             switch argument.dropFirst(screenPrefix.count) {
+            case "settings":
+                return UIHostingController(rootView: SettingsView(install: KeyboardInstallStateReader().read()))
             case "about":
                 return UIHostingController(rootView: NavigationStack { AboutView() })
             case "privacy":

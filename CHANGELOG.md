@@ -13,6 +13,14 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Fixes and changes
 
+- Enabled UIKit keyboard clicks on the actual input view (the audio protocol was
+  previously on its controller). Added an independent, persistent **Typing Sounds**
+  switch in the app, on by default. Sound requests require Full Access and the app
+  preference; UIKit retains control of Silent Mode, system keyboard sounds and
+  volume. Updated setup and privacy copy. Uses `playInputClick()`, with no custom
+  audio session or undocumented sound IDs; exact private per-key sound parity and
+  physical-device mute behavior remain acceptance checks in KI-014.
+
 - Removed iOS's duplicate `qq` → `^` rewrite after verifying that the bundled
   engine already handles chandrabindu. The composer preserves raw Roman input
   while treating completed `qq` as one deletion unit: `baqq` (বাঁ) → `ba` (বা).
@@ -63,6 +71,13 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
   pass; human accuracy improvement remains unproven.
 
 #### Investigation and testing
+
+- Verified the typing-sound protocol defect with a failing baseline, then passed
+  148 core tests, 45 UIKit tests and three targeted UI checks. App sound toggling
+  persists across relaunch; switching/foreground typing still passes. Emoji
+  switching retains the known expected 389 → 372 → 389 pt host-height discrepancy.
+  Corrected the new UI test to tap the actual trailing switch after its row-center
+  tap did nothing; this was an automation error, not a settings defect.
 
 - Installed and launched Release **1.0 (146)** from `4d6a94ec` on the iPhone 16
   Pro Max after the whole-modifier deletion refinement. The signed Release build

@@ -23,7 +23,21 @@ final class KeyboardFeedbackController {
     private let supportsHaptics = CHHapticEngine.capabilitiesForHardware().supportsHaptics
     private var engine: CHHapticEngine?
 
-    private let preferences = KeyboardPreferences()
+    private let preferences: KeyboardPreferences
+    private let requestSystemClick: () -> Void
+    private var typingSoundsEnabled = true
+
+    /// Shared by the input view's audio opt-in and every feedback entry point.
+    /// UIKit owns visibility, Silent Mode, volume and the system sound preference.
+    var inputClicksEnabled: Bool { fullAccessGranted && typingSoundsEnabled }
+
+    init(
+        preferences: KeyboardPreferences = KeyboardPreferences(),
+        requestSystemClick: @escaping () -> Void = { UIDevice.current.playInputClick() }
+    ) {
+        self.preferences = preferences
+        self.requestSystemClick = requestSystemClick
+    }
     private var hapticFeedbackEnabled = true
 
     /// Core Haptics needs Full Access: a sandboxed extension without it cannot reach
@@ -78,6 +92,7 @@ final class KeyboardFeedbackController {
 
     func reloadPreferences() {
         hapticFeedbackEnabled = preferences.hapticFeedbackEnabled
+        typingSoundsEnabled = preferences.typingSoundsEnabled
     }
 
     /// Starts the engine ASYNCHRONOUSLY and at most once. Both guards matter: the
@@ -127,14 +142,14 @@ final class KeyboardFeedbackController {
         if hapticFeedbackEnabled, key != .emoji {
             emit(Self.standardTick)
         }
-        UIDevice.current.playInputClick()
+        playInputClick()
     }
 
     func suggestionAccepted() {
         if hapticFeedbackEnabled {
             emit(Self.standardTick)
         }
-        UIDevice.current.playInputClick()
+        playInputClick()
     }
 
     func backspaceRepeated(unit: BackspaceDeletionUnit) {
@@ -146,10 +161,16 @@ final class KeyboardFeedbackController {
                 emit(Tick(0.6, 0.9, fallback: 0.65)) // a touch firmer for a larger delete
             }
         }
-        UIDevice.current.playInputClick()
+        playInputClick()
     }
 
     // MARK: Playback
+
+    private func playInputClick() {
+        guard inputClicksEnabled else { return }
+        // No audio session or private sound IDs: leave system audio policy intact.
+        requestSystemClick()
+    }
 
     private func emit(_ tick: Tick) {
         var tick = tick

@@ -13,6 +13,7 @@ enum EmojiSearchLanguage: String {
 
 struct KeyboardPreferences {
     static var appGroupIdentifier: String { ObadhIdentity.appGroupID }
+    private static let typingSoundsEnabledKey = "keyboard.typingSoundsEnabled"
     private static let hapticFeedbackEnabledKey = "keyboard.hapticFeedbackEnabled"
     private static let emojiSearchLanguageKey = "keyboard.emojiSearchLanguage"
     private static let fullAccessConfirmedAtKey = "keyboard.fullAccessConfirmedAt"
@@ -22,6 +23,12 @@ struct KeyboardPreferences {
 
     init(defaults: UserDefaults = KeyboardPreferences.sharedDefaults) {
         self.defaults = defaults
+    }
+
+    /// App preference; UIKit still applies Silent Mode and the system keyboard sound setting.
+    var typingSoundsEnabled: Bool {
+        get { defaults.object(forKey: Self.typingSoundsEnabledKey) as? Bool ?? true }
+        nonmutating set { defaults.set(newValue, forKey: Self.typingSoundsEnabledKey) }
     }
 
     var hapticFeedbackEnabled: Bool {

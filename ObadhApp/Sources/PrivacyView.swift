@@ -20,7 +20,7 @@ struct PrivacyView: View {
                 )
                 paragraph(
                     "Full Access",
-                    "iOS requires it before a keyboard may play haptics or read the settings you choose in this app. Obadh uses it for nothing else. Granting it does not send anything anywhere."
+                    "iOS requires it before a keyboard may play typing sounds and haptics or read the settings you choose in this app. Obadh uses it for nothing else. Granting it does not send anything anywhere."
                 )
             }
 
