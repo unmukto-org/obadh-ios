@@ -165,4 +165,15 @@ final class KeyboardEngineShortcutTests: XCTestCase {
         composer.append("q")
         XCTAssertEqual(composer.preview, "ক")
     }
+    func testEngine094KeepsExplicitKhandaTaBeforeLaReachableOnIOS() {
+        let engine = configuredEngine()
+        let composer = KeyboardComposer(engine: engine)
+        composer.append("sotqlOk")
+        XCTAssertEqual(composer.preview, "সৎলোক")
+        composer.clear()
+        composer.append("katla")
+        XCTAssertEqual(composer.preview, "কাতলা")
+        XCTAssertEqual(AppBuildInfo.engineVersion, "0.9.4")
+    }
+
 }

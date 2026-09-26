@@ -11,4 +11,4 @@ crate-type = ["staticlib"]
 # The FFI surface is the engine's own C ABI, exposed by its `cabi` feature
 # (header: include/obadh.h). This crate exists only to link that surface into a
 # staticlib for the iOS xcframework — see src/lib.rs.
-obadh_engine = { version = "0.9.3", features = ["cabi"] }
+obadh_engine = { version = "0.9.4", features = ["cabi"] }

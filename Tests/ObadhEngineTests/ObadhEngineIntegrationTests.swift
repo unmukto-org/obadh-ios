@@ -1,4 +1,5 @@
 import Foundation
+import ObadhBridge
 import os
 import Testing
 
@@ -6,7 +7,7 @@ import Testing
 /// autosuggest n-gram) can be located the same way the keyboard locates them.
 private final class BundleToken {}
 
-/// Real-engine integration tests (ABI v2 / engine 0.9.0).
+/// Real-engine integration tests (ABI v2 / engine 0.9.4).
 ///
 /// Unlike the pure-logic unit suite (which runs under SwiftPM and cannot see the
 /// xcframework), this target links `ObadhBridge.xcframework` and bundles the real
@@ -48,6 +49,32 @@ struct ObadhEngineIntegrationTests {
     @Test func modelsLoadFromTheBundledArtifacts() {
         #expect(configuration.autocorrectAvailable)
         #expect(configuration.autosuggestAvailable)
+    }
+
+    @Test func linkedEngineVersionAndABI() {
+        #expect(obadh_abi_version() == 2)
+        let count = obadh_engine_version(nil, 0)
+        var bytes = [UInt8](repeating: 0, count: count)
+        let written = bytes.withUnsafeMutableBufferPointer {
+            obadh_engine_version($0.baseAddress, $0.count)
+        }
+        #expect(written == count)
+        #expect(String(bytes: bytes, encoding: .utf8) == "0.9.4")
+    }
+
+    /// Check scalars as well as appearance: the reph-ya form must use ZWJ,
+    /// while ordinary conjuncts must not acquire either kind of joiner.
+    @Test(arguments: [
+        ("rYab", "র\u{200D}্যাব"), ("rZab", "র\u{200D}্যাব"),
+        ("rZy", "র\u{200D}্যয়"), ("ry", "রয়"),
+        ("krY", "ক্র্য"), ("TrYak", "ট্র্যাক"), ("eksTrYak", "এক্সট্র্যাক"),
+        ("gN", "গ্ণ"), ("Ngkt", "ঙ্ক্ত"), ("spl", "স্প্ল"),
+        ("katla", "কাতলা"), ("patla", "পাতলা"), ("bOtl", "বোতল"),
+        ("sot``lOk", "সৎলোক"),
+    ])
+    func engine094ConjunctAndJoinerOutputs(roman: String, expected: String) {
+        let actual = engine.transliterate(roman)
+        #expect(actual.unicodeScalars.map(\.value) == expected.unicodeScalars.map(\.value))
     }
 
     // MARK: - Deterministic transliteration (goldens)

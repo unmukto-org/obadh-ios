@@ -13,6 +13,15 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Fixes and changes
 
+- Upgraded the linked engine from **0.9.3 to 0.9.4** and updated the Cargo lockfile;
+  no other dependency changed. Rebuilt all three device/simulator Rust slices.
+  The vendored C header is byte-for-byte unchanged (ABI 2). This brings the
+  engine's ZWJ-based র‍্য output, productive ট্র্য-style conjuncts, joiner-free
+  গ্ণ/ঙ্ক্ত/স্প্ল, live ত before ল, and stricter learned-word joiner validation.
+  Bundled language artifacts are unchanged. About reads the linked version
+  automatically; the installed phone build still uses 0.9.3.
+
+
 - Made exact English loanwords the default Bangla candidate, regardless of
   Auto-Insert Corrections. The engine already matches case-insensitively; no
   engine update or iOS case rewriting was needed. Exact matches bypass typo
@@ -112,6 +121,14 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
   pass; human accuracy improvement remains unproven.
 
 #### Investigation and testing
+
+- Verified engine 0.9.4 using fresh DerivedData: 19 real-engine integration
+  tests and 16 keyboard tests passed, including 14 scalar-level spelling cases,
+  ABI/version checks, pinned artifact fingerprints, `tq`/`qq`, About's version,
+  and all 112 loanword/case/setting combinations. Corrected two new test inputs
+  to use explicit `O` for ও; the engine's vowel rules were unchanged. The unsigned
+  iPhone Release build passed. No phone installation was performed.
+
 
 - Verified the loanword change with 23 composer tests and 26 simulator tests
   covering the loanword policy, controller lifecycle and existing `tq`/`qq`
