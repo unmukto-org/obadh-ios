@@ -64,6 +64,10 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Investigation and testing
 
+- Installed and launched Release **1.0 (146)** from `4d6a94ec` on the iPhone 16
+  Pro Max after the whole-modifier deletion refinement. The signed Release build
+  passed, both app/extension stamps match, and CoreDevice confirms build 146.
+
 - Built, signed, installed and launched Release **1.0 (143)** on the iPhone 16
   Pro Max from `1a58dc60` on 2026-09-25. Verified both bundle stamps, strict code
   signatures and absence of diagnostic trace markers; CoreDevice confirms the
