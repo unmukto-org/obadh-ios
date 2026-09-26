@@ -428,3 +428,64 @@ private struct AutocorrectFirstFixtureEngine: BanglaTypingEngine {
         []
     }
 }
+
+extension KeyboardComposerTests {
+    func testExactLoanwordBypassesToggleCostsFrequencyAndProtection() {
+        for enabled in [false, true] {
+            let composer = composerWithCorrection()
+            let literal = composer.preview
+            composer.resolveAutocorrectTarget(
+                autoInsertEnabled: enabled, baselineFrequency: 1_000_000,
+                detailedCorrections: [DetailedCorrection(text: "ঋণশব্দ", source: 9,
+                    editCost: 100, romanRepairCost: 0, frequency: 1)],
+                isProtectedWord: { _ in true }
+            )
+            XCTAssertEqual(composer.commitText, "ঋণশব্দ")
+            XCTAssertEqual(composer.preview, literal, "Display ordering must not alter the inline literal")
+            XCTAssertEqual(Array(composer.activeSuggestions.prefix(2)).map(\.text), ["ঋণশব্দ", literal])
+            XCTAssertEqual(composer.activeSuggestions[1].source, .deterministic)
+            XCTAssertEqual(composer.quotedLiteral(isOutOfVocabulary: false), literal)
+            XCTAssertEqual(composer.commitActiveInput(), "ঋণশব্দ")
+            XCTAssertNil(composer.exactLoanwordTarget)
+        }
+    }
+
+    func testFuzzyUnknownAndRepairedLoanwordsDoNotBypassToggle() {
+        for (source, repair) in [(UInt8(10), UInt16(1)), (UInt8(255), UInt16(0)), (UInt8(9), UInt16(1))] {
+            let composer = composerWithCorrection()
+            composer.resolveAutocorrectTarget(
+                autoInsertEnabled: false, baselineFrequency: 0,
+                detailedCorrections: [DetailedCorrection(text: "বাংলা", source: source,
+                    editCost: 0, romanRepairCost: repair, frequency: 50_000)],
+                isProtectedWord: { _ in false }
+            )
+            XCTAssertNil(composer.exactLoanwordTarget)
+            XCTAssertNil(composer.autocorrectTarget)
+            XCTAssertEqual(composer.commitText, composer.preview)
+        }
+    }
+
+    func testLoanwordDefaultsClearOnEditAndIgnoreStaleCandidates() {
+        let composer = composerWithCorrection()
+        composer.resolveAutocorrectTarget(autoInsertEnabled: false, baselineFrequency: 0,
+            detailedCorrections: [DetailedCorrection(text: "ঋণশব্দ", source: 9,
+                editCost: 8, romanRepairCost: 0, frequency: 1)], isProtectedWord: { _ in false })
+        let oldGeneration = composer.generation
+        composer.append("x")
+        composer.mergeAutocorrectCandidates(["ঋণশব্দ"], generation: oldGeneration)
+        XCTAssertNil(composer.exactLoanwordTarget)
+        XCTAssertEqual(composer.activeSuggestions.map(\.text), [composer.preview])
+        XCTAssertTrue(composer.deleteBackward())
+        XCTAssertNil(composer.exactLoanwordTarget)
+    }
+
+    func testIdenticalLoanwordAndLiteralAreNotDuplicated() {
+        let composer = composerWithCorrection()
+        composer.resolveAutocorrectTarget(autoInsertEnabled: true, baselineFrequency: 0,
+            detailedCorrections: [DetailedCorrection(text: composer.preview, source: 9,
+                editCost: 0, romanRepairCost: 0, frequency: 1)], isProtectedWord: { _ in false })
+        XCTAssertNil(composer.exactLoanwordTarget)
+        XCTAssertNil(composer.autocorrectTarget)
+        XCTAssertEqual(composer.activeSuggestions.filter { $0.text == composer.preview }.count, 1)
+    }
+}

@@ -27,9 +27,10 @@ final class KeyboardComposer {
     /// Bumped on every buffer change so stale async autocorrect results (fetched
     /// off the main thread) can be discarded when they arrive out of order.
     private(set) var generation = 0
-    /// When the opt-in auto-insert feature is on, the correction that space/return should
-    /// commit instead of the shown deterministic word — nil when the shown word stands.
+    /// Ordinary opt-in correction; exact loanwords have a separate default below.
     private(set) var autocorrectTarget: String?
+    private(set) var exactLoanwordTarget: String?
+    private var correctionsResolved = false
 
     init(
         engine: BanglaTypingEngine,
@@ -84,26 +85,31 @@ final class KeyboardComposer {
     }
 
     var activeSuggestions: [KeyboardSuggestion] {
-        compositionSuggestions
+        guard let exactLoanwordTarget else { return compositionSuggestions }
+        return Self.mergeSuggestions(
+            primary: [KeyboardSuggestion(text: exactLoanwordTarget, source: .autocorrect)]
+                + Array(compositionSuggestions.prefix(1)),
+            fallback: compositionSuggestions,
+            limit: max(2, compositionSuggestionLimit)
+        )
+    }
+
+    /// Exact loanwords always offer the literal as a quoted second choice, even
+    /// when that literal also happens to be a dictionary word.
+    func quotedLiteral(isOutOfVocabulary: Bool) -> String? {
+        exactLoanwordTarget != nil || isOutOfVocabulary ? preview : nil
     }
 
     /// What committing right now (space, return, punctuation) should insert: the
     /// auto-insert correction when one is active, otherwise the shown deterministic word.
     var commitText: String {
-        autocorrectTarget ?? preview
+        exactLoanwordTarget ?? autocorrectTarget ?? preview
     }
 
-    /// Decide whether space should commit a correction rather than the shown word, for
-    /// the opt-in auto-insert feature. Kept as pure logic — the engine's lexicon answer
-    /// and the feature flag are passed in — so it is exercised without the bridge.
-    ///
-    /// Fires only when: the feature is on; the shown word is NOT already a real word (in
-    /// the lexicon) and is NOT one the user has established; and a confident correction
-    /// that differs from it exists. Otherwise the shown word stands and typing is
-    /// unchanged.
-    /// The AutoInsertGate decision, applied to the top detailed correction that
-    /// differs from what the user sees. Provenance-driven (channel, cost,
-    /// frequency, baseline ratio) — see AutoInsertGate for the policy.
+    /// Exact English loanwords are default transliterations regardless of the
+    /// correction toggle, learned-word protection, edit cost or frequency ratio.
+    /// The engine owns case folding and ranking; fuzzy matches are excluded.
+    /// All other corrections retain the opt-in AutoInsertGate policy.
     func resolveAutocorrectTarget(
         autoInsertEnabled: Bool,
         baselineFrequency: UInt64,
@@ -111,8 +117,18 @@ final class KeyboardComposer {
         isProtectedWord: (String) -> Bool
     ) {
         autocorrectTarget = nil
-        guard autoInsertEnabled, hasActiveInput else { return }
+        exactLoanwordTarget = nil
+        correctionsResolved = true
+        guard hasActiveInput else { return }
         guard let shown = compositionSuggestions.first, shown.source == .deterministic else { return }
+        if let loanword = detailedCorrections.first(where: {
+            $0.source == DetailedCorrection.Source.englishLoanwordExact
+                && $0.romanRepairCost == 0 && !$0.text.isEmpty
+        }) {
+            if loanword.text != shown.text { exactLoanwordTarget = loanword.text }
+            return
+        }
+        guard autoInsertEnabled else { return }
         guard !isProtectedWord(shown.text) else { return }
         guard let top = detailedCorrections.first(where: { $0.text != shown.text }) else { return }
         guard AutoInsertGate.shouldAutoInsert(
@@ -180,12 +196,24 @@ final class KeyboardComposer {
 
     func commitActiveInput() -> String? {
         guard hasActiveInput else { return nil }
-        // The auto-insert correction when one is active, otherwise the shown word.
+        // A rapid delimiter can beat the asynchronous ribbon query. Resolve once
+        // at that boundary so exact loanwords do not depend on typing speed. This
+        // never puts a full correction query on each letter's preview path.
+        if !correctionsResolved {
+            resolveAutocorrectTarget(
+                autoInsertEnabled: false,
+                baselineFrequency: 0,
+                detailedCorrections: engine.detailedCorrections(for: engineInput, limit: autocorrectFetchLimit),
+                isProtectedWord: { _ in false }
+            )
+        }
         let committed = commitText
         romanBuffer.removeAll(keepingCapacity: true)
         compositionSuggestions.removeAll(keepingCapacity: true)
         emojiSuggestions.removeAll(keepingCapacity: true)
         autocorrectTarget = nil
+        exactLoanwordTarget = nil
+        correctionsResolved = false
         generation &+= 1
         return committed
     }
@@ -195,6 +223,8 @@ final class KeyboardComposer {
         compositionSuggestions.removeAll(keepingCapacity: true)
         emojiSuggestions.removeAll(keepingCapacity: true)
         autocorrectTarget = nil
+        exactLoanwordTarget = nil
+        correctionsResolved = false
         generation &+= 1
     }
 
@@ -207,6 +237,8 @@ final class KeyboardComposer {
         // The buffer changed; any correction was for the old text. It's re-resolved
         // once fresh candidates merge.
         autocorrectTarget = nil
+        exactLoanwordTarget = nil
+        correctionsResolved = false
         guard hasActiveInput else {
             compositionSuggestions.removeAll(keepingCapacity: true)
             emojiSuggestions.removeAll(keepingCapacity: true)

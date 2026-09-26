@@ -7,6 +7,12 @@ import Foundation
 /// the rest of the keyboard.
 protocol BanglaTypingEngine {
     func transliterate(_ input: String) -> String
+    func detailedCorrections(for romanInput: String, limit: Int) -> [DetailedCorrection]
     func compositionSuggestions(for romanInput: String, limit: Int) -> [String]
     func autosuggestSuggestions(for context: String, limit: Int) -> [String]
+}
+
+// Deterministic-only engines and lightweight fixtures have no loanword defaults.
+extension BanglaTypingEngine {
+    func detailedCorrections(for romanInput: String, limit: Int) -> [DetailedCorrection] { [] }
 }

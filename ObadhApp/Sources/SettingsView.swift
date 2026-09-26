@@ -125,7 +125,7 @@ struct SettingsView: View {
         } header: {
             Text("Autocorrect")
         } footer: {
-            Text("Space inserts a likely correction for unrecognized words. Tap your spelling to keep it.")
+            Text("Space inserts likely corrections. Exact English loanwords always use their Bangla spelling, even when this is off. Tap the quoted spelling to keep the literal.")
         }
     }
 

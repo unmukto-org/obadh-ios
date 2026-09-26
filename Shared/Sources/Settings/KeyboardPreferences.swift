@@ -55,9 +55,8 @@ struct KeyboardPreferences {
         }
     }
 
-    /// Opt-in, off by default: when a typed word isn't a real word and a confident
-    /// correction exists, space/return commit the correction and the shown word is
-    /// offered in quotes to keep instead. Off, typing commits exactly what is shown.
+    /// Opt-in ordinary typo correction, off by default. Exact English loanwords
+    /// are a separate default-transliteration policy and do not use this toggle.
     var autoInsertTopCorrection: Bool {
         get { defaults.bool(forKey: Self.autoInsertTopCorrectionKey) }
         nonmutating set { defaults.set(newValue, forKey: Self.autoInsertTopCorrectionKey) }

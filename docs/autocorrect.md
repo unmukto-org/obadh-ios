@@ -12,15 +12,32 @@ plainly: whether to silently apply a correction "is a client decision."
 
 ## The suggestion flow
 
-While a word is being composed, the ribbon shows the deterministic
-transliteration first, then FST autocorrect candidates (merged
-asynchronously, generation-guarded). If the typed literal is not a lexicon
-word it renders quoted; tapping it is the "keep my spelling" signal, which
-also protects that word from future auto-insertion.
+The inline composition remains the deterministic transliteration. One background
+`detailedCorrections` query supplies both ribbon candidates and their provenance;
+stale generations are discarded.
+
+**Exact English loanwords are the exception to literal-first behavior.** The
+engine already matches them case-insensitively (source 9, Roman repair cost 0).
+The highest-ranked exact match leads the ribbon and commits on Space, Return or
+punctuation, even with Auto-Insert Corrections off. The literal is the quoted,
+tappable second entry, including when it is a dictionary word. Identical entries
+are deduplicated. Exact matches bypass typo costs, frequency thresholds and learned
+spelling protection; explicitly tapping the literal still commits that spelling
+for this occurrence. Fuzzy loanwords never receive this exception.
+
+Other input retains literal-first ordering, quoting non-dictionary literals.
+Keeping a spelling still protects it from ordinary auto-insertion.
+
+If a delimiter arrives before the background result, the composer resolves the
+current token once at commit so loanword acceptance does not depend on typing
+speed. Letter previews remain synchronous transliteration only. A resolved token
+reuses its result. This boundary fallback can wait for the active engine query;
+simulator timings are recorded in the changelog, not a device latency guarantee.
 
 ## The auto-insert gate
 
-Off by default (Settings → Autocorrect). When enabled, space commits the top
+Ordinary typo correction is off by default (Settings → Autocorrect). After the
+exact-loanword policy above, when enabled, space commits the top
 correction instead of the literal only when **every** hurdle passes
 (`AutoInsertGate` in `Shared/Sources/Engine/`):
 

@@ -1138,14 +1138,14 @@ final class KeyboardViewController: UIInputViewController {
             let autoInsert = keyboardPreferences.autoInsertTopCorrection
             let shownWord = composer.preview
             scheduleSuggestionQuery { [weak self] in
-                let candidates = engine.compositionSuggestions(for: buffer, limit: limit)
+                // One traversal supplies both text and provenance, even with
+                // ordinary auto-insert off: exact loanwords are always defaults.
+                let detailed = engine.detailedCorrections(for: buffer, limit: limit)
+                let candidates = detailed.map(\.text)
                 // The literal's frequency drives both the native-style "keep my
                 // spelling" quote (0 = not a word) and, with the detailed records'
                 // provenance, the auto-insert gate (when enabled).
                 let baselineFrequency = shownWord.isEmpty ? 0 : engine.wordFrequency(shownWord)
-                let detailed = autoInsert
-                    ? engine.detailedCorrections(for: buffer, limit: limit)
-                    : []
                 Task { @MainActor in
                     guard let self, self.suggestionGeneration == generation else { return }
                     self.deterministicIsOOV = !shownWord.isEmpty && baselineFrequency == 0
@@ -1581,6 +1581,9 @@ final class KeyboardViewController: UIInputViewController {
     @discardableResult
     private func commitActiveInputIfNeeded(trailingText: String = "") -> Bool {
         guard composer.hasActiveInput else { return false }
+        pendingSuggestionWork?.cancel()
+        pendingSuggestionWork = nil
+        suggestionGeneration &+= 1
         // Captured BEFORE the commit clears the composer. The emoji belong to the
         // word just typed and stay on screen after it commits, so a space does not
         // snatch away the one suggestion the user was reaching for.
@@ -1668,15 +1671,13 @@ final class KeyboardViewController: UIInputViewController {
         }
     }
 
-    /// Show the composition candidates, quoting the literal when it is not a dictionary
-    /// word (native-style "keep my spelling"), so the first slot always reads as the
-    /// user's own text and stays tappable. OOV-ness subsumes the auto-insert case —
-    /// auto-insert only ever targets a non-lexicon literal.
+    /// Exact loanwords lead with their Bangla spelling and a quoted literal second.
+    /// Other compositions retain literal-first ordering and quote unknown words.
     private func updateCompositionSuggestionBar() {
         suggestionBar.update(
             suggestions: composer.activeSuggestions,
             emojis: resolvedEmojiSuggestions(),
-            quotedText: deterministicIsOOV ? composer.preview : nil
+            quotedText: composer.quotedLiteral(isOutOfVocabulary: deterministicIsOOV)
         )
     }
 

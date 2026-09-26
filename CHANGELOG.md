@@ -13,6 +13,22 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Fixes and changes
 
+- Made exact English loanwords the default Bangla candidate, regardless of
+  Auto-Insert Corrections. The engine already matches case-insensitively; no
+  engine update or iOS case rewriting was needed. Exact matches bypass typo
+  costs, frequency thresholds and learned-word protection. The preferred Bangla
+  spelling leads the ribbon; the quoted, tappable literal is second. The inline
+  preview stays literal, and fuzzy matches retain the existing correction rules.
+  Updated Settings copy and policy documentation. This resolves KI-015.
+
+- Removed the timing dependency for exact loanwords: Space, Return and punctuation
+  resolve an unfinished query at commit. Background suggestions now use one
+  detailed engine traversal for both candidates and provenance, instead of two
+  traversals with auto-insert enabled. No full search runs on letter previews.
+  Immediate-commit samples took 1.3–5.4 ms in the simulator; physical-device
+  latency has not been measured. The phone remains on Release 162.
+
+
 - Added **Engine Version** to About → Version and Copy Build Details. It reads
   the linked engine's own version function, independently of the app version and
   C ABI version, without creating an engine or loading language models. Verified
@@ -97,12 +113,23 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Investigation and testing
 
+- Verified the loanword change with 23 composer tests and 26 simulator tests
+  covering the loanword policy, controller lifecycle and existing `tq`/`qq`
+  shortcuts. The real-engine matrix checks 14 words × four case forms × both
+  setting values (112 combinations), including protected literals. Checked
+  immediate commit, quoted second-slot rendering and its registered tap action,
+  stale-result invalidation, and fuzzy/unknown-source exclusion. The first tap
+  test used UIControl event dispatch in a hostless bundle; corrected the test
+  harness to invoke the registered target/action, then all five loanword tests
+  passed. The unsigned iPhone Release build also passed; no build was installed.
+
+
 - Checked 14 loanwords against engine 0.9.3 and the shipped dictionaries. All
   returned exact-loanword candidates; iOS's ordinary edit-cost ceiling blocked
   automatic insertion for 12, even with the setting enabled. Confirmed that the
   ribbon keeps the literal first and quotes it only when absent from the lexicon.
-  Added a reproducible engine/composer probe and recorded KI-015. No production
-  policy or engine behavior changed.
+  Added a reproducible engine/composer probe and initially recorded KI-015.
+  These findings describe behavior before the exact-loanword fix above.
 
 - Installed and launched signed Release **1.0 (162)** from `1fb8c8a3` on the
   iPhone 16 Pro Max with the engine version in About and copied build details.
