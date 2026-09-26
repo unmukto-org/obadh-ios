@@ -21,6 +21,8 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 - Adjusted modern portrait iPhone letter sizing and baselines against native captures: regular system font, 25 pt lowercase and 21.5 pt uppercase. Verified sampled glyph dimensions and baselines on the iPhone.
 
+- Preserved overlapping contacts in touch-down order and cancelled queued input on emoji, globe and dismiss actions. Added a separate accuracy study app with a frozen Release 112 control, local exports, and reproducible metrics. Controlled regressions pass; human accuracy improvement remains unproven.
+
 #### Investigation and testing
 
 - Started a release journal and a single known-issues and research register.

@@ -63,7 +63,7 @@ name, a plausible explanation, or an expected test failure.
 
 ### KI-004 — Overlapping touches and the candidate's waiting behavior
 
-- **Priority/status:** Reproduced input loss in Release 112; candidate awaiting integration.
+- **Priority/status:** Routing defect fixed in unreleased source; hardware acceptance of the candidate remains open. Release 112 still uses the old handler.
 - **Evidence:** The single-contact handler drops a second overlapping touch in
   controlled UIKit traces. A queued candidate preserves touch-down order.
 - **Candidate limitation:** A held first finger delays later commits and their
@@ -156,3 +156,5 @@ Evidence and integration date: 2026-09-25.
 <!-- Integration: investigate/keyboard-surface-contract at ee91404; 2026-09-25. -->
 
 <!-- Integration: investigate/keyboard-handoff-research at df627ea; 2026-09-25. -->
+
+<!-- Integration: research/touch-accuracy-baseline at 83f6d94; 2026-09-25. -->

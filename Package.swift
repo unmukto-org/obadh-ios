@@ -6,9 +6,13 @@ let package = Package(
     name: "ObadhIOSSupport",
     platforms: [.iOS(.v18)],
     products: [
-        .library(name: "ObadhKeyboardCore", targets: ["ObadhKeyboardCore"])
+        .library(name: "ObadhKeyboardCore", targets: ["ObadhKeyboardCore"]),
+        .executable(name: "typing-accuracy-report", targets: ["TypingAccuracyReport"])
     ],
     targets: [
+        .target(name: "TypingAccuracyMetrics", path: "Tools/TypingAccuracy/Core"),
+        .executableTarget(name: "TypingAccuracyReport", dependencies: ["TypingAccuracyMetrics"], path: "Tools/TypingAccuracy/Report"),
+        .testTarget(name: "TypingAccuracyMetricsTests", dependencies: ["TypingAccuracyMetrics"]),
         .target(
             name: "ObadhKeyboardCore",
             path: "Shared/Sources",
