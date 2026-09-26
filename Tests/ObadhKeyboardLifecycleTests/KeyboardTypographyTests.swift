@@ -29,7 +29,7 @@ final class KeyboardTypographyTests: XCTestCase {
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("build/font-audit/atlas")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let letters = Array("qwertyuiopasdfghjklzxcvbnm123")
+        let letters = Array("qwertyuiopasdfghjklzxcvbnm123QWERTYUIOPASDFGHJKLZXCVBNM")
         var manifest: [[String: String]] = []
         for name in ["system"] {
             for step in 80...104 {

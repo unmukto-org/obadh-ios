@@ -34,7 +34,12 @@ final class KeyboardMaterialUITests: XCTestCase {
         globe.press(forDuration: 1)
         let choice = app.staticTexts[name].firstMatch
         XCTAssertTrue(choice.waitForExistence(timeout: 5))
-        choice.tap()
+        for _ in 0..<2 {
+            choice.tap()
+            let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: choice)
+            if XCTWaiter.wait(for: [dismissed], timeout: 3) == .completed { return }
+        }
+        XCTFail("Keyboard selection menu did not dismiss")
     }
 
     private func set(_ toggle: XCUIElement, to value: String) {
@@ -48,6 +53,30 @@ final class KeyboardMaterialUITests: XCTestCase {
             if XCTWaiter.wait(for: [updated], timeout: 3) == .completed { return }
         }
         XCTAssertEqual(toggle.value as? String, value)
+    }
+
+    /// Captures ink placement separately from key geometry and font size.
+    func testNativeLetterCaseScreenshots() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--keyboard-test", "--measure-bg", "--seed=hello "]
+        app.launch()
+        try XCTSkipUnless(app.frame.size == CGSize(width: 440, height: 956), "Measured portrait fixture")
+        for keyboard in ["English (US)", "Obadh"] {
+            select(keyboard, app: app)
+            XCTAssertTrue(app.descendants(matching: .any)["q"].firstMatch.waitForExistence(timeout: 5))
+            capture("type-\(keyboard)-lowercase", app: app)
+            // The already measured portrait shift-key centre. This avoids the
+            // different accessibility roles of native and extension keys.
+            app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: 30, dy: 795)).tap()
+            XCTAssertTrue(app.descendants(matching: .any)["Q"].firstMatch.waitForExistence(timeout: 5))
+            capture("type-\(keyboard)-uppercase", app: app)
+            app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: 25, dy: 850)).tap()
+            capture("type-\(keyboard)-numbers", app: app)
+            XCTAssertEqual(app.textViews.firstMatch.value as? String, "hello ")
+        }
     }
 
     func testMaterialsFollowAccessibilityPreferences() throws {

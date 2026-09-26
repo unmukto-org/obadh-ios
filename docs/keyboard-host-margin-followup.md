@@ -178,3 +178,108 @@ This is an incomplete inspection, not evidence that the setting is unsupported.
 No phone appearance preference was changed. Queued tests were stopped and the
 temporary runner removed again; an uninterrupted unlocked-device session is
 needed to complete those checks.
+
+## Completed iOS 27 physical-device follow-up
+
+Follow-up branch: `test/ios27-device-validation`, retaining installed build 109.
+
+### Liquid Glass slider
+
+Apple's current [iPhone guide](https://support.apple.com/en-mt/guide/iphone/iphd6804774e/ios)
+places the slider under **Settings → Appearance → Liquid Glass**. The earlier
+Display & Brightness route was outdated for this device. The actual accessibility
+hierarchy confirms an enabled “Tint Amount” slider. Its original value was 90%.
+
+A completed physical test independently verified **0% and 100%**, captured native
+English and Obadh on the same neutral gray host at each setting, checked the
+seed text remained unchanged while switching, and verified an Obadh key still
+entered text in the local test field. It then restored and asserted **90%**,
+with a final Settings screenshot. No text was entered into Messenger.
+
+| iOS 27 tint | Native key RGB | Obadh key RGB | Native/Obadh background RGB |
+|---|---|---|---|
+| 0% | 77 / 77 / 77 | 77 / 77 / 77 | 43 / 43 / 43 |
+| 100% | 77 / 77 / 77 | 77 / 77 / 77 | 43 / 43 / 43 |
+
+Samples are medians from the q key's upper-left interior and adjacent gap, away
+from glyphs. In this dark, neutral-host test **neither native keyboard nor Obadh
+changes those colors with the slider**. Matching this behavior is preferable to
+adding an artificial tint response. This is verification of these keyboard
+surfaces on this phone, not proof of every Liquid Glass component or backdrop.
+
+The initial automation attempts failed: Xcode's normalized slider API often
+reported a different final value than requested, and short drags produced
+inconsistent results. Those attempts are not successful comparisons. A slow
+drag starting at the measured thumb center, allowing its press animation to
+settle, established the requested endpoints and restored the recorded original.
+Some failed attempts temporarily left another value; the completed run's final
+90% assertion and screenshot establish the final state.
+
+### Fully completed height refresh
+
+The physical test used the installed keyboard in Obadh's DEBUG host with a
+44-point accessory, selecting Emoji then Obadh. The helper recorded:
+
+- 20.99 s: request 272 points.
+- 22.04 s: first request consumed.
+- 22.05 s: request automatic sizing again (`ask:0`).
+- 23.09 s: reset consumed.
+
+The final screenshot was taken after both commands. The outer keyboard top
+remained **626.67 points** before and after; the q key remained at **662 points**.
+The missing band did not return. The before/after crops are 99.66% pixel-identical;
+the visible difference is the expected spacebar introduction changing to its
+small language caption. This rejects the 17-point height pulse for this physical
+reproduction as well as the earlier simulator reproduction.
+
+One preceding attempt lost its host accessibility connection and consumed neither
+command. It is excluded. The successful repeat kept the local test host active
+by tapping its inert build label during the wait. No Obadh-named crash report was
+found in the device crash-log listing; that alone does not explain the connection
+loss. The Messenger-specific repeat initially stopped because no conversation
+composer was open; it remains separate from the completed local-host experiment.
+
+Evidence: `build/host-margin-investigation/device-verified-glass-and-pulse/`
+contains the exported XCTest manifest, original captures, comparison sheets, and
+`pulse-geometry.json`. The helper's full phase report is
+`device-pulse17-local-completed-result.txt`; the completed two-test log is
+`logs/obadh-device-glass-and-pulse-final2.log`. Both XCTest methods passed.
+
+## Additional verified typography correction
+
+Branch: `fix/phone-letter-case-typography`. Case-specific captures revealed a
+defect missed by the earlier lowercase font audit: native capitals are smaller
+than lowercase letters, while Obadh used 25 points for both. The same measurements
+were independently reproduced on the iOS 26.5 simulator and iOS 27 phone.
+
+For the W/w key, measured relative to the key face (3× captures, identical ink
+threshold for native and Obadh):
+
+| Quantity | Native | Obadh before |
+|---|---:|---:|
+| Lowercase w height | 12.67 pt | 12.67 pt |
+| Lowercase baseline/ink bottom | 28.67 pt | 31.00 pt |
+| Capital W height | 15.33 pt | 17.67 pt |
+| Capital W width | 18.33 pt | 21.67 pt |
+
+The correction retains the public regular system font, uses 21.5-point capitals
+and 25-point lowercase, and adjusts their baselines separately. A UIKit-rendered
+atlas and actual button captures support the smaller capital size; residual
+subpixel shape differences do not establish Apple's private font recipe. These
+metrics apply only to the already measured modern portrait iPhone path. Other
+layouts retain their previous values. Key frames and hit areas are unaffected.
+
+The first corrected simulator capture matches the lowercase w dimensions and
+baseline exactly relative to its key, and reduces capital W size to 18.67 × 15.00
+points. The final uppercase baseline is raised one additional physical pixel
+relative to that capture. The complete 19-test UIKit suite and device Release
+build pass. Physical verification of the newly built revision follows installation.
+
+The diagnostic UI test now waits for the globe menu to dismiss and asserts the
+expected lowercase/uppercase keys exist before capturing. Its first naive run
+captured the still-open keyboard menu for Obadh; those captures were rejected.
+Evidence is in `letter-alignment-verified-before/`, `letter-alignment-after/`, and
+`device-letter-cases-before/` under the investigation artifact directory.
+
+The 17-point host-margin investigation remains the priority and is continuing.
+These typography changes are independent of a height workaround.

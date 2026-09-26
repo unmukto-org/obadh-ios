@@ -71,6 +71,11 @@ struct KeyboardMetrics {
     /// content flush with the top of the band and leaves the rest as clearance
     /// above the keys. Zero keeps the legacy proportional rule (iPhone).
     var suggestionContentHeight: CGFloat = 0
+    /// Native modern portrait iPhone keys use smaller capitals and a shared
+    /// baseline. Zero keeps the existing typography for unmeasured layouts.
+    var uppercaseCharacterFontSize: CGFloat = 0
+    var characterTitleOffset: CGFloat = 0
+    var uppercaseCharacterTitleOffset: CGFloat = 0
 
     /// Where the strip's content sits relative to the strip's own centre, positive
     /// = down. One rule for the separators and the labels, so they cannot drift.
@@ -696,7 +701,10 @@ enum KeyboardTheme {
             suggestionSlotCount: PadAxisMetrics.suggestionSlotCount(
                 forLayoutWidth: bounds.width, isPad: isPad
             ),
-            suggestionContentHeight: isPad ? PadAxisMetrics.suggestionContentHeight : 0
+            suggestionContentHeight: isPad ? PadAxisMetrics.suggestionContentHeight : 0,
+            uppercaseCharacterFontSize: !isPad && measuredModernPhoneType ? 21.5 : 0,
+            characterTitleOffset: !isPad && measuredModernPhoneType ? -7.0 / 3.0 : 0,
+            uppercaseCharacterTitleOffset: !isPad && measuredModernPhoneType ? -4.0 / 3.0 : 0
         )
     }
 

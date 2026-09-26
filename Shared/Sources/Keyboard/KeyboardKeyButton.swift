@@ -63,6 +63,7 @@ final class KeyboardKeyButton: UIButton {
     private var spaceLanguageBottomConstraint: NSLayoutConstraint?
     private var secondaryTopConstraint: NSLayoutConstraint?
     private var titleOffsetRatio: CGFloat = 0
+    private var characterTitleOffset: CGFloat = 0
     /// Resting colours, captured so the flick can interpolate between them and
     /// restore exactly what was there — resolved for the current trait collection,
     /// since both are dynamic.
@@ -98,6 +99,7 @@ final class KeyboardKeyButton: UIButton {
         capsLocked: Bool = false
     ) {
         currentMetrics = metrics
+        characterTitleOffset = 0
         let typeScale = rowHeight > 0 && metrics.minimumKeyHeight > 0
             ? rowHeight / metrics.minimumKeyHeight
             : 1
@@ -127,7 +129,11 @@ final class KeyboardKeyButton: UIButton {
             let displayText = shifted ? value.uppercased() : value
             setTitle(displayText, for: .normal)
             setImage(nil, for: .normal)
-            titleLabel?.font = .systemFont(ofSize: metrics.characterFontSize * typeScale, weight: .regular)
+            let fontSize = shifted && metrics.uppercaseCharacterFontSize > 0
+                ? metrics.uppercaseCharacterFontSize : metrics.characterFontSize
+            titleLabel?.font = .systemFont(ofSize: fontSize * typeScale, weight: .regular)
+            characterTitleOffset = shifted
+                ? metrics.uppercaseCharacterTitleOffset : metrics.characterTitleOffset
             keyPreviewText = displayText
         case let .symbol(symbol):
             setTitle(symbol.label, for: .normal)
@@ -317,7 +323,7 @@ final class KeyboardKeyButton: UIButton {
 
     override func titleRect(forContentRect contentRect: CGRect) -> CGRect {
         let rect = super.titleRect(forContentRect: contentRect)
-            .offsetBy(dx: 0, dy: contentRect.height * titleOffsetRatio)
+            .offsetBy(dx: 0, dy: contentRect.height * titleOffsetRatio + characterTitleOffset)
         // Text glyphs (`.?123`) sit a point further in and a point lower than the
         // symbols do — measured 8.0/9.0 against the symbols' 6.5/8.0 and 6.0.
         return align(rect, in: contentRect, textGlyph: true)

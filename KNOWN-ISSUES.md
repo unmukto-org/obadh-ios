@@ -140,3 +140,11 @@ Fixed for the identified overlay/feedback defects in source; included in install
 Evidence and integration date: 2026-09-25.
 
 <!-- Integration: fix/keyboard-host-top-margin at d89741c; 2026-09-25. -->
+
+### KI-011 — Modern portrait letter typography
+
+Fixed for measured modern portrait iPhone cases in source; included in installed Release 112. Sampled physical lowercase and uppercase ink bottoms match the native 28.67 pt baseline measurement. Uppercase W is approximately 18.67 × 15.00 pt versus native 18.33 × 15.33 pt. This is measured matching, not a published Apple font specification; other layouts remain under KI-007.
+
+Evidence and integration date: 2026-09-25.
+
+<!-- Integration: fix/phone-letter-case-typography at a0abe32; 2026-09-25. -->

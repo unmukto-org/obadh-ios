@@ -19,6 +19,8 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 - Updated key overlays for Increase Contrast and Reduce Transparency, respected Reduce Motion for press feedback, and used a native glass primary onboarding button on iOS 26+. Investigated host sizing without shipping an unverified height workaround.
 
+- Adjusted modern portrait iPhone letter sizing and baselines against native captures: regular system font, 25 pt lowercase and 21.5 pt uppercase. Verified sampled glyph dimensions and baselines on the iPhone.
+
 #### Investigation and testing
 
 - Started a release journal and a single known-issues and research register.
