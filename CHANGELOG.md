@@ -13,13 +13,32 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Fixes and changes
 
-- Enabled UIKit keyboard clicks on the actual input view (the audio protocol was
+- Hardened feedback without Full Access: skip sounds, haptic fallback impacts,
+  preparation and engine startup. Revoking access invalidates pending engine
+  callbacks and stops an existing engine asynchronously. Keystrokes never retry
+  a failed engine. A failing regression confirmed 5,000 fallback impacts and
+  5,001 preparations were reachable without access before this fix; this checks
+  calls, not a newly reproduced device slowdown.
+
+- Added the phone-confirmed special-key sounds: backspace and held delete use
+  system sound 1155; return, space, shift, layout switches and emoji use 1156.
+  Letters and suggestions retain UIKit's input click. The owner accepted the
+  probe's sound and mute/settings checks before integration. The app switch and
+  Full Access gate every sound type. Removed resolved KI-014. No loudness tuning
+  was applied; Return's perceived level difference was not measured. Numeric IDs
+  remain undocumented and need rechecking with future iOS versions.
+
+- Removed the temporary sound-comparison app sources after testing; its code and
+  findings remain in Git history. Retained regression tests and tools supporting
+  the remaining open issues.
+
+- Initially enabled UIKit keyboard clicks on the actual input view (the audio protocol was
   previously on its controller). Added an independent, persistent **Typing Sounds**
   switch in the app, on by default. Sound requests require Full Access and the app
   preference; UIKit retains control of Silent Mode, system keyboard sounds and
-  volume. Updated setup and privacy copy. Uses `playInputClick()`, with no custom
-  audio session or undocumented sound IDs; exact private per-key sound parity and
-  physical-device mute behavior remain acceptance checks in KI-014.
+  volume. Updated setup and privacy copy. That initial implementation used
+  `playInputClick()` exclusively; the later special-key refinement above adds
+  differentiated sounds without changing the audio session.
 
 - Removed iOS's duplicate `qq` → `^` rewrite after verifying that the bundled
   engine already handles chandrabindu. The composer preserves raw Roman input
@@ -72,30 +91,40 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Investigation and testing
 
+- Passed all 48 UIKit tests after the final sound and Full Access safeguards.
+  The denial regression now observes zero sound requests, engine creations,
+  fallback impacts and preparations over 5,000 events, including checks after
+  revocation. A separate 1,000-key failure test confirms no per-key engine retry.
+
+- Removed Sound Probe and Obadh Accuracy from the iPhone. Saved and parsed the
+  accuracy-session JSON in `build/ReleaseAudit/AccuracyLabBackup-20260925/`
+  before uninstalling the lab. Its source and measurement tools remain available
+  for the still-open typing-accuracy investigation.
+
 - Recorded the owner's Sound Probe 151 comparison: delete matches 1155;
   return/space/shift/123/emoji match 1156. Return loudness is a subjective follow-up,
   not a measured mismatch. Prepared an isolated key-specific playback candidate
-  with unified app/Full Access gates and held-delete routing. It remains unmerged
-  and uninstalled pending the Silent Mode and system Sound-off checks in KI-014.
+  with unified app/Full Access gates and held-delete routing. It was held for
+  Silent Mode and system Sound-off checks before the owner accepted integration.
   All 148 core tests and three focused UIKit sound tests passed.
 
 - Built and signed standalone **Obadh Sound Probe 151** (`d55ee623`), inspected
   its simulator layout, and installed/launched it on the iPhone for sound/mute
-  comparison. The installed Obadh keyboard remains Release 149. Probe code and
-  numeric sound IDs are excluded from all Obadh shipping targets.
+  comparison. Obadh was then still on Release 149. The comparison app was a separate target;
+  differentiated playback was subsequently integrated as recorded above.
 
 - Followed up on the user's Release 149 listening report: clicks are audible, but
   special keys still use the letter sound. Audited Apple's sound-design guidance,
   current UIKit/AudioServices docs, SDK headers and KeyboardKit's implementation.
   Added a separate Release sound-comparison app to test three system sound IDs
   against UIKit and native English, including mute/settings behavior. Obadh's
-  shipping playback is unchanged pending those checks; details are in KI-014.
+  shipping playback was kept unchanged until the subsequent owner checks.
 
 - Installed and launched signed Release **1.0 (149)** from `2f72b808` on the
   iPhone 16 Pro Max with typing sounds and the app switch. Verified strict
   signatures, matching app/extension stamps and CoreDevice's installed version.
-  Listening, Silent Mode and exact native-sound comparisons remain pending KI-014;
-  no simulator test is counted as hardware audio acceptance.
+  Listening and mute checks were pending at this point; the subsequent owner
+  report supplied hardware evidence. Simulator tests are not audio acceptance.
 
 - Verified the typing-sound protocol defect with a failing baseline, then passed
   148 core tests, 45 UIKit tests and three targeted UI checks. App sound toggling

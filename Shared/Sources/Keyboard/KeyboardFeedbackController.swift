@@ -19,10 +19,12 @@ import UIKit
 @MainActor
 final class KeyboardFeedbackController {
     /// Fallback impact generator (used when Core Haptics is unavailable).
-    private let rigidFeedback = UIImpactFeedbackGenerator(style: .rigid)
+    private let rigidFeedback: UIImpactFeedbackGenerator
 
-    private let supportsHaptics = CHHapticEngine.capabilitiesForHardware().supportsHaptics
+    private let supportsHaptics: Bool
+    private let makeHapticEngine: () throws -> CHHapticEngine
     private var engine: CHHapticEngine?
+    private var engineGeneration = 0
 
     private let preferences: KeyboardPreferences
     private let requestSystemClick: (KeyboardClickSound) -> Void
@@ -30,21 +32,27 @@ final class KeyboardFeedbackController {
 
     /// Shared by the input view's audio opt-in and every feedback entry point.
     /// The UIKit input click retains its visibility/system-preference gate.
-    /// Direct modifier/delete playback still requires hardware policy acceptance.
+    /// Modifier/delete IDs and muting were checked by the owner in Sound Probe 151.
     var inputClicksEnabled: Bool { fullAccessGranted && typingSoundsEnabled }
 
     init(
         preferences: KeyboardPreferences = KeyboardPreferences(),
+        fallbackFeedback: UIImpactFeedbackGenerator = UIImpactFeedbackGenerator(style: .rigid),
+        supportsHaptics: Bool = CHHapticEngine.capabilitiesForHardware().supportsHaptics,
+        makeHapticEngine: @escaping () throws -> CHHapticEngine = { try CHHapticEngine() },
         requestSystemClick: @escaping (KeyboardClickSound) -> Void = { sound in
             switch sound {
             case .input: UIDevice.current.playInputClick()
             // Undocumented IDs, matched by the owner in Sound Probe 151.
-            // Candidate only: system Sound-off behavior still needs verification.
+            // Retest their mapping and sound-settings behavior with iOS updates.
             case .delete: AudioServicesPlaySystemSound(1155)
             case .modifier: AudioServicesPlaySystemSound(1156)
             }
         }
     ) {
+        self.rigidFeedback = fallbackFeedback
+        self.supportsHaptics = supportsHaptics
+        self.makeHapticEngine = makeHapticEngine
         self.preferences = preferences
         self.requestSystemClick = requestSystemClick
     }
@@ -95,7 +103,17 @@ final class KeyboardFeedbackController {
             engineUnavailable = false
         }
         fullAccessGranted = hasFullAccess
+        guard hasFullAccess else {
+            // Invalidate callbacks before asynchronously stopping an old engine.
+            // No shared preference reads, prewarming or start attempts while denied.
+            engineGeneration += 1
+            let previous = engine
+            engine = nil
+            previous?.stop(completionHandler: nil)
+            return
+        }
         reloadPreferences()
+        guard hapticFeedbackEnabled else { return }
         rigidFeedback.prepare()
         startEngine()
     }
@@ -112,13 +130,22 @@ final class KeyboardFeedbackController {
         guard supportsHaptics, hapticFeedbackEnabled, fullAccessGranted,
               !engineUnavailable, engine == nil else { return }
         do {
-            let created = try CHHapticEngine()
+            engineGeneration += 1
+            let generation = engineGeneration
+            let created = try makeHapticEngine()
             created.isAutoShutdownEnabled = true
             created.stoppedHandler = { [weak self] _ in
-                Task { @MainActor in self?.engine = nil }
+                Task { @MainActor in
+                    guard let self, self.engineGeneration == generation else { return }
+                    self.engine = nil
+                }
             }
             created.resetHandler = { [weak self] in
-                Task { @MainActor in self?.engine?.start(completionHandler: { _ in }) }
+                Task { @MainActor in
+                    guard let self, self.engineGeneration == generation,
+                          self.fullAccessGranted, self.hapticFeedbackEnabled else { return }
+                    self.engine?.start(completionHandler: { _ in })
+                }
             }
             // Held before starting so the completion handler never has to send a
             // non-Sendable engine across an isolation boundary; until the start
@@ -127,7 +154,8 @@ final class KeyboardFeedbackController {
             // Async start: the synchronous variant is what blocked the main thread.
             created.start { [weak self] error in
                 Task { @MainActor in
-                    guard let self else { return }
+                    guard let self, self.engineGeneration == generation,
+                          self.fullAccessGranted, self.hapticFeedbackEnabled else { return }
                     guard error == nil else {
                         self.engine = nil
                         self.engineUnavailable = true
@@ -183,6 +211,8 @@ final class KeyboardFeedbackController {
     }
 
     private func emit(_ tick: Tick) {
+        // Gate before Core Haptics, the UIKit fallback, or DEBUG preference reads.
+        guard fullAccessGranted, hapticFeedbackEnabled else { return }
         var tick = tick
         #if DEBUG
         // Live tuning: when the app's debug sliders are engaged, every tick uses
@@ -214,7 +244,7 @@ final class KeyboardFeedbackController {
     }
 
     private func play(intensity: Float, sharpness: Float) throws {
-        guard let engine else { return }
+        guard fullAccessGranted, hapticFeedbackEnabled, let engine else { return }
         let event = CHHapticEvent(
             eventType: .hapticTransient,
             parameters: [

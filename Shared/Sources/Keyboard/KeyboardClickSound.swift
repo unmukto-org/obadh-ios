@@ -1,4 +1,4 @@
-/// Semantic routing for the differentiated-sound candidate. Actual playback
+/// Semantic routing for keyboard sounds. Actual playback
 /// and its permission/settings gates belong to KeyboardFeedbackController.
 enum KeyboardClickSound: Equatable {
     case input
