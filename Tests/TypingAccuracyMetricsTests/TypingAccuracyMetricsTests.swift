@@ -38,7 +38,7 @@ final class TypingAccuracyMetricsTests: XCTestCase {
                           surfaceWidth: 100, surfaceHeight: 100, frames: [], samples: [], commits: [])
         }
         let session = AccuracySession(schemaVersion: 1, sessionID: "synthetic-test", provenance: "synthetic-unit-test", sourceRevision: "test",
-                                      osVersion: "test", deviceModel: "test", createdAt: "test", trialOrder: [],
+                                      osVersion: "test", deviceModel: "test", createdAt: "test", trialOrder: ["control", "candidate"],
                                       trials: [trial(0, "baseline-112", nil), trial(1, "ordered-rollover", "interrupted")])
         let result = try TypingAccuracyReport.generate(from: JSONEncoder().encode(session))
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: result) as? [String: Any])
@@ -52,7 +52,7 @@ final class TypingAccuracyMetricsTests: XCTestCase {
                           surfaceWidth: 100, surfaceHeight: 100, frames: [], samples: [], commits: [])
         }
         let session = AccuracySession(schemaVersion: 1, sessionID: "synthetic-pairs", provenance: "synthetic-unit-test",
-                                      sourceRevision: "test", osVersion: "test", deviceModel: "test", createdAt: "test", trialOrder: [],
+                                      sourceRevision: "test", osVersion: "test", deviceModel: "test", createdAt: "test", trialOrder: ["control", "candidate", "other posture"],
                                       trials: [trial(0, "baseline-112", "two-thumbs", "a"),
                                                trial(1, "ordered-rollover", "two-thumbs", "ab"),
                                                trial(2, "baseline-112", "one-thumb", "ab")])
@@ -63,5 +63,19 @@ final class TypingAccuracyMetricsTests: XCTestCase {
         XCTAssertEqual(pairs[0]["cerChange"] as? Double, -0.5)
         XCTAssertEqual(pairs[0]["speedChangeGraphemesPerMinute"] as? Double, 30)
         XCTAssertEqual(pairs[0]["posture"] as? String, "two-thumbs")
+    }
+
+    func testPartialExportReportsMissingRounds() throws {
+        let trial = AccuracyTrial(id: 0, variant: "baseline-112", posture: "one-thumb", prompt: "ab", entered: "ab",
+                                  startedAt: 1, endedAt: 2, actions: 2, backspaces: 0, invalidReason: nil,
+                                  surfaceWidth: 100, surfaceHeight: 100, frames: [], samples: [], commits: [])
+        let session = AccuracySession(schemaVersion: 1, sessionID: "partial", provenance: "synthetic-unit-test",
+                                      sourceRevision: "test", osVersion: "test", deviceModel: "test", createdAt: "test",
+                                      trialOrder: ["baseline", "candidate"], trials: [trial])
+        let result = try TypingAccuracyReport.generate(from: JSONEncoder().encode(session))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: result) as? [String: Any])
+        let coverage = try XCTUnwrap(object["coverage"] as? [String: Any])
+        XCTAssertEqual(coverage["isComplete"] as? Bool, false)
+        XCTAssertEqual(coverage["missingTrialIDs"] as? [Int], [1])
     }
 }

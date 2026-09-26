@@ -109,6 +109,15 @@ public enum TypingAccuracyReport {
             let scope = "Prompted Roman motor task. No claim about Bangla semantic accuracy, extension IPC, or population-level gains."
             let trials: [TrialScore]
             let pairs: [Pair]
+            let coverage: Coverage
+        }
+        struct Coverage: Encodable {
+            let plannedTrials: Int
+            let exportedTrials: Int
+            let missingTrialIDs: [Int]
+            let duplicateTrialIDs: [Int]
+            let unexpectedTrialIDs: [Int]
+            let isComplete: Bool
         }
         struct Pair: Encodable {
             let posture: String
@@ -119,7 +128,20 @@ public enum TypingAccuracyReport {
             let speedChangeGraphemesPerMinute: Double
             let backspaceChange: Int
         }
-        let valid = session.trials.filter { $0.invalidReason == nil && $0.endedAt > $0.startedAt && !$0.prompt.isEmpty }
+        let planned = Set(session.trialOrder.indices)
+        let counts = Dictionary(grouping: session.trials, by: \.id)
+        let exported = Set(counts.keys)
+        let missing = planned.subtracting(exported).sorted()
+        let duplicates = counts.filter { $0.value.count > 1 }.keys.sorted()
+        let unexpected = exported.subtracting(planned).sorted()
+        let coverage = Coverage(plannedTrials: planned.count, exportedTrials: session.trials.count,
+                                missingTrialIDs: missing, duplicateTrialIDs: duplicates,
+                                unexpectedTrialIDs: unexpected,
+                                isComplete: !planned.isEmpty && missing.isEmpty && duplicates.isEmpty && unexpected.isEmpty)
+        let valid = session.trials.filter {
+            planned.contains($0.id) && counts[$0.id]?.count == 1 &&
+            $0.invalidReason == nil && $0.endedAt > $0.startedAt && !$0.prompt.isEmpty
+        }
         var pairs: [Pair] = []
         for candidate in valid where candidate.variant == "ordered-rollover" {
             let controls = valid.filter { $0.variant == "baseline-112" && $0.posture == candidate.posture && $0.prompt == candidate.prompt }
@@ -143,7 +165,7 @@ public enum TypingAccuracyReport {
                               invalidReason: invalid,
                               score: invalid == nil ? AccuracyScore(reference: $0.prompt, entered: $0.entered,
                                   seconds: duration, actions: $0.actions, backspaces: $0.backspaces) : nil)
-        }, pairs: pairs)
+        }, pairs: pairs, coverage: coverage)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try encoder.encode(report)

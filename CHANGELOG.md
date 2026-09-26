@@ -36,6 +36,8 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 - Audited official keyboard APIs and investigated foreground input delivery. Reproduced a separate host text-mutation failure and corrected an automation false positive caused by selecting a retained native Return element.
 
+- Audited the eight-round phone typing pilot with production-resolver replay, timing and event consistency checks. Added incomplete-export detection. The pilot did not demonstrate improved human typing accuracy or exercise candidate overlap handling.
+
 ## v1.0 — 2026-09-21 baseline
 
 Version: `1.0` (build `105`). Tag: `v1.0` (annotated).

@@ -158,3 +158,5 @@ Evidence and integration date: 2026-09-25.
 <!-- Integration: investigate/keyboard-handoff-research at df627ea; 2026-09-25. -->
 
 <!-- Integration: research/touch-accuracy-baseline at 83f6d94; 2026-09-25. -->
+
+<!-- Integration: research/touch-accuracy-pilot-analysis at 3659d65; 2026-09-25. -->
