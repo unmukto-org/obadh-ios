@@ -100,6 +100,8 @@ targets:
       Debug-Legacy: Config/Signing.xcconfig
       Release: Config/Signing.xcconfig
     dependencies:
+      - framework: Frameworks/ObadhBridge.xcframework
+        embed: false
       - target: ObadhKeyboard
         embed: true
   ObadhKeyboard:

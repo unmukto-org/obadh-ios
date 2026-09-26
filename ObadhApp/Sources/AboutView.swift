@@ -21,6 +21,7 @@ struct AboutView: View {
 
             Section {
                 LabeledContent("Version", value: AppBuildInfo.shortVersion)
+                LabeledContent("Engine Version", value: AppBuildInfo.engineVersion)
                 LabeledContent("Build", value: AppBuildInfo.buildNumber)
                 LabeledContent("Commit") { monospaced(revision) }
                 LabeledContent("Built") { monospaced(builtAt) }

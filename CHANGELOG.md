@@ -13,6 +13,12 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Fixes and changes
 
+- Added **Engine Version** to About → Version and Copy Build Details. It reads
+  the linked engine's own version function, independently of the app version and
+  C ABI version, without creating an engine or loading language models. Verified
+  the rendered value **0.9.3** in the simulator; rebuilt the bridge with the
+  existing locked dependency and checked the portable Swift build.
+
 - Hardened feedback without Full Access: skip sounds, haptic fallback impacts,
   preparation and engine startup. Revoking access invalidates pending engine
   callbacks and stops an existing engine asynchronously. Keystrokes never retry

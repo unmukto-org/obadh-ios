@@ -41,7 +41,7 @@ vendored header (`rust/ObadhBridge/include/obadh.h`) and in the
 `rust/ObadhBridge` adds no API. It exists because a Rust staticlib
 dead-strips `#[no_mangle]` symbols defined in a *dependency* unless the root
 crate references them, so the shim holds a `#[used]` table of exactly the
-symbols the Swift client calls, currently 21. Adding an engine call means
+symbols the Swift client calls, currently 22. Adding an engine call means
 adding it to that table and rebuilding the xcframework (see
 [build-and-release.md](build-and-release.md)).
 
