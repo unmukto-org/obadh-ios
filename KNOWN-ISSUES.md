@@ -5,7 +5,7 @@ Resolved work belongs in [CHANGELOG.md](CHANGELOG.md). Do not create separate
 research reports. Add dated evidence to the relevant issue; remove the entry when
 its acceptance checks pass and record the resolution in the changelog.
 
-**Scope:** unreleased v1.0.1 source. The phone runs Release 146 (`4d6a94ec`),
+**Scope:** unreleased v1.0.1 source. The phone runs Release 149 (`2f72b808`),
 installed and launched on 2026-09-25. This installation is not a new hardware
 acceptance pass for the issues below; earlier device observations used Release 112.
 Evidence comes from iPhone 16 Pro Max / iOS 27.0 (24A435) and an iOS 26.5
@@ -158,7 +158,7 @@ and `build/host-margin-investigation/device-single-surface/`.
 
 ## KI-004 — Overlap candidate waits behind a held finger
 
-**Status:** The touch queue is now installed in Release 146 and needs physical
+**Status:** The touch queue is now installed in Release 149 and needs physical
 acceptance. The earlier study's Release 112 control used the old handler. The
 corrected dropped-contact defect is in the changelog.
 

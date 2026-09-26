@@ -72,6 +72,12 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Investigation and testing
 
+- Installed and launched signed Release **1.0 (149)** from `2f72b808` on the
+  iPhone 16 Pro Max with typing sounds and the app switch. Verified strict
+  signatures, matching app/extension stamps and CoreDevice's installed version.
+  Listening, Silent Mode and exact native-sound comparisons remain pending KI-014;
+  no simulator test is counted as hardware audio acceptance.
+
 - Verified the typing-sound protocol defect with a failing baseline, then passed
   148 core tests, 45 UIKit tests and three targeted UI checks. App sound toggling
   persists across relaunch; switching/foreground typing still passes. Emoji
