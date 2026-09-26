@@ -116,3 +116,11 @@ name, a plausible explanation, or an expected test failure.
 
 Entries are added as the corresponding source changes are integrated. A source
 fix and an installed build are recorded separately.
+
+### KI-008 — Switching jump and lifecycle defects
+
+Fixed in source; included in installed Release 112. Simulator recordings showed a 199–228 pt upward key-row jump before bottom anchoring and no corresponding jump in the sampled after captures. Regression tests cover fixed ribbon geometry, stale async suggestions, cancelled touches, delete cleanup, accessible activation and caps lock. This does not close KI-001 or KI-002.
+
+Evidence and integration date: 2026-09-25.
+
+<!-- Integration: fix/keyboard-presentation-lifecycle at d937705; 2026-09-25. -->

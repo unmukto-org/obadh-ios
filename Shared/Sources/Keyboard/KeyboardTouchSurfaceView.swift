@@ -125,6 +125,13 @@ final class KeyboardTouchSurfaceView: UIView {
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard touch(from: touches) != nil else { return }
+        cancelTracking()
+    }
+
+    /// Row replacement and keyboard dismissal invalidate the gesture, including
+    /// a later touchesEnded delivered for the old row. Clearing only controller
+    /// highlighting leaves that touch able to insert a key from the new layout.
+    func cancelTracking() {
         if let began = touchBeganKey, flickThreshold > 0 {
             delegate?.keyboardTouchSurface(self, didUpdateFlickProgress: 0, on: began)
         }

@@ -23,7 +23,7 @@ if [[ -z "${SKIP_BUILD:-}" ]]; then
     echo "parity: building $2"
     xcodebuild build -project "$ROOT/Obadh.xcodeproj" -scheme "$1" -configuration "$2" \
       -destination 'generic/platform=iOS Simulator' \
-      -derivedDataPath "$ROOT/build/DerivedData" CODE_SIGNING_ALLOWED=NO -quiet \
+      -derivedDataPath "$ROOT/build/DerivedData" -jobs 2 CODE_SIGNING_ALLOWED=NO -quiet \
       || { echo "parity: build failed ($2)"; exit 2; }
   done
 fi

@@ -17,7 +17,7 @@ final class KeyboardRowView: UIView {
         self.metrics = metrics
 
         for button in buttons {
-            button.isUserInteractionEnabled = false
+            button.isUserInteractionEnabled = true
             addSubview(button)
         }
         setNeedsLayout()

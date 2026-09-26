@@ -4,6 +4,7 @@ import UIKit
 // a text view to summon the keyboard, so it must not exist in Release.
 #if DEBUG
 final class KeyboardGeometryProbeViewController: UIViewController {
+    private let geometryRecorder = HostKeyboardGeometryRecorder()
     private let textView: ProbeTextView
 
     init() {
@@ -18,6 +19,7 @@ final class KeyboardGeometryProbeViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        geometryRecorder.start(in: view)
         view.backgroundColor = .systemBackground
 
         textView.translatesAutoresizingMaskIntoConstraints = false

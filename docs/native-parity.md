@@ -1,12 +1,14 @@
 # Native parity: the measured model of iOS keyboard presentation
 
-Obadh's goal is to be indistinguishable from Apple's keyboard in geometry and
-look. None of the numbers below are guesses: every value was measured from
-screenshots against native, on six simulator device classes and on a physical
-iOS 27 device, and is enforced by the parity suite
-([`scripts/parity/`](../scripts/parity/README.md)). This document is the model
-those measurements produced, kept because iOS gives keyboard extensions no API
-for any of it.
+Obadh's goal is native geometry and appearance. This document records historical
+measurements and the gates built around them; those are not OS guarantees or an
+exhaustive verification of every current presentation path.
+
+**2026-09-25 update:** [The presentation and font audit](keyboard-investigation.md)
+reproduces a 17-point system-owned margin difference on iOS 26.5, fixes a transient
+key-row jump, and measures previously ungated iPhone typography. Its current
+findings qualify the older claims below. In particular, identical extension
+geometry does not imply identical visible suggestion-zone height.
 
 ## What the gates cover, and what they do not
 
@@ -37,8 +39,8 @@ Honest gaps, so nobody reads a green run as more than it is:
 * **The emoji panel and emoji search are not gated at all.** Both are captured
   and inspected manually (`capture-emoji.sh`); the panel reports its own
   geometry through the debug channel's `dump`.
-* **The flick animation is not gated.** Only its resting state is, since the
-  gesture cannot be scripted on the simulator.
+* **The flick animation is not gated.** Only its resting state is. XCTest can
+  script gestures, but a measured flick-animation gate has not been added.
 * Simulator only, except where this document says otherwise. The iPad type
   constants were confirmed against a physical iPad Pro 11-inch.
 

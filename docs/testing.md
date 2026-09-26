@@ -1,8 +1,9 @@
 # Testing and verification
 
-Three layers, each aimed at a different failure class. The shared principle:
-behavior is verified by exercising the real thing: real artifacts, real
-input paths, real screenshots. Anything visual is measured, not eyeballed.
+Several layers, each aimed at a different failure class. The shared principle:
+behavior is verified with real artifacts, input paths, and screenshots.
+Measurements are paired with visual inspection; a passing subset does not prove
+complete native parity.
 
 ## Unit tests (SwiftPM, off-device)
 
@@ -21,6 +22,27 @@ auto-insert gate's thresholds are calibrated by these tests against the real
 lexicon (see [autocorrect.md](autocorrect.md)).
 
 Run: `xcodebuild test -scheme Obadh -destination 'platform=iOS Simulator,...'`
+
+## Controller lifecycle and real UI tests
+
+`ObadhKeyboardLifecycleTests` compiles the actual controller, UIKit views, and
+engine. It covers transient root sizes, stable ribbon height, async suggestion
+invalidation, caps lock, held delete, cancelled touches, and accessible activation.
+`ObadhKeyboardUITests` enables Obadh through Settings and exercises genuine
+keyboard-menu switching, foregrounding, accessory views, system Emoji, landscape,
+and finger input. Use a dedicated simulator; it changes its keyboard settings.
+
+```sh
+scripts/stamp-build.sh
+xcodegen generate
+xcodebuild test -scheme ObadhKeyboardLifecycleTests -destination 'platform=iOS Simulator,id=<UDID>' -jobs 2 CODE_SIGNING_ALLOWED=NO
+xcodebuild test -scheme ObadhKeyboardUITests -destination 'platform=iOS Simulator,id=<UDID>' -parallel-testing-enabled NO -jobs 2 CODE_SIGNING_ALLOWED=NO
+```
+
+The Emoji/accessory test has an explicit expected failure for the system-owned
+17-point margin discrepancy. Do not report that issue as fixed when the suite
+passes. See [the September investigation](keyboard-investigation.md) for evidence,
+font audit tooling, and the remaining iOS 27 device checks.
 
 ## The parity suite (`scripts/parity/`)
 
@@ -44,13 +66,15 @@ pressed-state colors not yet covered).
 
 ## Mouse-free simulator automation
 
-Everything above is scriptable without ever touching the mouse, a hard
-requirement (simulator UI cannot be safely mouse-automated, and `simctl` has
-no tap primitive). Two pieces make it work:
+Simulator interaction uses XCTest, simctl, and the DEBUG channel without moving
+the Mac mouse. `simctl` has no tap primitive; XCTest supplies actual UI gestures.
+The pieces are:
 
-- **`scripts/sim-kbd.py`**: boots/selects Obadh as the presented keyboard by
-  writing keyboard-daemon preferences, takes screenshots, and drives the
-  debug channel.
+- **`ObadhKeyboardUITests`**: enables Obadh through the actual Settings UI.
+  Preference writes alone did not register it on fresh iOS 26.5 simulators.
+- **`scripts/sim-kbd.py`**: selects an already-enabled Obadh using preference
+  hints and relaunch, verifies presentation, takes screenshots, and drives the
+  debug channel. Selection failure returns a nonzero exit status.
 - **The DEBUG control channel**: a file the extension polls in its own
   sandbox, giving scripted access to the *production* input path:
   `tap:<keys>`, `cursor:<offset>`, `context` (log the document around the

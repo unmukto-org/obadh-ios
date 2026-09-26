@@ -46,6 +46,9 @@ struct KeyboardSizingLog {
         /// Heights observed AFTER the presentation settled — a late resize is
         /// invisible to the classifier and would show up here.
         var lateHeights: [Double]
+        /// Actual laid-out strip, distinct from the requested metric. Optional so
+        /// logs written by earlier builds remain readable.
+        var actualStrip: Double? = nil
     }
 
     static let shared = KeyboardSizingLog()

@@ -13,6 +13,8 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Fixes and changes
 
+- Stabilized key-row positions during transient keyboard heights. Cancelled stale suggestions and touches on context changes, cleaned up held-delete timers, restored accessible key activation, and retained caps lock when typing.
+
 #### Investigation and testing
 
 - Started a release journal and a single known-issues and research register.

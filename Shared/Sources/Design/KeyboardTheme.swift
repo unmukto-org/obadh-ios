@@ -383,11 +383,14 @@ enum KeyboardTheme {
     /// unpaintable band above the extension inside its container, so the VISIBLE zone
     /// (container edge → q row) = band + strip.
     ///
-    /// The band is a CONSTANT per OS, not a per-presentation variable. Measured on
+    /// The band's measured size WHEN PRESENT is used as a design estimate, not
+    /// an OS guarantee. Its presence can change across iOS 27 presentations
+    /// (see docs/keyboard-investigation.md). Earlier measurements found it on
     /// iOS 26.5 at 16.0pt and invariant under a swept asked height (217→307pt),
     /// repeated presentations, and host `inputAccessoryView`s of 0/44/88pt; measured
-    /// on an iOS 27 device at 17.3pt in a third-party host. Apple describes it as the
-    /// margin added above the keyboard's top row in iOS 26 (FB17978212).
+    /// on an iOS 27 device at 17.3pt in a third-party host. The earlier notes cite
+    /// FB17978212 for an Apple explanation; that private feedback was not available
+    /// to independently verify in the September 2026 audit.
     ///
     /// Do NOT reintroduce a runtime "is a band coming?" detector. One shipped briefly
     /// and keyed off the presentation's transient sizing heights, which are not
@@ -582,6 +585,15 @@ enum KeyboardTheme {
             )
         }
 
+        // Measured against native iOS 26.5 portrait captures at 402/420/440pt.
+        // Use supported system fonts; exact private keyboard font identity is not
+        // documented. Preserve unmeasured legacy/older-OS typography for now.
+        let measuredModernPhoneType: Bool
+        if #available(iOS 26.0, *) {
+            measuredModernPhoneType = !legacyPresentation
+        } else {
+            measuredModernPhoneType = false
+        }
         let scale = clamp(bounds.width / referencePhoneWidth, min: 0.88, max: 1.0)
         // Type and key spacing scale with the taller iPad key; `scale` is capped at
         // 1.0, so without this an 834pt iPad drew 440pt-iPhone glyphs.
@@ -666,19 +678,19 @@ enum KeyboardTheme {
             ),
             // iPad type comes from PadAxisMetrics.Type — measured constants per
             // orientation — not from scaling the phone's. See that type for why.
-            characterFontSize: padType.map(\.letter) ?? 23 * scale,
+            characterFontSize: padType.map(\.letter) ?? (measuredModernPhoneType ? 25 : 23 * scale),
             symbolFontSize: padType.map { $0.letter * 0.91 } ?? 21 * scale,
             keyPreviewFontSize: 32 * scale,
             commandFontSize: padType.map(\.command) ?? 21 * scale,
-            modeSwitchFontSize: padType.map(\.modeSwitch) ?? 17 * scale,
+            modeSwitchFontSize: padType.map(\.modeSwitch) ?? (measuredModernPhoneType ? 18 : 17 * scale),
             spaceIntroFontSize: 18,
             spaceLanguageFontSize: 11,
             // Suggestion type scales with the iPad key like every other glyph does.
             // At the phone's flat 15pt the strip's Bangla measured 9.5pt of ink
             // against native's 15.5pt on the same screen, which is most of why it
             // read as a sliver.
-            suggestionFontSize: 15 * padTypeScale,
-            deterministicSuggestionFontSize: 15 * padTypeScale,
+            suggestionFontSize: !isPad && measuredModernPhoneType ? 17 : 15 * padTypeScale,
+            deterministicSuggestionFontSize: !isPad && measuredModernPhoneType ? 17 : 15 * padTypeScale,
             padSecondaryFontSize: padType?.secondary ?? 10,
             padSecondaryTopInset: padType?.secondaryTop ?? 8,
             padNumberRowHeight: padMetrics?.numberRowHeight ?? 0,

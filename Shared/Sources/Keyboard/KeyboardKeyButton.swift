@@ -2,6 +2,16 @@ import UIKit
 
 final class KeyboardKeyButton: UIButton {
     let key: KeyboardKey
+    // Finger input is resolved by the overlay. Assistive technologies activate
+    // the semantic key directly and need the same controller action.
+    var onAccessibilityActivate: (() -> Void)?
+
+    override func accessibilityActivate() -> Bool {
+        guard isEnabled, let onAccessibilityActivate else { return false }
+        onAccessibilityActivate()
+        return true
+    }
+
     /// iPad draws a flick-down glyph above the primary one. Set by the controller
     /// from the idiom, so iPhone keys never grow a second label.
     /// Where a command key's glyph sits inside its key.
@@ -175,6 +185,27 @@ final class KeyboardKeyButton: UIButton {
             setTitle(nil, for: .normal)
             setImage(UIImage(systemName: "keyboard.chevron.compact.down"), for: .normal)
             keyPreviewText = nil
+        }
+
+        isAccessibilityElement = true
+        accessibilityTraits = [.button, .keyboardKey]
+        accessibilityValue = nil
+        switch key {
+        case .character, .symbol, .modeSwitch:
+            accessibilityLabel = title(for: .normal)
+        case .space: accessibilityLabel = "Space"
+        case .returnKey: accessibilityLabel = "Return"
+        case .shift:
+            accessibilityLabel = "Shift"
+            accessibilityValue = shifted ? "On" : "Off"
+        case .backspace: accessibilityLabel = "Delete"
+        case .emoji: accessibilityLabel = "Emoji"
+        case .globe: accessibilityLabel = "Next keyboard"
+        case .tab: accessibilityLabel = "Tab"
+        case .capsLock:
+            accessibilityLabel = "Caps Lock"
+            accessibilityValue = capsLocked ? "On" : "Off"
+        case .hideKeyboard: accessibilityLabel = "Hide keyboard"
         }
 
         updateSecondaryLabel(traitCollection: traitCollection, metrics: metrics, typeScale: typeScale)

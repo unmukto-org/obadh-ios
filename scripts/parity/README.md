@@ -2,7 +2,8 @@
 
 Measures Obadh against the native keyboard (geometry and color) across device
 width classes, host presentations, and appearances, on the iOS Simulator.
-Everything is measured from screenshots; nothing is eyeballed.
+Measurements come from screenshots. Inspect captures as well: a detector can
+misidentify a host accessory bar or an unintended input mode.
 
 ```
 scripts/parity/all.sh                    # every gate below, serially, one verdict
@@ -54,8 +55,8 @@ The device set covers both measured geometry classes (key 43 / pitch 54 below
 - **Obadh is self-certifying**: with the probe overlay on, the keyboard draws
   yellow fiducial hairlines at its view top and strip bottom (= q row), and logs
   an `OBADH-PROBE` line with the screen size and rendered metrics. The suite
-  reads the fiducials at x 0.86..0.97 W; the probe label must never grow past
-  ~0.84 W (keep new probe fields on its shortest line). The label is also **taller
+  reads the fiducials at x 0.90..0.985 W; the probe label must never grow past
+  ~0.88 W (keep new probe fields on its shortest line). The label is also **taller
   than the modern strip** and overhangs ~10 pt into the first key row, so colour
   samples come from the **last key** in the row (x ≈ 0.943 W), clear of it. Sampling
   any key further left measures the label's black backing rather than the key —
@@ -68,9 +69,13 @@ The device set covers both measured geometry classes (key 43 / pitch 54 below
   contrast in both light and dark. Never measure edges with a
   largest-brightness-step heuristic: it snaps to accessory bars, labels, and
   fiducials (all observed).
-- Captures are mouse-free: `simctl` + the DEBUG control channel
-  (`scripts/sim-kbd.py`). Fresh simulators are created on demand and keyboards
-  are enabled by writing `AppleKeyboards` directly.
+- Captures use XCTest Settings activation, `simctl`, and the DEBUG control
+  channel (`scripts/sim-kbd.py`) without moving the Mac mouse. Fresh dedicated
+  simulators are created on demand. Writing `AppleKeyboards` alone did not
+  register Obadh on fresh iOS 26.5 simulators; the sweep now enables it through
+  the real Settings UI and aborts if presentation is not confirmed.
+- Native capture explicitly requests `en-US`; advancing once is not proof that
+  the next keyboard is native English.
 
 ## Honest limits
 
@@ -84,7 +89,18 @@ The device set covers both measured geometry classes (key 43 / pitch 54 below
   is how the 7a7bc5f regression survived: the tests could not compile, and no
   capture looks at the bottom row.
 - The **emoji panel, emoji search and the flick animation** are not gated. The
-  first two are inspected via `capture-emoji.sh`; a flick gesture cannot be
-  scripted on the simulator, so only its resting state is measured.
-- This is an on-demand harness, not an XCTest target: it orchestrates
-  simulators from outside the app, which XCTest cannot do.
+  first two are inspected via `capture-emoji.sh`. XCTest can script gestures,
+  but a measured flick-animation gate has not been added.
+- This orchestrator is an on-demand shell harness that manages simulators.
+  It invokes the `ObadhKeyboardUITests` activation test. That separate XCTest
+  suite also covers switching and foregrounding; it records the known 17-point
+  system-margin defect as an expected failure.
+
+## Additional investigation tools
+
+`phone-type.py` compares unscaled home-row glyphs and optional UIKit font atlases.
+`transition-lines.py` tracks probe markers through simulator recordings.
+`generate-margin-probe.py` creates an isolated project with a minimal 180-point
+keyboard for the system-margin reproduction. These are diagnostic tools, not
+additional gates in `all.sh`. See [the investigation report](../../docs/keyboard-investigation.md)
+for commands, measurements, and limits.
