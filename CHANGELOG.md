@@ -29,8 +29,8 @@ source; the tag and binary continue to identify the tested source above.
 
 - Uploaded build 168 through Xcode's signed-in account. Xcode reported
   **Upload succeeded** and **Uploaded package is processing** on 2026-09-25.
-  The owner will finish App Store Connect build selection, metadata and App Review
-  submission. This is an upload, not confirmation of review approval or publication.
+  The owner subsequently reported submitting v1.0.1 (168) for App Review on
+  2026-09-25. Review approval and App Store publication remain pending.
 
 - Passed all 152 Swift and 54 UIKit tests on the release source. Engine 0.9.4
   had already passed the 19 real-engine integration tests before the version bump.
