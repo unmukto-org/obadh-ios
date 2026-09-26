@@ -91,6 +91,13 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
 
 #### Investigation and testing
 
+- Installed and launched signed Release **1.0 (159)** from `182dde0d` on the
+  iPhone 16 Pro Max after merging differentiated sounds and the Full Access
+  safeguards. Verified strict signatures, matching app/extension stamps and
+  installed build 159. Confirmed both temporary phone apps were removed; also
+  removed the simulator sound probe and its generated build directories. This
+  remains an unreleased v1.0.1 development build; the `v1.0` tag is unchanged.
+
 - Passed all 48 UIKit tests after the final sound and Full Access safeguards.
   The denial regression now observes zero sound requests, engine creations,
   fallback impacts and preparations over 5,000 events, including checks after
