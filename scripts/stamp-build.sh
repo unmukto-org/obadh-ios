@@ -30,4 +30,5 @@ CURRENT_PROJECT_VERSION = ${count}
 OBADH_GIT_SHA = ${sha}
 OBADH_BUILD_TIME = ${build_time}
 EOF
-echo "stamped build: 0.1.0 (${count}) · ${sha} · ${build_time}"
+marketing_version="$(awk '/MARKETING_VERSION:/ { gsub(/"/, "", $2); print $2; exit }' project.yml)"
+echo "stamped build: ${marketing_version} (${count}) · ${sha} · ${build_time}"

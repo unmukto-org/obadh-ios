@@ -14,7 +14,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     IPHONEOS_DEPLOYMENT_TARGET: "18.0"
-    MARKETING_VERSION: "1.0"
+    MARKETING_VERSION: "1.0.1"
     # CURRENT_PROJECT_VERSION comes from Config/BuildInfo.xcconfig (git-stamped by
     # scripts/stamp-build.sh), with a fallback in Signing.xcconfig — NOT set here,
     # or a project-level value would override the xcconfig.

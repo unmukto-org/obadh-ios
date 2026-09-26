@@ -4,10 +4,29 @@ This is a plain-language record of work since the last release. Unreleased work
 is not a promise that a reported issue is fixed or that a build is on a device.
 Current limitations and verification requirements live in [KNOWN-ISSUES.md](KNOWN-ISSUES.md).
 
-## Unreleased — planned v1.0.1
+## Unreleased
 
-Release date: not set. Release tag and commit: not created.
-Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
+No changes after the v1.0.1 release preparation yet.
+
+## v1.0.1 — 2026-09-25 (release preparation)
+
+Version: `1.0.1`. Engine: `0.9.4`.
+Prepared: 2026-09-25. App Store publication date: pending.
+Build, tested source commit and annotated tag: recorded after archive verification.
+Comparison: `v1.0..v1.0.1` (tag pending).
+
+### App Store update notes
+
+- English loanwords now default to their Bangla spelling. Tap the quoted second
+  suggestion to keep the literal transliteration.
+- Type `tq` for ৎ and `qq` for ঁ, with more consistent backspace behavior.
+- Added typing sounds, including distinct sounds for special keys, with an app
+  setting to turn them off.
+- Improved keyboard appearance, accessibility, touch handling and feedback.
+- Updated the transliteration engine and added its version to About.
+
+The open height, foreground-input and device-verification issues remain in
+KNOWN-ISSUES.md; this update does not claim to resolve them.
 
 ### 2026-09-25
 
@@ -19,7 +38,7 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
   engine's ZWJ-based র‍্য output, productive ট্র্য-style conjuncts, joiner-free
   গ্ণ/ঙ্ক্ত/স্প্ল, live ত before ল, and stricter learned-word joiner validation.
   Bundled language artifacts are unchanged. About reads the linked version
-  automatically; the installed phone build still uses 0.9.3.
+  automatically; the installed phone build still used 0.9.3 at that point.
 
 
 - Made exact English loanwords the default Bangla candidate, regardless of
@@ -35,7 +54,7 @@ Baseline: `v1.0` (`94c8132d594a4af5beec7ec12a5ef90b0ec8b169`).
   detailed engine traversal for both candidates and provenance, instead of two
   traversals with auto-insert enabled. No full search runs on letter previews.
   Immediate-commit samples took 1.3–5.4 ms in the simulator; physical-device
-  latency has not been measured. The phone remains on Release 162.
+  latency has not been measured. The phone remained on Release 162 at that point.
 
 
 - Added **Engine Version** to About → Version and Copy Build Details. It reads
@@ -329,6 +348,7 @@ Comparison: first release baseline; no earlier release recorded here.
   tested source commit. This avoids inventing a self-referential commit hash or
   tagging a different binary source. Record the distinction if documentation
   changed after the build; never silently move an existing published tag.
-- When v1.0.1 ships, move the accumulated Unreleased entries into its dated
-  version section and start a fresh Unreleased section based on that tag. Do not
-  create a release tag or claim a release date for ongoing work.
+- During an authorized release, move the accumulated work into its version
+  section and open a fresh Unreleased section. Distinguish preparation, upload,
+  review submission and actual App Store publication dates. Never label a staged
+  build as publicly released or move its tested source tag after upload.
