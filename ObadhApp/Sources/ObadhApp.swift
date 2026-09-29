@@ -173,16 +173,6 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
         let screenPrefix = "--screen="
         if let argument = arguments.first(where: { $0.hasPrefix(screenPrefix) }) {
             let screen = argument.dropFirst(screenPrefix.count)
-            if screen.hasPrefix("voice-panel") {
-                let phase: VoicePanelPhase = switch screen.split(separator: ":").last {
-                case "ready": .ready
-                case "finishing": .finishing
-                case "connecting": .connecting
-                case "problem": .problem("অবাধ অ্যাপে ভয়েস মডেল ডাউনলোড করুন")
-                default: .listening
-                }
-                return UIHostingController(rootView: VoicePanelPreviewView(phase: phase))
-            }
             switch screen {
             case "settings":
                 return UIHostingController(rootView: SettingsView(install: KeyboardInstallStateReader().read()))

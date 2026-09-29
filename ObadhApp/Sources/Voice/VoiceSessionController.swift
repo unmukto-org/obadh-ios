@@ -59,6 +59,8 @@ final class VoiceSessionController: ObservableObject {
     private var finishingTask: UIBackgroundTaskIdentifier = .invalid
     /// Buffers arrive every ~50 ms; this long without one means the engine stalled.
     private static let audioStallThreshold: CFTimeInterval = 0.8
+    /// How long a freshly started engine may take to deliver its first buffer.
+    private static let audioStartThreshold: CFTimeInterval = 3
 
     private init(models: VoiceModelLibrary = .shared) {
         self.models = models
@@ -281,7 +283,10 @@ final class VoiceSessionController: ObservableObject {
             finishDictation()
             return
         }
-        let flowing = now - capture.lastBufferAt < Self.audioStallThreshold
+        let delivered = capture.hasDelivered
+        let silentFor = now - capture.lastBufferAt
+        if !delivered, silentFor < Self.audioStartThreshold { return }
+        let flowing = delivered && silentFor < Self.audioStallThreshold
         if flowing != isAudioFlowing {
             isAudioFlowing = flowing
             log.notice("OBADH-VOICE audio \(flowing ? "flowing" : "stalled", privacy: .public)")

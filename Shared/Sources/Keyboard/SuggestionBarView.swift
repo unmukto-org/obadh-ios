@@ -135,10 +135,9 @@ final class SuggestionBarView: UIView {
 
     /// Show the voice waveform (or a short status) in place of the candidates;
     /// `nil` restores them.
-    func setVoiceIndicator(_ phase: VoicePanelPhase?, levelFeed: VoiceLevelFeed?) {
+    func setVoiceIndicator(_ phase: VoicePanelPhase?) {
         let showing = phase != nil
         if let phase {
-            voiceIndicator.levelFeed = levelFeed
             voiceIndicator.setContentOffset(metrics.suggestionContentOffset)
             voiceIndicator.setPhase(phase, textColor: KeyboardTheme.suggestionTextColor(for: traitCollection))
         }

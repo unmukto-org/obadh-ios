@@ -36,6 +36,10 @@ final class VoiceAudioCapture: @unchecked Sendable {
     private struct State {
         var isMetering = false
         var lastBufferAt: CFTimeInterval = 0
+        /// A buffer has arrived since the last start. Until then the hardware is
+        /// still coming up (slower on a cold launch or a Bluetooth route), which is
+        /// not a stall.
+        var hasDelivered = false
         var wantsRunning = false
     }
     private let lock = OSAllocatedUnfairLock(initialState: State())
@@ -54,6 +58,9 @@ final class VoiceAudioCapture: @unchecked Sendable {
     /// watchdog compares this with the clock: a running engine that stopped
     /// delivering is the "shows listening, hears nothing" failure.
     var lastBufferAt: CFTimeInterval { lock.withLock { $0.lastBufferAt } }
+
+    /// Whether any buffer has arrived since the engine last started.
+    var hasDelivered: Bool { lock.withLock { $0.hasDelivered } }
 
     init(levelWriter: VoiceLevelWriter?) {
         self.levelWriter = levelWriter
@@ -83,6 +90,8 @@ final class VoiceAudioCapture: @unchecked Sendable {
     func restart() throws {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
+        // Drop the graph's cached formats so the rebuilt tap sees the current hardware.
+        engine.reset()
         try installAndStart()
     }
 
@@ -100,25 +109,30 @@ final class VoiceAudioCapture: @unchecked Sendable {
 
     private func installAndStart() throws {
         let input = engine.inputNode
-        let inputFormat = input.outputFormat(forBus: 0)
-        guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else { throw CaptureError.noInput }
-        guard let converter = AVAudioConverter(from: inputFormat, to: targetFormat) else {
-            throw CaptureError.converterUnavailable
-        }
-        self.converter = converter
-        // Room for a generous tap buffer at the new rate, allocated once.
+        let hardware = input.inputFormat(forBus: 0)
+        guard hardware.sampleRate > 0, hardware.channelCount > 0 else { throw CaptureError.noInput }
+        // The converter is built from the first real buffer (see `handle`), so it
+        // always matches what the hardware actually delivers.
+        converter = nil
+        // Room for a generous tap buffer at the target rate, allocated once.
         converted = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: 16_000 / 2)
-        // ~50 ms buffers: small enough that drafts and the visual feel immediate.
-        let frames = AVAudioFrameCount(inputFormat.sampleRate * 0.05)
+        // ~50 ms buffers: small enough that text and the light feel immediate.
+        let frames = AVAudioFrameCount(hardware.sampleRate * 0.05)
         input.removeTap(onBus: 0)
-        input.installTap(onBus: 0, bufferSize: frames, format: inputFormat) { [weak self] buffer, _ in
+        // `format: nil` taps in the node's own format. Passing a format that no longer
+        // matches the hardware (after a route change, or before the session settles)
+        // raises an Objective-C exception, which ends the app; nil cannot mismatch.
+        input.installTap(onBus: 0, bufferSize: frames, format: nil) { [weak self] buffer, _ in
             self?.handle(buffer)
         }
         engine.prepare()
         try engine.start()
         // A fresh start counts as alive; the watchdog measures from here.
-        lock.withLock { $0.lastBufferAt = CACurrentMediaTime() }
-        log.notice("OBADH-VOICE capture started at \(inputFormat.sampleRate, privacy: .public) Hz")
+        lock.withLock {
+            $0.lastBufferAt = CACurrentMediaTime()
+            $0.hasDelivered = false
+        }
+        log.notice("OBADH-VOICE capture started at \(hardware.sampleRate, privacy: .public) Hz")
     }
 
     func stop() {
@@ -130,7 +144,12 @@ final class VoiceAudioCapture: @unchecked Sendable {
     }
 
     private func handle(_ buffer: AVAudioPCMBuffer) {
-        guard let converter, let output = converted else { return }
+        guard let output = converted else { return }
+        // Built, or rebuilt, from the format the buffers actually arrive in.
+        if converter?.inputFormat != buffer.format {
+            converter = AVAudioConverter(from: buffer.format, to: targetFormat)
+        }
+        guard let converter else { return }
         output.frameLength = 0
         var supplied = false
         var error: NSError?
@@ -144,7 +163,10 @@ final class VoiceAudioCapture: @unchecked Sendable {
             return buffer
         }
         guard error == nil, let channel = output.floatChannelData?[0], output.frameLength > 0 else { return }
-        lock.withLock { $0.lastBufferAt = CACurrentMediaTime() }
+        lock.withLock {
+            $0.lastBufferAt = CACurrentMediaTime()
+            $0.hasDelivered = true
+        }
         let samples = UnsafeBufferPointer(start: channel, count: Int(output.frameLength))
         if isMetering, let levelWriter {
             meter.measure(samples) { level, bands in

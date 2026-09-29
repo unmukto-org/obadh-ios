@@ -93,7 +93,6 @@ targets:
       - path: Shared/Sources/VoiceUI
       - path: Shared/Sources/VoiceGlow
       - path: Shared/Sources/VoiceModels
-      - path: Shared/Sources/Keyboard/VoiceStripIndicatorView.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(OBADH_APP_BUNDLE_ID)
@@ -125,7 +124,6 @@ targets:
       - path: Shared/Sources/Engine
       - path: Shared/Sources/Keyboard
       - path: Shared/Sources/Voice
-      - path: Shared/Sources/VoiceGlow
       - path: Shared/Sources/Settings/KeyboardPreferences.swift
       - path: Shared/Sources/Settings/ObadhIdentity.swift
       - path: Shared/Sources/Settings/KeyboardSizingLog.swift
@@ -182,7 +180,6 @@ targets:
       - path: Shared/Sources/Engine
       - path: Shared/Sources/Keyboard
       - path: Shared/Sources/Voice
-      - path: Shared/Sources/VoiceGlow
       - path: Shared/Sources/Settings/KeyboardPreferences.swift
       - path: Shared/Sources/Settings/ObadhIdentity.swift
       - path: Shared/Sources/Settings/KeyboardSizingLog.swift
