@@ -148,6 +148,18 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
         }
     }
 
+    /// Frees the models (the session ended). They load again, in well under a
+    /// second, at the next session.
+    func unload() {
+        streamQueue.async { [self] in
+            streaming = nil
+            refiner = nil
+            backlog = []
+            phraseAudio = []
+            preRoll = []
+        }
+    }
+
     // MARK: streamQueue internals
 
     private func process(_ samples: UnsafeBufferPointer<Float>) {

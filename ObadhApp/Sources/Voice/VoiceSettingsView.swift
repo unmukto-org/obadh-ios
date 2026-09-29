@@ -11,14 +11,12 @@ struct VoiceSettingsView: View {
 
     private let preferences = VoicePreferences()
     @State private var micButtonEnabled: Bool
-    @State private var warmWindow: TimeInterval
     @State private var permission = AVAudioApplication.shared.recordPermission
     @State private var isConfirmingDelete = false
 
     init() {
         let preferences = VoicePreferences()
         _micButtonEnabled = State(initialValue: preferences.micButtonEnabled)
-        _warmWindow = State(initialValue: preferences.warmWindow)
     }
 
     var body: some View {
@@ -35,25 +33,11 @@ struct VoiceSettingsView: View {
                     downloadRow
                     microphoneRow
                 }
-
-                Section {
-                    Picker("Keep Microphone Ready", selection: $warmWindow) {
-                        ForEach(VoiceSessionTiming.warmWindowChoices, id: \.self) { seconds in
-                            Text(Self.label(for: seconds)).tag(seconds)
-                        }
-                    }
-                    .onChange(of: warmWindow) { _, value in preferences.warmWindow = value }
-                    if session.phase != .idle {
-                        Button("Turn Off Microphone") { session.endSession() }
-                    }
-                } footer: {
-                    Text("After you dictate, the microphone stays ready so the next time starts instantly. Nothing is heard until you tap the microphone.")
-                }
             }
 
             Section {
             } footer: {
-                Text("Voice typing works entirely on this iPhone. What you say never leaves it.")
+                Text("The microphone is used only while you dictate with the Obadh keyboard. Voice typing works entirely on this iPhone; what you say never leaves it.")
             }
         }
         .navigationTitle("Voice Typing")
@@ -131,8 +115,4 @@ struct VoiceSettingsView: View {
         }
     }
 
-    private static func label(for seconds: TimeInterval) -> String {
-        let minutes = Int(seconds / 60)
-        return minutes >= 60 ? "1 Hour" : "\(minutes) Minute\(minutes == 1 ? "" : "s")"
-    }
 }

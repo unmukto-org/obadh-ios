@@ -11,7 +11,7 @@ final class VoiceDraftReconcilerTests: XCTestCase {
     ) -> VoiceSessionSnapshot {
         VoiceSessionSnapshot(
             seq: 1, phase: phase, heartbeat: Date(), dictationID: dictation,
-            segments: segments, expiresAt: nil, failure: nil
+            segments: segments, failure: nil
         )
     }
 
@@ -165,7 +165,7 @@ final class VoiceSessionProtocolTests: XCTestCase {
         let snapshot = VoiceSessionSnapshot(
             seq: 42, phase: .listening, heartbeat: Date(timeIntervalSince1970: 1_000),
             dictationID: "abc", segments: [VoiceSegment(id: 3, text: "হ্যালো", isSettled: false)],
-            expiresAt: Date(timeIntervalSince1970: 2_000), failure: .interrupted
+            failure: .interrupted, isAudioFlowing: true, isRecognizerReady: true
         )
         let data = try VoiceMessageFile.encode(snapshot)
         XCTAssertEqual(VoiceMessageFile.decode(VoiceSessionSnapshot.self, from: data), snapshot)

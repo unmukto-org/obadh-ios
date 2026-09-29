@@ -139,7 +139,7 @@ final class SuggestionBarView: UIView {
         let showing = phase != nil
         if let phase {
             voiceIndicator.levelSource = levelSource
-            voiceIndicator.setPhase(phase, traitCollection: traitCollection)
+            voiceIndicator.setPhase(phase, textColor: KeyboardTheme.suggestionTextColor(for: traitCollection))
         }
         guard showing != isShowingVoiceIndicator else { return }
         isShowingVoiceIndicator = showing

@@ -5,7 +5,6 @@ import Foundation
 /// app's business: the keyboard only needs to know whether to show the mic.
 struct VoicePreferences {
     private static let micButtonEnabledKey = "voice.micButtonEnabled"
-    private static let warmWindowKey = "voice.warmWindowSeconds"
     private static let activeStreamingModelKey = "voice.activeStreamingModel"
     private static let activeRefinerModelKey = "voice.activeRefinerModel"
     private static let refinementEnabledKey = "voice.refinementEnabled"
@@ -20,17 +19,6 @@ struct VoicePreferences {
     var micButtonEnabled: Bool {
         get { defaults.object(forKey: Self.micButtonEnabledKey) as? Bool ?? true }
         nonmutating set { defaults.set(newValue, forKey: Self.micButtonEnabledKey) }
-    }
-
-    /// How long the microphone stays warm after the last dictation.
-    var warmWindow: TimeInterval {
-        get {
-            let stored = defaults.double(forKey: Self.warmWindowKey)
-            return VoiceSessionTiming.warmWindowChoices.contains(stored)
-                ? stored
-                : VoiceSessionTiming.defaultWarmWindow
-        }
-        nonmutating set { defaults.set(newValue, forKey: Self.warmWindowKey) }
     }
 
     /// Whether finished phrases are re-transcribed by the larger model.

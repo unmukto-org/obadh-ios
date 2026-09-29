@@ -66,6 +66,7 @@ final class VoiceKeyboardCoordinator {
                 self?.snapshotDidChange()
             }
         }
+        touchPresence()
         restorePersistedDictation()
         snapshotDidChange()
         startWarmthTimer()
@@ -75,12 +76,19 @@ final class VoiceKeyboardCoordinator {
         warmthTimer?.invalidate()
         warmthTimer = nil
         levels.close()
-        guard !isHandingOff, let dictationID = reconciler.dictationID else { return }
-        // The user left mid-dictation (switched apps, dismissed the keyboard). Text
-        // spoken now would have nowhere safe to go, so drop the dictation rather
-        // than insert it into whatever field happens to be focused later.
-        send(.cancel, dictationID: dictationID)
-        endDictation()
+        // Opening the app for the bounce is the one disappearance that is not goodbye.
+        guard !isHandingOff else { return }
+        // The keyboard is closing (dismissed, another keyboard, another app): the
+        // microphone must not outlive it. Any dictation in flight is dropped rather
+        // than inserted into whatever field happens to be focused later.
+        if let dictationID = reconciler.dictationID {
+            send(.cancel, dictationID: dictationID)
+            endDictation()
+        }
+        if lastSnapshot.phase != .idle {
+            log.notice("OBADH-VOICE keyboard closing; releasing the microphone")
+            send(.endSession, dictationID: "")
+        }
     }
 
     // MARK: Mic
@@ -240,10 +248,14 @@ final class VoiceKeyboardCoordinator {
 
     private func startWarmthTimer() {
         warmthTimer?.invalidate()
-        // Warmth decays silently when the app is suspended (no notification), so poll
-        // the small snapshot file while visible. Cheap, and stops on disappear.
-        let timer = Timer(timeInterval: 2, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.snapshotDidChange() }
+        // Once a second while visible: tell the app the keyboard is still here (the
+        // microphone is held only while it is), and re-check warmth, which decays
+        // silently if the app is suspended. Stops on disappear.
+        let timer = Timer(timeInterval: VoiceSessionTiming.presenceInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.touchPresence()
+                self?.snapshotDidChange()
+            }
         }
         RunLoop.main.add(timer, forMode: .common)
         warmthTimer = timer
@@ -299,6 +311,17 @@ final class VoiceKeyboardCoordinator {
     }
 
     // MARK: IPC
+
+    /// A zero-byte file whose modification date says "the keyboard is on screen".
+    private func touchPresence() {
+        guard let directory else { return }
+        let url = VoiceSessionChannel.presenceURL(in: directory)
+        if !FileManager.default.fileExists(atPath: url.path) {
+            FileManager.default.createFile(atPath: url.path, contents: Data())
+        } else {
+            try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path)
+        }
+    }
 
     private func readSnapshot() -> VoiceSessionSnapshot? {
         guard let directory else { return nil }

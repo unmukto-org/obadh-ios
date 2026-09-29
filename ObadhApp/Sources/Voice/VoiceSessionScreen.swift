@@ -58,8 +58,8 @@ struct VoiceSessionScreen: View {
             failureView(failure)
         } else {
             VStack(spacing: 20) {
-                VoiceAuroraView(source: session.levels, isActive: session.phase == .listening)
-                    .frame(height: 220)
+                VoiceGlow(source: session.levels, mode: glowMode)
+                    .frame(height: 140)
                     .padding(.horizontal, -24)
                 Text(statusText)
                     .font(.system(.headline, design: .rounded))
@@ -75,6 +75,14 @@ struct VoiceSessionScreen: View {
                 }
             }
             .animation(.smooth, value: session.transcript)
+        }
+    }
+
+    private var glowMode: VoiceGlowView.Mode {
+        switch session.phase {
+        case .listening, .ready: session.isAudioFlowing ? .live : .waiting
+        case .finishing: .finishing
+        case .idle, .starting: .waiting
         }
     }
 

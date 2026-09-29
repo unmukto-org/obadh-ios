@@ -2,35 +2,58 @@
 import SwiftUI
 import UIKit
 
-/// `--screen=voice-panel[:phase]`: the keyboard's voice panel at keyboard size over
-/// the system keyboard material, driven by synthetic levels. The Simulator will not
-/// reliably present a third-party keyboard, so this is where the visual is reviewed.
+/// `--screen=voice-panel[:phase]`: the keyboard's suggestion strip in voice mode, on
+/// the system keyboard material above placeholder key rows, driven by synthetic
+/// levels. The Simulator will not reliably present a third-party keyboard, so this is
+/// where the strip's look is reviewed. Uses the keyboard's own indicator view.
 struct VoicePanelPreviewView: View {
-    @StateObject private var model = VoicePanelModel()
-    private let source = SyntheticVoiceLevelSource()
     let phase: VoicePanelPhase
+    private let source = SyntheticVoiceLevelSource()
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            LinearGradient(colors: [.pink, .orange, .teal], startPoint: .topLeading, endPoint: .bottomTrailing)
-                .ignoresSafeArea()
+            // Neutral, like most apps behind a keyboard.
+            Color(.systemBackground).ignoresSafeArea()
             VStack(spacing: 0) {
-                // Stand-in strip with the mic, as the keyboard draws it while listening.
-                HStack {
-                    Image(systemName: "mic.fill")
+                HStack(spacing: 0) {
+                    Image(systemName: phase == .listening || phase == .ready ? "mic.fill" : "mic")
                         .font(.system(size: 17))
-                        .foregroundStyle(VoiceUIPalette.teal)
                         .frame(width: 44)
-                    Spacer()
+                    StripIndicator(phase: phase, source: source)
                 }
-                .frame(height: 44)
-                VoicePanelView(model: model, levels: source)
-                    .frame(height: 216)
+                .frame(height: 36)
+                VStack(spacing: 11) {
+                    ForEach(0..<4, id: \.self) { row in
+                        HStack(spacing: 6) {
+                            ForEach(0..<(row == 3 ? 3 : 10 - row), id: \.self) { _ in
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color(.systemBackground).opacity(0.7))
+                                    .frame(height: 44)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 4)
+                .padding(.top, 8)
             }
-            .padding(.bottom, 34)
+            .padding(.bottom, 30)
             .background(KeyboardMaterial().ignoresSafeArea())
         }
-        .onAppear { model.phase = phase }
+    }
+}
+
+private struct StripIndicator: UIViewRepresentable {
+    let phase: VoicePanelPhase
+    let source: SyntheticVoiceLevelSource
+
+    func makeUIView(context: Context) -> VoiceStripIndicatorView {
+        let view = VoiceStripIndicatorView()
+        view.levelSource = { [weak source] in source?.currentFrame() ?? .silent }
+        return view
+    }
+
+    func updateUIView(_ view: VoiceStripIndicatorView, context: Context) {
+        view.setPhase(phase, textColor: .secondaryLabel)
     }
 }
 

@@ -14,9 +14,8 @@ enum VoicePanelPhase: Equatable {
     case problem(String)
 }
 
-/// Where the listening visual gets its audio levels. The keyboard reads the shared
-/// page the app writes; the app reads its own capture directly. Called once per
-/// displayed frame, so it must be cheap.
+/// Where the voice visual gets its audio levels, once per displayed frame. The
+/// keyboard reads the shared page the app writes; the app reads the same page.
 @MainActor
 protocol VoiceLevelSource: AnyObject {
     func currentFrame() -> VoiceLevelFrame

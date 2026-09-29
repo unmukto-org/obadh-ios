@@ -10,10 +10,13 @@ import os
 ///
 ///     idle ──(foreground start)──▶ starting ──▶ ready ◀──▶ listening ──▶ finishing ──▶ ready
 ///       ▲                                         │
-///       └────────────(warm window expires)────────┘
+///       └──(keyboard closes: mic released, models unloaded)──┘
 ///
 /// A backgrounded app can keep a recording alive but cannot start one, so the only
 /// way into `starting` is with the app in the foreground (the keyboard's bounce).
+/// The session never outlives the keyboard: it ends the moment the keyboard closes
+/// (or is found missing), and a dictation ends after a spell of silence. No timers
+/// the user has to think about.
 @MainActor
 final class VoiceSessionController: ObservableObject {
     static let shared = VoiceSessionController()
@@ -30,7 +33,6 @@ final class VoiceSessionController: ObservableObject {
     @Published private(set) var isRecognizerReady = false
     @Published private(set) var segments: [VoiceSegment] = []
     @Published private(set) var failure: VoiceSessionFailure?
-    @Published private(set) var expiresAt: Date?
     @Published private(set) var dictationID: String?
 
     /// The live transcript, for the in-app session screen.
@@ -49,7 +51,11 @@ final class VoiceSessionController: ObservableObject {
     private let pipeline = VoiceRecognitionPipeline()
     private var commandObserver: VoiceDarwinObserver?
     private var heartbeatTimer: Timer?
-    private var expiryTimer: Timer?
+    /// When newly recognized speech last arrived in the current dictation.
+    private var lastSpeechAt: CFTimeInterval = 0
+    /// Until when a missing keyboard is tolerated (the user tapping back from the
+    /// bounce needs a moment for the keyboard to reappear).
+    private var keyboardGraceUntil: CFTimeInterval = 0
     private var snapshotSeq: UInt64 = 0
     private var lastCommandSeq: UInt64 = 0
     private var pendingPublish: DispatchWorkItem?
@@ -136,12 +142,15 @@ final class VoiceSessionController: ObservableObject {
         startHeartbeat()
         startWatchdog()
         phase = .ready
-        refreshExpiry()
         return true
     }
 
+    /// Releases the microphone and unloads the models. The session exists only while
+    /// the keyboard is on screen; nothing listens, or stays in memory, after.
     func endSession() {
         pipeline.cancel()
+        pipeline.unload()
+        isRecognizerReady = false
         capture.isMetering = false
         capture.stop()
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -150,12 +159,9 @@ final class VoiceSessionController: ObservableObject {
         watchdogTimer?.invalidate()
         watchdogTimer = nil
         isAudioFlowing = false
-        expiryTimer?.invalidate()
-        expiryTimer = nil
         phase = .idle
         dictationID = nil
         segments = []
-        expiresAt = nil
         publishNow()
     }
 
@@ -176,8 +182,7 @@ final class VoiceSessionController: ObservableObject {
         phase = .listening
         capture.isMetering = true
         pipeline.begin(dictationID: id)
-        expiryTimer?.invalidate()
-        expiresAt = nil
+        lastSpeechAt = CACurrentMediaTime()
         publishNow()
     }
 
@@ -202,7 +207,6 @@ final class VoiceSessionController: ObservableObject {
         dictationID = nil
         segments = []
         if phase != .idle { phase = .ready }
-        refreshExpiry()
         publishNow()
     }
 
@@ -211,6 +215,7 @@ final class VoiceSessionController: ObservableObject {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self, self.dictationID == id else { return }
+                    if segments != self.segments { self.lastSpeechAt = CACurrentMediaTime() }
                     self.segments = segments
                     self.hearsSpeech = hears
                     self.schedulePublish()
@@ -222,7 +227,6 @@ final class VoiceSessionController: ObservableObject {
                 MainActor.assumeIsolated {
                     guard let self, self.dictationID == id, self.phase == .finishing else { return }
                     self.phase = .ready
-                    self.refreshExpiry()
                     self.publishNow()
                 }
             }
@@ -315,7 +319,6 @@ final class VoiceSessionController: ObservableObject {
             heartbeat: Date(),
             dictationID: dictationID,
             segments: segments,
-            expiresAt: expiresAt,
             failure: failure,
             isAudioFlowing: isAudioFlowing,
             isRecognizerReady: isRecognizerReady
@@ -342,6 +345,14 @@ final class VoiceSessionController: ObservableObject {
 
     private func checkAudioHealth() {
         guard phase != .idle else { return }
+        checkKeyboardPresence()
+        guard phase != .idle else { return }
+        // Nothing new recognized for a while: the user has stopped talking.
+        if phase == .listening, let dictationID,
+           CACurrentMediaTime() - lastSpeechAt > VoiceSessionTiming.silenceEndsDictation {
+            log.notice("OBADH-VOICE silence ended the dictation")
+            stop(dictationID)
+        }
         let flowing = CACurrentMediaTime() - capture.lastBufferAt < Self.audioStallThreshold
         if flowing != isAudioFlowing {
             isAudioFlowing = flowing
@@ -366,6 +377,21 @@ final class VoiceSessionController: ObservableObject {
         }
     }
 
+    /// The microphone is held only while the Obadh keyboard is on screen. The keyboard
+    /// says goodbye when it closes; this catches the case where it could not (iOS
+    /// killed it). While the app itself is in front (the bounce), the keyboard is
+    /// expected to be away.
+    private func checkKeyboardPresence() {
+        guard UIApplication.shared.applicationState != .active,
+              CACurrentMediaTime() > keyboardGraceUntil,
+              let directory else { return }
+        let url = VoiceSessionChannel.presenceURL(in: directory)
+        let touched = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+        guard Date().timeIntervalSince(touched) > VoiceSessionTiming.presenceTolerance else { return }
+        log.notice("OBADH-VOICE keyboard is gone; releasing the microphone")
+        endSession()
+    }
+
     private func startHeartbeat() {
         heartbeatTimer?.invalidate()
         let timer = Timer(timeInterval: VoiceSessionTiming.heartbeatInterval, repeats: true) { [weak self] _ in
@@ -373,25 +399,6 @@ final class VoiceSessionController: ObservableObject {
         }
         RunLoop.main.add(timer, forMode: .common)
         heartbeatTimer = timer
-    }
-
-    // MARK: Warm window
-
-    @discardableResult
-    private func refreshExpiry() -> Date {
-        let expiry = Date().addingTimeInterval(preferences.warmWindow)
-        expiresAt = expiry
-        expiryTimer?.invalidate()
-        let timer = Timer(fire: expiry, interval: 0, repeats: false) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self, self.phase == .ready else { return }
-                self.log.notice("OBADH-VOICE warm window expired; releasing the microphone")
-                self.endSession()
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        expiryTimer = timer
-        return expiry
     }
 
     // MARK: Audio session
@@ -413,6 +420,13 @@ final class VoiceSessionController: ObservableObject {
 
     private func observeAudioSession() {
         let center = NotificationCenter.default
+        notificationTokens.append(center.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.keyboardGraceUntil = CACurrentMediaTime() + VoiceSessionTiming.returnGrace
+            }
+        })
         notificationTokens.append(center.addObserver(
             forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
         ) { [weak self] notification in

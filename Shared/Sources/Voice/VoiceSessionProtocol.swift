@@ -38,8 +38,6 @@ struct VoiceSessionSnapshot: Codable, Equatable, Sendable {
     /// The dictation the segments belong to, as issued by the keyboard.
     var dictationID: String?
     var segments: [VoiceSegment]
-    /// When the warm session will close if nothing else happens.
-    var expiresAt: Date?
     /// A short, user-presentable reason the last start failed, if it did.
     var failure: VoiceSessionFailure?
     /// Audio buffers are actually arriving (not just "the engine was started").
@@ -54,7 +52,6 @@ struct VoiceSessionSnapshot: Codable, Equatable, Sendable {
         heartbeat: .distantPast,
         dictationID: nil,
         segments: [],
-        expiresAt: nil,
         failure: nil
     )
 
@@ -105,8 +102,16 @@ enum VoiceSessionTiming {
     /// The longest "Done" waits for the last phrase to be refined before the
     /// keyboard settles for the streaming text.
     static let finishTimeout: TimeInterval = 4.0
-    static let defaultWarmWindow: TimeInterval = 5 * 60
-    static let warmWindowChoices: [TimeInterval] = [60, 5 * 60, 15 * 60, 60 * 60]
+    /// Dictation ends by itself after this long without newly recognized speech.
+    static let silenceEndsDictation: TimeInterval = 8.0
+    /// The keyboard refreshes its presence this often while on screen.
+    static let presenceInterval: TimeInterval = 1.0
+    /// No presence for this long, with the app in the background, means the
+    /// keyboard is gone: the microphone is released.
+    static let presenceTolerance: TimeInterval = 3.0
+    /// After the app goes to the background (the user tapping back from the
+    /// bounce), how long the keyboard has to reappear.
+    static let returnGrace: TimeInterval = 4.0
 }
 
 /// Names and places shared by both processes.
@@ -151,6 +156,12 @@ enum VoiceSessionChannel {
 
     static func levelsURL(in directory: URL) -> URL {
         directory.appendingPathComponent("levels.bin")
+    }
+
+    /// Touched by the keyboard while it is on screen. Its modification date is the
+    /// whole message: the microphone is held only while the keyboard is there.
+    static func presenceURL(in directory: URL) -> URL {
+        directory.appendingPathComponent("keyboard.presence")
     }
 }
 
