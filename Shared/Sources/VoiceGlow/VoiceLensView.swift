@@ -63,6 +63,13 @@ final class VoiceLensView: UIView {
         renderer?.setMode(mode)
     }
 
+    /// Where the light's centre line sits relative to the view's centre, in points,
+    /// positive = down. The keyboard passes its content offset so the light lines
+    /// up with the mic and the suggestions.
+    func setHorizonOffset(_ points: CGFloat) {
+        renderer?.setOffset(Float(points))
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         let scale = window?.screen.scale ?? UIScreen.main.scale
@@ -113,6 +120,7 @@ private final class VoiceLensRenderer: NSObject, @unchecked Sendable {
     private var _levelFeed: VoiceLevelFeed?
     private var mode: VoiceLensView.Mode = .live
     private var dark = false
+    private var offset: Float = 0
     private var size = CGSize.zero
     private var scale: Float = 3
     private var thread: Thread?
@@ -153,6 +161,10 @@ private final class VoiceLensRenderer: NSObject, @unchecked Sendable {
 
     func setMode(_ mode: VoiceLensView.Mode) {
         lock.withLock { self.mode = mode }
+    }
+
+    func setOffset(_ points: Float) {
+        lock.withLock { offset = points }
     }
 
     func setDark(_ dark: Bool) {
@@ -201,7 +213,7 @@ private final class VoiceLensRenderer: NSObject, @unchecked Sendable {
 
     @objc private func tick(_ link: CADisplayLink) {
         guard let layer, let drawable = layer.nextDrawable() else { return }
-        let (mode, size, scale, feed, dark) = lock.withLock { (self.mode, self.size, self.scale, _levelFeed, self.dark) }
+        let (mode, size, scale, feed, dark, offset) = lock.withLock { (self.mode, self.size, self.scale, _levelFeed, self.dark, self.offset) }
         guard size.width > 1, size.height > 1 else { return }
 
         let now = CACurrentMediaTime()
@@ -227,6 +239,7 @@ private final class VoiceLensRenderer: NSObject, @unchecked Sendable {
             dark: dark ? 1 : 0,
             mode: mode == .live ? 0 : (mode == .waiting ? 1 : 2),
             appear: appear * appear * (3 - 2 * appear),
+            offset: offset * scale,
             bandsA: SIMD4(smoother.bands[0], smoother.bands[1], smoother.bands[2], smoother.bands[3]),
             bandsB: SIMD4(smoother.bands[4], smoother.bands[5], smoother.bands[6], smoother.bands[7]),
             bandsC: SIMD4(smoother.bands[8], smoother.bands[9], smoother.bands[10], smoother.bands[11])
@@ -257,6 +270,7 @@ private struct LensUniforms {
     var dark: Float
     var mode: Float
     var appear: Float
+    var offset: Float
     var bandsA: SIMD4<Float>
     var bandsB: SIMD4<Float>
     var bandsC: SIMD4<Float>

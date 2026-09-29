@@ -24,6 +24,7 @@ struct VoicePanelPreviewView: View {
                     Image(systemName: phase == .listening || phase == .ready ? "mic.fill" : "mic")
                         .font(.system(size: 17))
                         .frame(width: 44)
+                        .offset(y: -7)
                 }
                 .frame(height: 36)
                 VStack(spacing: 11) {
@@ -58,6 +59,8 @@ private struct StripIndicator: UIViewRepresentable {
 
     func updateUIView(_ view: VoiceStripIndicatorView, context: Context) {
         view.setPhase(phase, textColor: .secondaryLabel)
+        // iPhone's strip puts its content 7pt above centre (see suggestionContentOffset).
+        view.setContentOffset(-7)
     }
 }
 

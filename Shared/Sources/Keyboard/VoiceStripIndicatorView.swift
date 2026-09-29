@@ -50,6 +50,12 @@ final class VoiceStripIndicatorView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    /// Aligns the light with the strip's content line (the mic and the suggestions),
+    /// which sits off the strip's geometric centre.
+    func setContentOffset(_ offset: CGFloat) {
+        lens.setHorizonOffset(offset)
+    }
+
     /// `textColor` is the strip's own candidate colour, for the rare problem line.
     func setPhase(_ phase: VoicePanelPhase, textColor: UIColor) {
         label.textColor = textColor
