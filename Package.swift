@@ -19,6 +19,7 @@ let package = Package(
             exclude: [
                 "Design",
                 "VoiceUI",
+                "VoiceActivity",
                 "Keyboard/Emoji/EmojiPanelView.swift",
                 "Keyboard/Emoji/EmojiVariantPopoverView.swift",
                 "Keyboard/KeyboardDebugChannel.swift",

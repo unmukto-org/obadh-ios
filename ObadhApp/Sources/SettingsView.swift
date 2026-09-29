@@ -39,6 +39,7 @@ struct SettingsView: View {
                     keyboardMissingSection
                 }
                 keyboardSection
+                voiceSection
                 autocorrectSection
                 emojiSection
                 aboutSection
@@ -113,6 +114,18 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    private var voiceSection: some View {
+        Section {
+            NavigationLink {
+                VoiceSettingsView()
+            } label: {
+                Label("Voice Typing", systemImage: "mic")
+            }
+        } footer: {
+            Text("Dictate in Bangla from the keyboard. Recognition runs on this iPhone.")
         }
     }
 

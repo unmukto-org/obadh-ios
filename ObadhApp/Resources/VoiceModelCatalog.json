@@ -7,13 +7,31 @@
       "runtime": "sherpa-onnx-transducer",
       "displayName": "Bangla Streaming (Small)",
       "summary": "Live draft text while you speak.",
-      "languages": ["bn"],
+      "languages": [
+        "bn"
+      ],
       "baseURL": "https://huggingface.co/alphacep/vosk-model-small-streaming-bn/resolve/501097ae5257e5859d7956b50e4ba53a3f2be106/",
       "files": [
-        { "path": "am-onnx/encoder.onnx", "size": 90994145, "sha256": "779f2412d6fa56f76be9fe71349cdf3edd10434ae9b1fc5e49834fb904320516" },
-        { "path": "am-onnx/decoder.onnx", "size": 2093080, "sha256": "fc03e8ca154593b95748198a56de115d4e6048d97c41692f93dfefb05f3693b4" },
-        { "path": "am-onnx/joiner.onnx", "size": 1026462, "sha256": "1df7319f4f9c36d7130cacaf629e1d52e904070e7a14bca9d4f209edeb162da6" },
-        { "path": "lang/tokens.txt", "size": 6252, "sha256": "6f3a4d64d7da07e7dd7f3fd679e07607be3ec149d1b807726dbb8bbcc80a9fe1" }
+        {
+          "path": "am-onnx/encoder.onnx",
+          "size": 90994145,
+          "sha256": "779f2412d6fa56f76be9fe71349cdf3edd10434ae9b1fc5e49834fb904320516"
+        },
+        {
+          "path": "am-onnx/decoder.onnx",
+          "size": 2093080,
+          "sha256": "fc03e8ca154593b95748198a56de115d4e6048d97c41692f93dfefb05f3693b4"
+        },
+        {
+          "path": "am-onnx/joiner.onnx",
+          "size": 1026462,
+          "sha256": "1df7319f4f9c36d7130cacaf629e1d52e904070e7a14bca9d4f209edeb162da6"
+        },
+        {
+          "path": "lang/tokens.txt",
+          "size": 6252,
+          "sha256": "6f3a4d64d7da07e7dd7f3fd679e07607be3ec149d1b807726dbb8bbcc80a9fe1"
+        }
       ],
       "minimumMemoryGiB": 3,
       "license": "Apache-2.0",
@@ -24,6 +42,38 @@
         "joiner": "am-onnx/joiner.onnx",
         "tokens": "lang/tokens.txt",
         "modelType": "zipformer2"
+      },
+      "isDefault": true
+    },
+    {
+      "id": "bn-indicconformer-large-ctc-int8",
+      "role": "refiner",
+      "runtime": "sherpa-onnx-nemo-ctc",
+      "displayName": "Bangla Accurate (IndicConformer)",
+      "summary": "Re-reads each phrase when you pause and corrects the draft.",
+      "languages": [
+        "bn"
+      ],
+      "baseURL": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/9721eb71eea141fae0982cfcdb9dd2e3d4953c4a/",
+      "files": [
+        {
+          "path": "bn/model.int8.onnx",
+          "size": 197595578,
+          "sha256": "e9120a534f69df065314be468bf15579f1b92a4cd8c07ad119b80b69244718a8"
+        },
+        {
+          "path": "tokens.txt",
+          "size": 67605,
+          "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2"
+        }
+      ],
+      "minimumMemoryGiB": 4,
+      "license": "MIT (model), Apache-2.0 (ONNX export)",
+      "attribution": "AI4Bharat IndicConformer bn; sherpa-onnx export by Parismita Global Solutions",
+      "options": {
+        "model": "bn/model.int8.onnx",
+        "tokens": "tokens.txt",
+        "guardRatio": "0.85"
       },
       "isDefault": true
     }

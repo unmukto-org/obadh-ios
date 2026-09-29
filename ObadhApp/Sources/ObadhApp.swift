@@ -40,6 +40,22 @@ final class ObadhAppDelegate: UIResponder, UIApplicationDelegate {
         configuration.delegateClass = ObadhSceneDelegate.self
         return configuration
     }
+
+    /// iOS relaunched us to deliver finished model downloads.
+    func application(
+        _ application: UIApplication,
+        handleEventsForBackgroundURLSession identifier: String,
+        completionHandler: @escaping () -> Void
+    ) {
+        guard identifier == VoiceModelDownloader.sessionIdentifier else {
+            completionHandler()
+            return
+        }
+        MainActor.assumeIsolated {
+            let downloader = VoiceModelLibrary.shared.downloader
+            downloader.backgroundCompletionHandler = completionHandler
+        }
+    }
 }
 
 final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
@@ -56,6 +72,21 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.rootViewController = makeRootViewController()
         window.makeKeyAndVisible()
         self.window = window
+        VoiceSessionController.shared.activityPresenter = VoiceLiveActivityPresenter.shared
+        // A fresh process holds no microphone: any session activity still on screen
+        // belongs to a process that was killed.
+        if VoiceSessionController.shared.phase == .idle {
+            VoiceLiveActivityPresenter.shared.endStaleActivities()
+        }
+
+        #if DEBUG
+        VoiceSelfTest.runIfRequested()
+        #endif
+
+        // Cold launch from the keyboard's mic: the URL arrives with the connection.
+        if let url = connectionOptions.urlContexts.first?.url {
+            handle(url)
+        }
 
         #if DEBUG
         // Fires a settings URL without a tap, so where iOS actually lands can be
@@ -88,6 +119,45 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
             }
         }
         #endif
+    }
+
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        guard let url = URLContexts.first?.url else { return }
+        handle(url)
+    }
+
+    /// Returning to the app some other way (the icon, the switcher) after the voice
+    /// screen did its job shows the normal app, not a stale listening screen.
+    func sceneWillEnterForeground(_ scene: UIScene) {
+        guard voiceScreen != nil, VoiceSessionController.shared.phase != .listening else { return }
+        dismissVoiceScreen()
+    }
+
+    private weak var voiceScreen: UIViewController?
+
+    private func handle(_ url: URL) {
+        guard url.scheme == VoiceSessionChannel.urlScheme, url.host == VoiceSessionChannel.urlHost else { return }
+        presentVoiceScreen()
+        VoiceSessionController.shared.handleVoiceURL(url)
+    }
+
+    private func presentVoiceScreen() {
+        guard voiceScreen == nil, let root = window?.rootViewController else { return }
+        let screen = UIHostingController(rootView: VoiceSessionScreen(
+            session: .shared,
+            models: .shared,
+            onClose: { [weak self] in self?.dismissVoiceScreen() }
+        ))
+        screen.modalPresentationStyle = .fullScreen
+        var top = root
+        while let presented = top.presentedViewController { top = presented }
+        top.present(screen, animated: false)
+        voiceScreen = screen
+    }
+
+    private func dismissVoiceScreen() {
+        voiceScreen?.dismiss(animated: true)
+        voiceScreen = nil
     }
 
     private func makeRootViewController() -> UIViewController {
@@ -126,6 +196,10 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
                 return UIHostingController(rootView: NavigationStack { AboutView() })
             case "privacy":
                 return UIHostingController(rootView: NavigationStack { PrivacyView() })
+            case "voice-settings":
+                return UIHostingController(rootView: NavigationStack { VoiceSettingsView() })
+            case "voice-session":
+                return UIHostingController(rootView: VoiceSessionScreen(session: .shared, models: .shared, onClose: {}))
             default:
                 break
             }

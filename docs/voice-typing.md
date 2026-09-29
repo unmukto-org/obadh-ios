@@ -55,9 +55,9 @@ These were verified before any code was written (September 2026, iOS 18 to 27).
 │  Obadh.app  (foreground once, then background audio) │
 │  AudioCapture → 16 kHz mono ─┬→ StreamingRecognizer  │
 │                              │   (sherpa-onnx, CPU)  │
-│                              └→ utterance buffer     │
-│                                  → Refiner (WhisperKit│
-│                                    Core ML, ANE)     │
+│                              └→ phrase buffer        │
+│                                  → Refiner (sherpa-  │
+│                                    onnx CTC, CPU)    │
 │  VoiceSessionController · Live Activity · Models     │
 └──────────────────────────────────────────────────────┘
 ```
@@ -109,38 +109,61 @@ while alive.
 
 ### Models
 
-A bundled catalog (`VoiceModelCatalog.json`) describes every model by role
-(`streaming` or `refiner`), runtime, files (path, size, SHA-256), pinned source
-revision, device floor, and license. Models are downloaded on demand into the
-app's Application Support (never the App Group: the keyboard never needs them),
-excluded from backup, verified file by file, and installed atomically.
-Several models per role can be installed; one per role is active. Adding a
-model in a future release is a catalog entry.
+Both passes run on sherpa-onnx 1.13.8 (ONNX Runtime, CPU), one runtime for the
+whole feature. A bundled catalog (`ObadhApp/Resources/VoiceModelCatalog.json`)
+describes every model by role (`streaming` or `refiner`), runtime, files (path,
+size, SHA-256), pinned source revision, device floor, and license. Models are
+downloaded on demand into the app's Application Support (never the App Group:
+the keyboard never loads them), excluded from backup, verified file by file,
+and committed by a receipt written last. Several models per role can be
+installed and one per role is active, so a better model is a catalog entry.
 
-| Role | Model | Runtime | Size | Notes |
-|---|---|---|---|---|
-| streaming | `alphacep/vosk-model-small-streaming-bn` 0.60, encoder/joiner re-quantized to int8 | sherpa-onnx 1.13.8, CPU, 2 threads | ~27 MB (fp32 is 94 MB) | Zipformer2 transducer, Apache-2.0. WER CV 17.9 %, FLEURS 20.6 %. int8 output identical to fp32 on the reference clip; RTF 0.03 on M3. |
-| refiner (default) | `mozilla-ai/whisper-large-v3-turbo-bn` → WhisperKit Core ML | WhisperKit 1.1.0, ANE | TBD after compression | 0.8 B, 4 decoder layers. Normalized WER 11.05 %, CER 6.06 % (Common Voice 21 bn). Apache-2.0. |
-| refiner (max accuracy) | `mozilla-ai/whisper-large-v3-bn` → WhisperKit Core ML | WhisperKit 1.1.0, ANE | TBD | 1.5 B, 32 decoder layers. WER 9.65 %, CER 4.88 %. Decoding is roughly 8× the turbo cost per token, so it is offered only on 8 GB devices and only if it meets the latency gate. |
+| Role | Model | Download | License |
+|---|---|---|---|
+| streaming | `alphacep/vosk-model-small-streaming-bn` 0.60 (Zipformer2 transducer) | 94 MB (27 MB once we host the int8 encoder) | Apache-2.0 |
+| refiner | AI4Bharat IndicConformer bn large, CTC, int8 ONNX export | 198 MB | MIT (model), Apache-2.0 (export) |
 
-Why turbo is the default refiner even though the brief named large-v3: the
-refiner runs every time the user pauses, and its latency is the time the draft
-stays on screen. Both models share the same encoder; the difference is the
-autoregressive decoder, 4 layers against 32. Bangla is token-heavy in Whisper's
-vocabulary, so decoder cost dominates. Turbo buys a ~1.4 point WER difference
-back as a several-fold latency win. Large-v3 stays in the catalog so the user
-can choose it, which is also the proof that model switching works.
+A refined reading replaces the draft unless it is under 85 % of the draft's
+length, which is treated as a CTC deletion (`VoicePhraseArbiter`).
 
-**First load.** Core ML specializes a model for the Neural Engine on its first
-load, which can take tens of seconds for a Whisper encoder. The app does this
-straight after download ("Optimizing for this iPhone") so no dictation ever
-pays for it. Later loads hit the system's cache.
+#### How the models were chosen
 
-**No network in the recognizers.** WhisperKit is given a local model folder
-with `download: false`, and the app refuses to load a refiner whose folder
-lacks `tokenizer.json` (otherwise WhisperKit would fetch one from the Hub).
-The downloader sends no cookies and a fixed `User-Agent`, uses no cache, and
-talks only to the pinned host in the catalog.
+Every candidate was scored with the same normalization on 150 utterances of
+FLEURS bn (Indian Bangla, read speech) and 150 of SUBAK.KO test (Bangladeshi
+Bangla, CC-BY-4.0). Harness: `scripts/voice-eval/`.
+
+| Model | FLEURS WER / CER | SUBAK.KO WER / CER | Notes |
+|---|---|---|---|
+| Streaming Zipformer (int8) | 20.3 / 6.6 | 26.6 / 10.3 | only open streaming Bangla model |
+| IndicConformer (int8) | 15.7 / 4.2 | 28.7 / 11.3 | best permissive offline model |
+| streaming + IndicConformer, guarded (shipped) | 16.1 / 4.5 | 27.3 / 9.8 | |
+| Hishab Conformer-large | 13.9 / 4.5 | 14.1 / 7.2 | CC-BY-NC-4.0, evaluation only |
+| Mozilla Whisper large-v3-bn | 24.5 / 8.5 | | autoregressive, ~19 tokens per second of speech |
+| Mozilla Whisper large-v3-turbo-bn | 27.8 / 10.1 | | |
+| Gemma 4 E2B (speech-LLM) | 26.6 / 8.3 | 30.0 / 10.8 | 40-utterance sample; Latin digits, stray tokens |
+| Meta Omnilingual CTC 300M | 36.5 / 9.4 | 53.6 / 21.9 | |
+
+Whisper was the original plan and was dropped on these numbers: the Mozilla
+fine-tunes report 9 to 11 % WER on Common Voice, the corpus they were trained
+on, and are far weaker on unseen speech. Whisper's vocabulary also spends about
+19 tokens per second of Bangla speech, decoded one at a time, so it was both the
+slowest and the least accurate option. No phone-sized speech-LLM has usable
+Bangla (Qwen3-ASR and Voxtral do not support it at all).
+
+#### Bangladeshi accuracy: our own model
+
+Permissive models are about twice as error-prone as Hishab's on Bangladeshi
+speech. The plan is to train our own, openly licensed:
+
+* **This Mac:** fine-tune IndicConformer (MIT) on permissive Bangladeshi data
+  (SUBAK.KO train, Ben-10, Shrutilipi). Measured on the M3 Max: 120M-parameter
+  Conformer training runs at about 120x real time, so ~450 h is ~4 h per epoch.
+* **GH200 (when available):** a cache-aware streaming FastConformer (hybrid
+  RNNT + CTC, NVIDIA base CC-BY-4.0) on ~3K permissive hours. One model that
+  streams with near-offline accuracy would replace both passes. Estimated two to
+  three GPU-days plus data preparation.
+* Training data excludes non-commercial sets (Bengali.AI Kaggle, IndicTTS,
+  BanSpeech is evaluation-only). OpenSLR 53 is CC-BY-SA and is opt-in.
 
 ### Keyboard UI
 
@@ -167,10 +190,13 @@ talks only to the pinned host in the catalog.
 * **Settings › Voice Typing:** enable, microphone permission, model manager
   (download, progress, optimize, delete, choose active per role), session
   length (1, 5, 15, 60 minutes), and a plain statement of what runs where.
-* **Live Activity / Dynamic Island:** compact shows the state glyph and a live
-  level-free glyph (Live Activities are not a 60 Hz surface); expanded shows
-  state, the session countdown, and an End button (a `LiveActivityIntent`
-  that runs in the app).
+* **Live Activity / Dynamic Island** (`ObadhVoiceActivity` extension): compact
+  shows a waveform glyph (animated while listening) and the countdown until the
+  microphone is released; expanded and Lock Screen show the state, a plain
+  privacy line, and a Turn Off button. Turn Off is a `LiveActivityIntent` that
+  writes an `endSession` command over the same App Group channel the keyboard
+  uses. Live Activities are not a 60 Hz surface, so the Island shows state,
+  not levels.
 
 ## Privacy
 
@@ -185,16 +211,14 @@ talks only to the pinned host in the catalog.
 
 ## Open risks (device gates before merge)
 
-1. **Neural Engine in the background.** GPU work is refused in the background;
-   the ANE is believed to be allowed. The refiner is configured for
-   `.cpuAndNeuralEngine` (never GPU) and this must be measured on device with
-   the app backgrounded. Fallback: refine only while the app is foreground and
-   keep streaming text otherwise.
-2. **Memory while backgrounded.** Streaming (~60 MB) plus a compressed turbo
-   refiner (target under 700 MB resident) must survive as a background audio
-   app on a 6 GB phone. Measure with `idevicesyslog` and jetsam reports.
-3. **Refiner latency** on the device floor (A15 / 6 GB). Gate: p50 under 1.2 s
-   for a 5 s phrase.
+1. **Memory while backgrounded.** Both models on CPU are ~300 MB of weights
+   (int8); the app must survive as a background audio app on a 4 GB phone.
+   Measure with `idevicesyslog -m OBADH-VOICE` and jetsam reports.
+2. **Refiner latency** on the device floor. Simulator on M3: 0.15 to 0.30 s per
+   5 to 9 s phrase. Gate: p50 under 0.8 s on an A15.
+3. **Phrase seams.** A mid-sentence breath can split a sentence; the refiner
+   once invented a character at such a seam. Tune the trailing-silence rule on a
+   whole-pipeline benchmark rather than single examples.
 4. **App Review** for the background audio mode: justified by the recording
    itself; the idle discard and the session timeout are documented in review
    notes.

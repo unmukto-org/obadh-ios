@@ -13,8 +13,9 @@ enum VoiceModelRole: String, Codable, Sendable, CaseIterable {
 enum VoiceModelRuntime: String, Codable, Sendable {
     /// sherpa-onnx online transducer (Zipformer2): encoder / decoder / joiner / tokens.
     case sherpaOnnxTransducer = "sherpa-onnx-transducer"
-    /// WhisperKit Core ML bundle: MelSpectrogram / AudioEncoder / TextDecoder + tokenizer.
-    case whisperKit = "whisperkit"
+    /// sherpa-onnx offline NeMo CTC model (Conformer / FastConformer): model + tokens.
+    /// Non-autoregressive, so a phrase costs one encoder pass.
+    case sherpaOnnxNemoCTC = "sherpa-onnx-nemo-ctc"
 }
 
 struct VoiceModelFile: Codable, Hashable, Sendable {
@@ -110,16 +111,19 @@ struct VoiceModelCatalog: Codable, Sendable {
                         errors.append("\(model.id): option \(key) names a file not in the list")
                     }
                 }
-            case .whisperKit:
-                // Without a local tokenizer WhisperKit would fetch one from the Hub.
-                if !model.files.contains(where: { $0.path.hasSuffix("tokenizer.json") }) {
-                    errors.append("\(model.id): WhisperKit model must ship tokenizer.json")
-                }
-                for bundle in ["MelSpectrogram.mlmodelc", "AudioEncoder.mlmodelc", "TextDecoder.mlmodelc"] {
-                    if !model.files.contains(where: { $0.path.hasPrefix(bundle + "/") }) {
-                        errors.append("\(model.id): missing \(bundle)")
+            case .sherpaOnnxNemoCTC:
+                for key in ["model", "tokens"] {
+                    guard let path = model.option(key) else {
+                        errors.append("\(model.id): missing option \(key)")
+                        continue
+                    }
+                    if !model.files.contains(where: { $0.path == path }) {
+                        errors.append("\(model.id): option \(key) names a file not in the list")
                     }
                 }
+            }
+            if model.role == .streaming, model.runtime != .sherpaOnnxTransducer {
+                errors.append("\(model.id): streaming role needs a streaming runtime")
             }
         }
         for role in VoiceModelRole.allCases where models(for: role).filter(\.isDefault).count > 1 {

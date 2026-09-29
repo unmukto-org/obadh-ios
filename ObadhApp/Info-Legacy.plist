@@ -1,10 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- DEBUG-ONLY host variant. Identical to Info.plist EXCEPT UIDesignRequiresCompatibility=YES,
-     Apple's official opt-out from the iOS 26 Liquid Glass redesign. Used by the
-     "Debug-Legacy" build configuration so the container app renders in the pre-26 design,
-     letting us test whether the system then presents Obadh's keyboard in the LEGACY
-     container (the Messenger geometry/height case) inside the app's own text field.
-     Keep the non-compat keys in sync with Info.plist. -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -24,21 +18,40 @@
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>org.unmukto.obadh.voice</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>obadh</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>OBADHGitRevision</key>
-	<string>$(OBADH_GIT_SHA)</string>
-	<key>OBADHBuildTime</key>
-	<string>$(OBADH_BUILD_TIME)</string>
-	<key>UIDesignRequiresCompatibility</key>
-	<true/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Obadh listens only while you dictate from the Obadh keyboard. Speech is recognized on this iPhone and never leaves it.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>OBADHBuildTime</key>
+	<string>$(OBADH_BUILD_TIME)</string>
+	<key>OBADHGitRevision</key>
+	<string>$(OBADH_GIT_SHA)</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
+	<key>UIDesignRequiresCompatibility</key>
+	<true/>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
