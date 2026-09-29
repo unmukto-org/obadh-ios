@@ -121,17 +121,32 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     /// Returning to the app some other way (the icon, the switcher) after the voice
-    /// screen did its job shows the normal app, not a stale listening screen.
+    /// screen did its job shows the normal app, not a stale voice screen.
+    ///
+    /// A screen presented for this very trip is never stale: a cold launch presents it
+    /// in `willConnectTo` and only then enters the foreground, while its dictation is
+    /// still starting, and a warm launch may deliver the URL before this callback.
     func sceneWillEnterForeground(_ scene: UIScene) {
-        guard voiceScreen != nil, VoiceSessionController.shared.phase != .listening else { return }
-        dismissVoiceScreen()
+        guard voiceScreen != nil, !voiceScreenIsCurrent,
+              VoiceSessionController.shared.phase == .idle else { return }
+        // Not animated: the app is not on screen yet, and a new voice screen may be
+        // presented right after this.
+        dismissVoiceScreen(animated: false)
+    }
+
+    func sceneDidEnterBackground(_ scene: UIScene) {
+        voiceScreenIsCurrent = false
     }
 
     private weak var voiceScreen: UIViewController?
+    /// The voice screen was opened by the keyboard's mic since the app last left the
+    /// foreground.
+    private var voiceScreenIsCurrent = false
 
     private func handle(_ url: URL) {
         guard url.scheme == VoiceSessionChannel.urlScheme, url.host == VoiceSessionChannel.urlHost else { return }
         presentVoiceScreen()
+        voiceScreenIsCurrent = true
         VoiceSessionController.shared.handleVoiceURL(url)
     }
 
@@ -149,8 +164,8 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
         voiceScreen = screen
     }
 
-    private func dismissVoiceScreen() {
-        voiceScreen?.dismiss(animated: true)
+    private func dismissVoiceScreen(animated: Bool = true) {
+        voiceScreen?.dismiss(animated: animated)
         voiceScreen = nil
     }
 
