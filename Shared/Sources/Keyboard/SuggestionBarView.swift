@@ -16,6 +16,8 @@ protocol SuggestionBarViewDelegate: AnyObject {
     func suggestionBar(_ suggestionBar: SuggestionBarView, didPickEmojiVariant emoji: String, base: String)
     /// Skin-tone options (base + variants) for an emoji, loaded lazily on long-press only.
     func suggestionBar(_ suggestionBar: SuggestionBarView, variantOptionsFor base: String) -> [EmojiItem]
+    /// The voice-typing mic at the head of the strip was tapped.
+    func suggestionBarDidTapMic(_ suggestionBar: SuggestionBarView)
 }
 
 final class SuggestionBarView: UIView {
@@ -34,9 +36,18 @@ final class SuggestionBarView: UIView {
     private var contentTopConstraint: NSLayoutConstraint?
     private var contentBottomConstraint: NSLayoutConstraint?
     private var emojiGroupConstraints: [NSLayoutConstraint] = []
-    private var separatorCenterYConstraints: [NSLayoutConstraint] = []
-    private var separatorHeightConstraints: [NSLayoutConstraint] = []
     private var metrics = KeyboardTheme.defaultMetrics
+    private let micButton = SuggestionMicControl()
+    private var stackLeadingConstraint: NSLayoutConstraint?
+    private var micWidthConstraint: NSLayoutConstraint?
+    /// Whether the strip leads with the voice-typing mic. The candidates shift right
+    /// by the mic's width; with it hidden the strip is exactly the old layout.
+    private(set) var showsMicButton = false
+    private var micState: SuggestionMicControl.Mode = .idle
+
+    /// Fixed so the candidates never jump as the mic's state changes. Wide enough for
+    /// a 44pt touch target on every strip height.
+    static let micSlotWidth: CGFloat = 44
 
     /// Separator height. On iPad the strip mirrors the system shortcuts bar, whose
     /// separators native draws 27.5pt tall — that is `suggestionContentHeight`.
@@ -107,18 +118,25 @@ final class SuggestionBarView: UIView {
         }
     }
 
+    func setMicButton(visible: Bool, state: SuggestionMicControl.Mode) {
+        let layoutChanged = visible != showsMicButton
+        showsMicButton = visible
+        micState = state
+        micButton.isHidden = !visible
+        micButton.update(state: state, traitCollection: traitCollection, metrics: metrics)
+        guard layoutChanged else { return }
+        micWidthConstraint?.constant = visible ? Self.micSlotWidth : 0
+        setNeedsLayout()
+    }
+
     func applyMetrics(_ metrics: KeyboardMetrics) {
         self.metrics = metrics
         rebuildSlotsIfNeeded(count: max(1, metrics.suggestionSlotCount))
         heightConstraint?.constant = metrics.suggestionHeight
         contentTopConstraint?.constant = metrics.suggestionContentTopInset
         contentBottomConstraint?.constant = -metrics.suggestionContentBottomInset
-        for constraint in separatorCenterYConstraints {
-            constraint.constant = contentVerticalOffset(for: metrics)
-        }
-        for constraint in separatorHeightConstraints {
-            constraint.constant = separatorHeight(for: metrics)
-        }
+        setNeedsLayout()
+        micButton.update(state: micState, traitCollection: traitCollection, metrics: metrics)
         update(suggestions: suggestions, emojis: emojis, quotedText: quotedText)
     }
 
@@ -134,6 +152,11 @@ final class SuggestionBarView: UIView {
         stackView.spacing = 0
         stackView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stackView)
+
+        micButton.translatesAutoresizingMaskIntoConstraints = false
+        micButton.isHidden = true
+        micButton.addTarget(self, action: #selector(handleMicTap), for: .touchUpInside)
+        addSubview(micButton)
 
         emojiGroup.translatesAutoresizingMaskIntoConstraints = false
         emojiGroup.isHidden = true
@@ -157,8 +180,14 @@ final class SuggestionBarView: UIView {
         self.contentTopConstraint = contentTopConstraint
         self.contentBottomConstraint = contentBottomConstraint
 
+        let micWidth = micButton.widthAnchor.constraint(equalToConstant: 0)
+        micWidthConstraint = micWidth
         NSLayoutConstraint.activate([
-            stackView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            micButton.leadingAnchor.constraint(equalTo: leadingAnchor),
+            micButton.topAnchor.constraint(equalTo: stackView.topAnchor),
+            micButton.bottomAnchor.constraint(equalTo: stackView.bottomAnchor),
+            micWidth,
+            stackView.leadingAnchor.constraint(equalTo: micButton.trailingAnchor),
             stackView.trailingAnchor.constraint(equalTo: trailingAnchor),
             contentTopConstraint,
             contentBottomConstraint,
@@ -169,6 +198,7 @@ final class SuggestionBarView: UIView {
 
         registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: SuggestionBarView, _) in
             view.update(suggestions: view.suggestions, emojis: view.emojis, quotedText: view.quotedText)
+            view.micButton.update(state: view.micState, traitCollection: view.traitCollection, metrics: view.metrics)
         }
 
         update(suggestions: [])
@@ -193,8 +223,6 @@ final class SuggestionBarView: UIView {
         }
         slotControls.removeAll()
         separators.removeAll()
-        separatorCenterYConstraints.removeAll()
-        separatorHeightConstraints.removeAll()
 
         for _ in 0..<count {
             let slotControl = SuggestionSlotControl()
@@ -204,33 +232,15 @@ final class SuggestionBarView: UIView {
         }
 
         var constraints: [NSLayoutConstraint] = []
-        for index in 1..<max(1, count) {
+        // Separators are laid out by frame in layoutSubviews: they sit at fractions of
+        // the candidate area, which starts after the mic when it is shown, and a
+        // multiplier constraint can only express fractions of the whole bar.
+        for _ in 1..<max(1, count) {
             let separator = UIView()
-            separator.translatesAutoresizingMaskIntoConstraints = false
             separator.isUserInteractionEnabled = false
             separator.isHidden = true
             addSubview(separator)
             separators.append(separator)
-
-            let centerY = separator.centerYAnchor.constraint(
-                equalTo: centerYAnchor,
-                constant: contentVerticalOffset(for: metrics)
-            )
-            let height = separator.heightAnchor.constraint(
-                equalToConstant: separatorHeight(for: metrics)
-            )
-            separatorCenterYConstraints.append(centerY)
-            separatorHeightConstraints.append(height)
-            constraints += [
-                NSLayoutConstraint(
-                    item: separator, attribute: .centerX, relatedBy: .equal,
-                    toItem: self, attribute: .trailing,
-                    multiplier: CGFloat(index) / CGFloat(count), constant: 0
-                ),
-                centerY,
-                height,
-                separator.widthAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale)
-            ]
         }
 
         // Emoji live in the trailing slot, native-style, so the text candidates
@@ -246,6 +256,24 @@ final class SuggestionBarView: UIView {
             constraints += emojiGroupConstraints
         }
         NSLayoutConstraint.activate(constraints)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let count = CGFloat(max(1, slotControls.count))
+        let areaMinX = showsMicButton ? Self.micSlotWidth : 0
+        let areaWidth = bounds.width - areaMinX
+        let hairline = 1 / (window?.screen.scale ?? UIScreen.main.scale)
+        let height = separatorHeight(for: metrics)
+        let centerY = bounds.midY + contentVerticalOffset(for: metrics)
+        for (offset, separator) in separators.enumerated() {
+            let centerX = areaMinX + areaWidth * CGFloat(offset + 1) / count
+            separator.frame = CGRect(x: centerX - hairline / 2, y: centerY - height / 2, width: hairline, height: height)
+        }
+    }
+
+    @objc private func handleMicTap() {
+        delegate?.suggestionBarDidTapMic(self)
     }
 
     private func setSeparatorsHidden(_ hidden: Bool) {
@@ -545,6 +573,93 @@ private final class EmojiCellControl: UIControl {
             backgroundColor = isHighlighted && isEnabled
                 ? KeyboardTheme.suggestionHighlightColor(for: traitCollection)
                 : .clear
+        }
+    }
+}
+
+/// The voice-typing mic that leads the strip. Drawn in the strip's own text colour
+/// and with the slots' pressed highlight, so it reads as part of the keyboard rather
+/// than a toolbar button bolted onto it.
+final class SuggestionMicControl: UIControl {
+    enum Mode: Equatable {
+        /// No warm session: a tap bounces through the app once.
+        case idle
+        /// The app is holding the microphone open; a tap starts instantly.
+        case warm
+        /// Dictating now.
+        case listening
+    }
+
+    /// Obadh teal (#3CBFBC), the one accent the keyboard uses.
+    static let accent = UIColor(red: 0x3C / 255, green: 0xBF / 255, blue: 0xBC / 255, alpha: 1)
+
+    private let glyph = UIImageView()
+    private let warmDot = UIView()
+    private var mode: Mode = .idle
+
+    init() {
+        super.init(frame: .zero)
+        backgroundColor = .clear
+        isAccessibilityElement = true
+        accessibilityTraits = .button
+
+        glyph.translatesAutoresizingMaskIntoConstraints = false
+        glyph.contentMode = .center
+        glyph.isUserInteractionEnabled = false
+        addSubview(glyph)
+
+        warmDot.translatesAutoresizingMaskIntoConstraints = false
+        warmDot.isUserInteractionEnabled = false
+        warmDot.backgroundColor = Self.accent
+        warmDot.layer.cornerRadius = 2.5
+        warmDot.alpha = 0
+        addSubview(warmDot)
+
+        NSLayoutConstraint.activate([
+            glyph.centerXAnchor.constraint(equalTo: centerXAnchor),
+            glyph.centerYAnchor.constraint(equalTo: centerYAnchor),
+            warmDot.widthAnchor.constraint(equalToConstant: 5),
+            warmDot.heightAnchor.constraint(equalToConstant: 5),
+            warmDot.centerXAnchor.constraint(equalTo: glyph.centerXAnchor, constant: 8),
+            warmDot.centerYAnchor.constraint(equalTo: glyph.centerYAnchor, constant: -9)
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func update(state: Mode, traitCollection: UITraitCollection, metrics: KeyboardMetrics) {
+        let changed = state != mode
+        mode = state
+        let pointSize = min(20, max(15, metrics.suggestionFontSize * 0.92))
+        let configuration = UIImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
+        glyph.image = UIImage(systemName: state == .listening ? "mic.fill" : "mic", withConfiguration: configuration)
+        glyph.tintColor = state == .listening ? Self.accent : KeyboardTheme.suggestionTextColor(for: traitCollection)
+        glyph.transform = CGAffineTransform(translationX: 0, y: metrics.suggestionContentOffset)
+        warmDot.transform = glyph.transform
+        let dotAlpha: CGFloat = state == .warm ? 1 : 0
+        if changed, window != nil {
+            UIView.animate(withDuration: 0.2) { self.warmDot.alpha = dotAlpha }
+        } else {
+            warmDot.alpha = dotAlpha
+        }
+        switch state {
+        case .idle: accessibilityLabel = "Voice typing"
+        case .warm: accessibilityLabel = "Voice typing, microphone ready"
+        case .listening: accessibilityLabel = "Stop voice typing"
+        }
+    }
+
+    override var isHighlighted: Bool {
+        didSet {
+            guard oldValue != isHighlighted else { return }
+            let color = isHighlighted ? KeyboardTheme.suggestionHighlightColor(for: traitCollection) : .clear
+            UIView.animate(
+                withDuration: isHighlighted ? 0.05 : 0.10, delay: 0,
+                options: [.allowUserInteraction, .beginFromCurrentState, .curveEaseOut]
+            ) { self.backgroundColor = color }
         }
     }
 }

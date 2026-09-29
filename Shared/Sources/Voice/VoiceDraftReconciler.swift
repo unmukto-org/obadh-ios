@@ -10,7 +10,7 @@ import Foundation
 ///
 /// This type is pure: it decides what the tracked region should read, and how much
 /// of it to let go of afterwards. `VoiceDraftWriter` applies that to a live document.
-struct VoiceDraftReconciler: Equatable {
+struct VoiceDraftReconciler: Equatable, Codable {
     struct Step: Equatable {
         /// What the tracked region reads now (as last applied).
         let currentText: String

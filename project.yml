@@ -85,6 +85,10 @@ targets:
       - path: Shared/Sources/Settings/LearnedWordStore.swift
       - path: Shared/Sources/Settings/AppBuildInfo.swift
       - path: Shared/Sources/Engine/PersonalAutosuggestStore.swift
+      - path: Shared/Sources/Engine/TextCompositionController.swift
+      - path: Shared/Sources/Voice
+      - path: Shared/Sources/VoiceUI
+      - path: Shared/Sources/VoiceModels
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(OBADH_APP_BUNDLE_ID)
@@ -112,6 +116,8 @@ targets:
       - path: Shared/Sources/Design
       - path: Shared/Sources/Engine
       - path: Shared/Sources/Keyboard
+      - path: Shared/Sources/Voice
+      - path: Shared/Sources/VoiceUI
       - path: Shared/Sources/Settings/KeyboardPreferences.swift
       - path: Shared/Sources/Settings/ObadhIdentity.swift
       - path: Shared/Sources/Settings/KeyboardSizingLog.swift
@@ -167,6 +173,8 @@ targets:
       - path: Shared/Sources/Design
       - path: Shared/Sources/Engine
       - path: Shared/Sources/Keyboard
+      - path: Shared/Sources/Voice
+      - path: Shared/Sources/VoiceUI
       - path: Shared/Sources/Settings/KeyboardPreferences.swift
       - path: Shared/Sources/Settings/ObadhIdentity.swift
       - path: Shared/Sources/Settings/KeyboardSizingLog.swift

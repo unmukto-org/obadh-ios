@@ -1,3 +1,4 @@
+import SwiftUI
 import UIKit
 import os
 
@@ -28,6 +29,10 @@ final class KeyboardViewController: UIInputViewController {
     private let feedbackController = KeyboardFeedbackController()
     private let backspaceRepeater = BackspaceRepeatController()
     private let suggestionBar = SuggestionBarView()
+    /// Voice typing: remote control for the app's recognizer plus the draft writer.
+    private let voice = VoiceKeyboardCoordinator()
+    private var voicePanelHost: UIHostingController<VoicePanelView>?
+    private let voicePreferences = VoicePreferences()
     /// Emoji for the word that was just committed, kept on screen after a space
     /// while the text slots move on to next-word suggestions. Cleared by the next
     /// letter. Committing used to blank the emoji slot outright, which put the
@@ -203,6 +208,7 @@ final class KeyboardViewController: UIInputViewController {
         configureRootView()
         configureSuggestionBar()
         configureEmojiPanel()
+        voice.host = self
         reloadKeyboardRows()
         refreshKeyboard()
         #if DEBUG
@@ -421,6 +427,10 @@ final class KeyboardViewController: UIInputViewController {
         // saw it. Any composition we remember is stale; start from whatever the
         // document is now.
         resetCompositionBookkeeping()
+        // After the bounce through the app this is where a dictation resumes: the
+        // panel comes back and the text spoken meanwhile lands.
+        suggestionBar.setMicButton(visible: voicePreferences.micButtonEnabled, state: .idle)
+        voice.hostWillAppear()
     }
 
     override func updateViewConstraints() {
@@ -455,6 +465,7 @@ final class KeyboardViewController: UIInputViewController {
         spaceLanguageIntroDismissal?.cancel()
         spaceLanguageIntroDismissal = nil
         viewWillAppearWasCalled = false
+        voice.hostDidDisappear()
         #if DEBUG
         stopFrameMonitor()
         // Capture short presentations too, before the deferred write would fire.
@@ -2237,6 +2248,11 @@ extension KeyboardViewController: KeyboardTouchSurfaceViewDelegate {
 }
 
 extension KeyboardViewController: SuggestionBarViewDelegate {
+    func suggestionBarDidTapMic(_ suggestionBar: SuggestionBarView) {
+        feedbackController.suggestionAccepted()
+        voice.micTapped()
+    }
+
     func suggestionBar(_ suggestionBar: SuggestionBarView, didSelectEmoji emoji: String) {
         feedbackController.suggestionAccepted()
         acceptEmojiSuggestion(emoji)
@@ -2374,6 +2390,93 @@ extension KeyboardViewController: EmojiPanelViewDelegate {
     }
 }
 
+extension KeyboardViewController: VoiceKeyboardHost {
+    var voiceHasFullAccess: Bool { hasFullAccess }
+
+    var voiceDocument: TextDocumentEditing { documentEditor }
+
+    func voiceWillBeginDictation() {
+        commitActiveInputIfNeeded()
+        resetCompositionBookkeeping()
+    }
+
+    func voicePerformTextUpdate(_ update: () -> Void) {
+        performTextUpdate(update)
+    }
+
+    func voiceMicStateDidChange(_ state: SuggestionMicControl.Mode) {
+        suggestionBar.setMicButton(visible: voicePreferences.micButtonEnabled, state: state)
+    }
+
+    /// The panel takes the key area; the strip stays, so the mic (now filled) is
+    /// still where the user's thumb is and tapping it again finishes.
+    func voiceSetPanelVisible(_ visible: Bool) {
+        if visible, voicePanelHost == nil {
+            let host = UIHostingController(rootView: VoicePanelView(model: voice.panelModel, levels: voice.levels))
+            host.sizingOptions = []
+            // Near-invisible but not clear: iOS drops extension touches over fully
+            // transparent pixels before they reach any view.
+            host.view.backgroundColor = UIColor.white.withAlphaComponent(0.004)
+            host.view.translatesAutoresizingMaskIntoConstraints = false
+            host.view.alpha = 0
+            addChild(host)
+            view.addSubview(host.view)
+            NSLayoutConstraint.activate([
+                host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                host.view.topAnchor.constraint(equalTo: suggestionBar.bottomAnchor),
+                host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            ])
+            host.didMove(toParent: self)
+            voicePanelHost = host
+        }
+        guard let host = voicePanelHost else { return }
+        keyboardTouchSurface.cancelTracking()
+        hideKeyPreview(animated: false)
+        let keys: UIView = keyboardGlassContainer ?? keyboardStack
+        keyboardTouchSurface.isUserInteractionEnabled = !visible
+        let animations = {
+            host.view.alpha = visible ? 1 : 0
+            keys.alpha = visible ? 0 : 1
+            keys.transform = visible ? CGAffineTransform(scaleX: 0.97, y: 0.97) : .identity
+        }
+        if UIAccessibility.isReduceMotionEnabled {
+            UIView.animate(withDuration: 0.15, animations: animations)
+        } else {
+            UIView.animate(withDuration: 0.32, delay: 0, usingSpringWithDamping: 0.9, initialSpringVelocity: 0,
+                           options: [.allowUserInteraction, .beginFromCurrentState], animations: animations)
+        }
+        host.view.isUserInteractionEnabled = visible
+        if !visible {
+            refreshSuggestions()
+        }
+    }
+
+    /// Keyboards may open their own containing app (App Review 4.4.1, confirmed by
+    /// DTS). The supported route is the `UIApplication` in the responder chain. Its
+    /// `open(_:options:completionHandler:)` is marked unavailable to extensions at
+    /// compile time, so it is sent through the runtime: same object, same selector.
+    func voiceOpenContainingApp(_ url: URL, completion: @escaping (Bool) -> Void) {
+        let selector = NSSelectorFromString("openURL:options:completionHandler:")
+        var responder: UIResponder? = self
+        while let current = responder {
+            if current is UIApplication, current.responds(to: selector) {
+                typealias OpenURL = @convention(c) (
+                    AnyObject, Selector, NSURL, NSDictionary, (@convention(block) (Bool) -> Void)?
+                ) -> Void
+                let open = unsafeBitCast(current.method(for: selector), to: OpenURL.self)
+                let handler: @convention(block) (Bool) -> Void = { success in
+                    DispatchQueue.main.async { completion(success) }
+                }
+                open(current, selector, url as NSURL, NSDictionary(), handler)
+                return
+            }
+            responder = current.next
+        }
+        completion(false)
+    }
+}
+
 private struct DocumentProxyEditor: TextDocumentEditing {
     let proxy: any UITextDocumentProxy
 
@@ -2416,6 +2519,8 @@ extension KeyboardViewController: KeyboardDebugCommandHandler {
     /// Compile-excluded from Release (see KeyboardDebugChannel).
     func handleDebugCommand(_ command: String, argument: String?) {
         switch command {
+        case "voice":
+            voice.debugShowPanel(argument)
         case "advance":
             // The public API the globe key calls — cycle to the next keyboard.
             advanceToNextInputMode()

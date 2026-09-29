@@ -1,0 +1,387 @@
+import UIKit
+import os
+
+/// What the coordinator needs from the keyboard controller. Kept narrow so the voice
+/// path cannot reach into typing state it has no business touching.
+@MainActor
+protocol VoiceKeyboardHost: AnyObject {
+    var voiceHasFullAccess: Bool { get }
+    var voiceDocument: TextDocumentEditing { get }
+    /// Commit whatever word is being typed, so dictation starts after it.
+    func voiceWillBeginDictation()
+    func voiceSetPanelVisible(_ visible: Bool)
+    func voiceMicStateDidChange(_ state: SuggestionMicControl.Mode)
+    /// Run proxy edits with the controller's own text-change callbacks suppressed.
+    func voicePerformTextUpdate(_ update: () -> Void)
+    func voiceOpenContainingApp(_ url: URL, completion: @escaping (Bool) -> Void)
+}
+
+/// Keyboard side of voice typing. The keyboard cannot record, so this is a remote
+/// control plus a text writer: it sends start / stop to the app, and applies the
+/// transcript the app publishes to the document. See docs/voice-typing.md.
+@MainActor
+final class VoiceKeyboardCoordinator {
+    private let log = Logger(subsystem: "org.unmukto.obadh.keyboard", category: "voice")
+    weak var host: VoiceKeyboardHost?
+    let panelModel = VoicePanelModel()
+    let levels = VoiceKeyboardLevelSource()
+
+    private var reconciler = VoiceDraftReconciler()
+    private var lastSnapshot = VoiceSessionSnapshot.empty
+    private var lastCommandSeq: UInt64 = 0
+    private var snapshotObserver: VoiceDarwinObserver?
+    private var warmthTimer: Timer?
+    private var acknowledgementDeadline: DispatchWorkItem?
+    private var finishDeadline: DispatchWorkItem?
+    /// True from opening the app until the keyboard reappears, so the disappearance
+    /// the bounce causes is not mistaken for the user leaving mid-dictation.
+    private var isHandingOff = false
+    private(set) var isPanelVisible = false
+
+    private let persistence = UserDefaults.standard
+    private static let persistedReconcilerKey = "voice.keyboard.reconciler"
+
+    init() {
+        panelModel.onDone = { [weak self] in self?.finish(returnToKeys: false) }
+        panelModel.onKeyboard = { [weak self] in self?.finish(returnToKeys: true) }
+    }
+
+    private var directory: URL? { VoiceSessionChannel.directory() }
+
+    // MARK: Lifecycle, driven by the controller
+
+    func hostWillAppear() {
+        isHandingOff = false
+        if snapshotObserver == nil {
+            snapshotObserver = VoiceDarwinObserver(name: VoiceSessionChannel.snapshotDarwinName) { [weak self] in
+                self?.snapshotDidChange()
+            }
+        }
+        restorePersistedDictation()
+        snapshotDidChange()
+        startWarmthTimer()
+    }
+
+    func hostDidDisappear() {
+        warmthTimer?.invalidate()
+        warmthTimer = nil
+        levels.close()
+        guard !isHandingOff, let dictationID = reconciler.dictationID else { return }
+        // The user left mid-dictation (switched apps, dismissed the keyboard). Text
+        // spoken now would have nowhere safe to go, so drop the dictation rather
+        // than insert it into whatever field happens to be focused later.
+        send(.cancel, dictationID: dictationID)
+        endDictation()
+    }
+
+    // MARK: Mic
+
+    func micTapped() {
+        if isPanelVisible, reconciler.isActive {
+            finish(returnToKeys: false)
+            return
+        }
+        guard let host else { return }
+        guard host.voiceHasFullAccess, directory != nil else {
+            showProblem("ভয়েস টাইপিংয়ের জন্য সেটিংসে Allow Full Access চালু করুন")
+            return
+        }
+        host.voiceWillBeginDictation()
+        let dictationID = String(UUID().uuidString.prefix(8)).lowercased()
+        reconciler.begin(dictationID: dictationID, contextBefore: host.voiceDocument.contextBeforeInput)
+        persistReconciler()
+        send(.start, dictationID: dictationID)
+        panelModel.phase = .connecting
+        setPanelVisible(true)
+
+        let snapshot = readSnapshot() ?? .empty
+        if snapshot.isWarm() {
+            // The app is holding the mic open; it should pick this up within one audio
+            // buffer. If it doesn't (suspended between heartbeats), fall back to the bounce.
+            let deadline = DispatchWorkItem { [weak self] in self?.openApp(for: dictationID) }
+            acknowledgementDeadline = deadline
+            DispatchQueue.main.asyncAfter(deadline: .now() + VoiceSessionTiming.warmStartAcknowledgementTimeout, execute: deadline)
+        } else {
+            openApp(for: dictationID)
+        }
+    }
+
+    private func openApp(for dictationID: String) {
+        guard reconciler.dictationID == dictationID, let host else { return }
+        isHandingOff = true
+        host.voiceOpenContainingApp(VoiceSessionChannel.voiceURL(dictationID: dictationID)) { [weak self] opened in
+            guard let self, !opened else { return }
+            self.isHandingOff = false
+            self.showProblem("অবাধ অ্যাপ খোলা যায়নি")
+            self.endDictation()
+        }
+    }
+
+    // MARK: Finishing
+
+    private func finish(returnToKeys: Bool) {
+        guard let dictationID = reconciler.dictationID else {
+            setPanelVisible(false)
+            return
+        }
+        send(.stop, dictationID: dictationID)
+        if returnToKeys {
+            setPanelVisible(false)
+        } else {
+            panelModel.phase = .finishing
+        }
+        // Refinement usually lands well inside this; if it doesn't, the streaming
+        // text stays as written and the keyboard moves on.
+        finishDeadline?.cancel()
+        let deadline = DispatchWorkItem { [weak self] in
+            guard let self, self.reconciler.dictationID == dictationID else { return }
+            self.send(.acknowledge, dictationID: dictationID)
+            self.endDictation()
+        }
+        finishDeadline = deadline
+        DispatchQueue.main.asyncAfter(deadline: .now() + VoiceSessionTiming.finishTimeout, execute: deadline)
+    }
+
+    private func endDictation() {
+        acknowledgementDeadline?.cancel()
+        finishDeadline?.cancel()
+        reconciler.end()
+        persistReconciler()
+        setPanelVisible(false)
+        publishMicState()
+    }
+
+    // MARK: Snapshots
+
+    private func snapshotDidChange() {
+        guard let snapshot = readSnapshot(), snapshot.seq >= lastSnapshot.seq else {
+            publishMicState()
+            return
+        }
+        lastSnapshot = snapshot
+        defer { publishMicState() }
+        guard let dictationID = reconciler.dictationID, snapshot.dictationID == dictationID else {
+            // The app moved on without us (restarted, or a newer dictation): a stale
+            // local dictation can never complete, so let it go.
+            if reconciler.isActive, snapshot.isWarm(), snapshot.phase == .ready, snapshot.dictationID != nil {
+                endDictation()
+            }
+            return
+        }
+        acknowledgementDeadline?.cancel()
+        updatePanelPhase(from: snapshot)
+        apply(snapshot)
+    }
+
+    private func updatePanelPhase(from snapshot: VoiceSessionSnapshot) {
+        guard isPanelVisible else { return }
+        if let failure = snapshot.failure {
+            showProblem(Self.message(for: failure))
+            return
+        }
+        switch snapshot.phase {
+        case .idle, .starting:
+            panelModel.phase = .connecting
+        case .ready:
+            if panelModel.phase != .finishing { panelModel.phase = .ready }
+        case .listening:
+            let heard = snapshot.segments.contains { !$0.text.isEmpty }
+            panelModel.phase = heard ? .listening : .ready
+        case .finishing:
+            panelModel.phase = .finishing
+        }
+    }
+
+    private func apply(_ snapshot: VoiceSessionSnapshot) {
+        guard let host, let step = reconciler.step(for: snapshot) else { return }
+        var outcome = VoiceDraftWriter.Outcome.applied
+        host.voicePerformTextUpdate {
+            outcome = VoiceDraftWriter().apply(step, in: host.voiceDocument)
+        }
+        switch outcome {
+        case .applied:
+            reconciler.didApply(step, snapshot: snapshot)
+        case .lostTrack:
+            log.notice("OBADH-VOICE lost track of draft; releasing without edits")
+            reconciler.abandonTracked(snapshot: snapshot, contextBefore: host.voiceDocument.contextBeforeInput)
+        }
+        if step.completesDictation, let dictationID = reconciler.dictationID {
+            send(.acknowledge, dictationID: dictationID)
+            endDictation()
+        } else {
+            persistReconciler()
+        }
+    }
+
+    // MARK: Mic state
+
+    private func startWarmthTimer() {
+        warmthTimer?.invalidate()
+        // Warmth decays silently when the app is suspended (no notification), so poll
+        // the small snapshot file while visible. Cheap, and stops on disappear.
+        let timer = Timer(timeInterval: 2, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.snapshotDidChange() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        warmthTimer = timer
+    }
+
+    private func publishMicState() {
+        let state: SuggestionMicControl.Mode
+        if isPanelVisible, reconciler.isActive {
+            state = .listening
+        } else if lastSnapshot.isWarm() {
+            state = .warm
+        } else {
+            state = .idle
+        }
+        host?.voiceMicStateDidChange(state)
+    }
+
+    private func setPanelVisible(_ visible: Bool) {
+        guard visible != isPanelVisible else { return }
+        isPanelVisible = visible
+        if visible {
+            levels.open()
+        } else {
+            levels.close()
+        }
+        host?.voiceSetPanelVisible(visible)
+        publishMicState()
+    }
+
+    private func showProblem(_ message: String) {
+        panelModel.phase = .problem(message)
+        setPanelVisible(true)
+        let dictationID = reconciler.dictationID
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let self, self.reconciler.dictationID == dictationID,
+                  case .problem = self.panelModel.phase else { return }
+            self.endDictation()
+        }
+    }
+
+    private static func message(for failure: VoiceSessionFailure) -> String {
+        switch failure {
+        case .microphonePermissionDenied: "অবাধ অ্যাপে মাইক্রোফোনের অনুমতি দিন"
+        case .noStreamingModel: "অবাধ অ্যাপে ভয়েস মডেল ডাউনলোড করুন"
+        case .audioEngineFailed: "মাইক্রোফোন চালু করা যায়নি"
+        case .interrupted: "অন্য একটি অ্যাপ মাইক্রোফোন ব্যবহার করছে"
+        }
+    }
+
+    // MARK: IPC
+
+    private func readSnapshot() -> VoiceSessionSnapshot? {
+        guard let directory else { return nil }
+        return VoiceMessageFile.read(VoiceSessionSnapshot.self, from: VoiceSessionChannel.snapshotURL(in: directory))
+    }
+
+    private func send(_ kind: VoiceCommandKind, dictationID: String) {
+        guard let directory else { return }
+        // Wall-clock milliseconds, bumped past the last value: monotonic even across
+        // keyboard process restarts, which reset any in-memory counter.
+        let now = UInt64(Date().timeIntervalSince1970 * 1000)
+        lastCommandSeq = max(lastCommandSeq + 1, now)
+        let command = VoiceCommand(seq: lastCommandSeq, kind: kind, dictationID: dictationID, issuedAt: Date())
+        do {
+            try VoiceMessageFile.write(command, to: VoiceSessionChannel.commandURL(in: directory))
+            VoiceDarwinNotifier.post(VoiceSessionChannel.commandDarwinName)
+        } catch {
+            log.error("OBADH-VOICE command write failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    #if DEBUG
+    /// `voice:demo|listening|ready|finishing|connecting|problem|off` shows the panel in a
+    /// given phase with synthetic levels, for reviewing the visual on the simulator.
+    func debugShowPanel(_ argument: String?) {
+        let phase: VoicePanelPhase?
+        switch argument ?? "demo" {
+        case "demo", "listening": phase = .listening
+        case "ready": phase = .ready
+        case "finishing": phase = .finishing
+        case "connecting": phase = .connecting
+        case "problem": phase = .problem("অবাধ অ্যাপে ভয়েস মডেল ডাউনলোড করুন")
+        default: phase = nil
+        }
+        levels.isSynthetic = phase != nil
+        guard let phase else {
+            setPanelVisible(false)
+            return
+        }
+        panelModel.phase = phase
+        setPanelVisible(true)
+    }
+    #endif
+
+    // MARK: Surviving the bounce
+
+    /// iOS often terminates the keyboard process while the user is in the app. The
+    /// dictation's bookkeeping is persisted so the returning keyboard (a new process)
+    /// knows which dictation it owns and what it has already written.
+    private func persistReconciler() {
+        if reconciler.isActive, let data = try? JSONEncoder().encode(reconciler) {
+            persistence.set(data, forKey: Self.persistedReconcilerKey)
+        } else {
+            persistence.removeObject(forKey: Self.persistedReconcilerKey)
+        }
+    }
+
+    private func restorePersistedDictation() {
+        guard !reconciler.isActive,
+              let data = persistence.data(forKey: Self.persistedReconcilerKey),
+              let restored = try? JSONDecoder().decode(VoiceDraftReconciler.self, from: data) else { return }
+        // Only while the app still holds that dictation (it clears the id once the
+        // dictation is acknowledged, cancelled, or the session ends).
+        guard let snapshot = readSnapshot(), snapshot.dictationID == restored.dictationID else {
+            persistence.removeObject(forKey: Self.persistedReconcilerKey)
+            return
+        }
+        reconciler = restored
+        let live = snapshot.phase == .listening || snapshot.phase == .ready || snapshot.phase == .starting
+        panelModel.phase = snapshot.phase == .finishing ? .finishing : (live ? .ready : .finishing)
+        setPanelVisible(true)
+    }
+}
+
+/// Reads the app's shared level page for the keyboard's visual. Opening is retried
+/// at most twice a second until the app has created the page (cold start).
+@MainActor
+final class VoiceKeyboardLevelSource: VoiceLevelSource {
+    #if DEBUG
+    /// Synthetic speech-like levels so the visual can be reviewed on the simulator
+    /// without the app recording (`scripts/sim-kbd.py debug voice:demo`).
+    var isSynthetic = false
+    #endif
+    private var reader: VoiceLevelReader?
+    private var isOpen = false
+    private var lastAttempt: CFTimeInterval = 0
+
+    func open() {
+        isOpen = true
+        attach()
+    }
+
+    func close() {
+        isOpen = false
+        reader = nil
+    }
+
+    func currentFrame() -> VoiceLevelFrame {
+        #if DEBUG
+        if isSynthetic { return SyntheticVoiceLevels.frame(at: CACurrentMediaTime()) }
+        #endif
+        if reader == nil, isOpen, CACurrentMediaTime() - lastAttempt > 0.5 {
+            attach()
+        }
+        return reader?.read() ?? .silent
+    }
+
+
+    private func attach() {
+        lastAttempt = CACurrentMediaTime()
+        guard let directory = VoiceSessionChannel.directory() else { return }
+        reader = VoiceLevelReader(url: VoiceSessionChannel.levelsURL(in: directory))
+    }
+}
