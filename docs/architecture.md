@@ -65,6 +65,8 @@ are plain `UserDefaults` in the shared App Group, the right tool for small
 state; no SQLite or Core Data. Personal autosuggest learning persists as an
 engine-exported snapshot in the App Group, fingerprint-validated on load so a
 stale snapshot from a different artifact generation is dropped rather than
-imported. Neither the app nor the extension makes network requests; the Full
-Access toggle exists only because iOS gates keyboard-extension haptics and App
-Group access behind it.
+imported. The extension makes no network requests. The app makes exactly one
+kind: the on-demand voice model download described in
+[voice-typing.md](voice-typing.md). The Full Access toggle exists because iOS
+gates keyboard-extension haptics, App Group access, and opening the containing
+app (which voice typing needs) behind it.
