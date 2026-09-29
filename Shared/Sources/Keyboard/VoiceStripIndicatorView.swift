@@ -1,8 +1,9 @@
 import UIKit
 
-/// Voice typing in the suggestion strip: the voice lens, centred on the strip the
-/// way the Dynamic Island sits on the screen. The lens itself is the status (live,
-/// waiting, finishing); words appear only for a problem the user has to act on.
+/// Voice typing in the suggestion strip: the voice light fills the ribbon's free
+/// space, everything right of the mic, drawn straight onto the keyboard. The light
+/// itself is the status (live, waiting, finishing); words appear only for a problem
+/// the user has to act on.
 final class VoiceStripIndicatorView: UIView {
     var levelFeed: VoiceLevelFeed? {
         get { lens.levelFeed }
@@ -11,8 +12,8 @@ final class VoiceStripIndicatorView: UIView {
 
     private let lens = VoiceLensView()
     private let label = UILabel()
-    /// Island proportions, sized to the strip.
-    static let lensWidth: CGFloat = 148
+    /// The mic's slot at the head of the strip (SuggestionBarView.micSlotWidth).
+    static let micSlotWidth: CGFloat = 44
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -33,10 +34,11 @@ final class VoiceStripIndicatorView: UIView {
         addSubview(label)
 
         NSLayoutConstraint.activate([
-            lens.centerXAnchor.constraint(equalTo: centerXAnchor),
-            lens.centerYAnchor.constraint(equalTo: centerYAnchor),
-            lens.widthAnchor.constraint(equalToConstant: Self.lensWidth),
-            lens.heightAnchor.constraint(equalTo: heightAnchor, constant: -6),
+            // Everything right of the mic slot, edge to edge, top to bottom.
+            lens.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.micSlotWidth),
+            lens.trailingAnchor.constraint(equalTo: trailingAnchor),
+            lens.topAnchor.constraint(equalTo: topAnchor),
+            lens.bottomAnchor.constraint(equalTo: bottomAnchor),
             label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 52),
             label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
             label.centerYAnchor.constraint(equalTo: centerYAnchor)

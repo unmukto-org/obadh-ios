@@ -2,9 +2,10 @@ import Metal
 import QuartzCore
 import UIKit
 
-/// The voice lens (see VoiceSiriLens.metal): a dark glass capsule whose lobes of
-/// light follow the voice, after the iOS 27 Siri language. Used in the keyboard's
-/// suggestion strip and on the app's session screen.
+/// Voice light (see VoiceSiriLens.metal), after the iOS 27 Siri language: lobes of
+/// light swelling around a fine horizon with the voice, drawn straight onto
+/// whatever is behind the view, with no container. Fills the keyboard's suggestion
+/// ribbon, and the app's session screen.
 ///
 /// Rendering runs on its own thread with its own display link, so nothing the
 /// keyboard does on the main thread can make it stutter. It draws at the display's
@@ -42,9 +43,10 @@ final class VoiceLensView: UIView {
         if let renderer {
             metalLayer.device = renderer.device
             renderer.layer = metalLayer
-        } else {
-            // No Metal: a still lens so the state is still visible.
-            layer.backgroundColor = UIColor(white: 0.04, alpha: 0.92).cgColor
+        }
+        renderer?.setDark(traitCollection.userInterfaceStyle == .dark)
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: VoiceLensView, _) in
+            view.renderer?.setDark(view.traitCollection.userInterfaceStyle == .dark)
         }
     }
 
@@ -66,7 +68,6 @@ final class VoiceLensView: UIView {
         let scale = window?.screen.scale ?? UIScreen.main.scale
         metalLayer.contentsScale = scale
         metalLayer.drawableSize = CGSize(width: bounds.width * scale, height: bounds.height * scale)
-        if renderer == nil { layer.cornerRadius = bounds.height / 2 }
         renderer?.setGeometry(size: metalLayer.drawableSize, scale: Float(scale))
     }
 
@@ -111,6 +112,7 @@ private final class VoiceLensRenderer: NSObject, @unchecked Sendable {
     private let lock = NSLock()
     private var _levelFeed: VoiceLevelFeed?
     private var mode: VoiceLensView.Mode = .live
+    private var dark = false
     private var size = CGSize.zero
     private var scale: Float = 3
     private var thread: Thread?
@@ -151,6 +153,10 @@ private final class VoiceLensRenderer: NSObject, @unchecked Sendable {
 
     func setMode(_ mode: VoiceLensView.Mode) {
         lock.withLock { self.mode = mode }
+    }
+
+    func setDark(_ dark: Bool) {
+        lock.withLock { self.dark = dark }
     }
 
     func setGeometry(size: CGSize, scale: Float) {
@@ -195,7 +201,7 @@ private final class VoiceLensRenderer: NSObject, @unchecked Sendable {
 
     @objc private func tick(_ link: CADisplayLink) {
         guard let layer, let drawable = layer.nextDrawable() else { return }
-        let (mode, size, scale, feed) = lock.withLock { (self.mode, self.size, self.scale, _levelFeed) }
+        let (mode, size, scale, feed, dark) = lock.withLock { (self.mode, self.size, self.scale, _levelFeed, self.dark) }
         guard size.width > 1, size.height > 1 else { return }
 
         let now = CACurrentMediaTime()
@@ -218,7 +224,7 @@ private final class VoiceLensRenderer: NSObject, @unchecked Sendable {
             scale: scale,
             time: Float((now - startTime).truncatingRemainder(dividingBy: 3600)),
             level: smoother.level,
-            energy: smoother.energy,
+            dark: dark ? 1 : 0,
             mode: mode == .live ? 0 : (mode == .waiting ? 1 : 2),
             appear: appear * appear * (3 - 2 * appear),
             bandsA: SIMD4(smoother.bands[0], smoother.bands[1], smoother.bands[2], smoother.bands[3]),
@@ -248,7 +254,7 @@ private struct LensUniforms {
     var scale: Float
     var time: Float
     var level: Float
-    var energy: Float
+    var dark: Float
     var mode: Float
     var appear: Float
     var bandsA: SIMD4<Float>

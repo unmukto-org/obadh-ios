@@ -58,8 +58,10 @@ struct VoiceSessionScreen: View {
             failureView(failure)
         } else {
             VStack(spacing: 20) {
+                // The same light as the keyboard's ribbon, as a band across the screen.
                 VoiceLens(feed: session.levels, mode: lensMode)
-                    .frame(width: 220, height: 64)
+                    .frame(height: 72)
+                    .padding(.horizontal, -24)
                 Text(statusText)
                     .font(.system(.headline, design: .rounded))
                     .foregroundStyle(.secondary)
