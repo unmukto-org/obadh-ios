@@ -92,7 +92,6 @@ targets:
       - path: Shared/Sources/Voice
       - path: Shared/Sources/VoiceUI
       - path: Shared/Sources/VoiceModels
-      - path: Shared/Sources/VoiceActivity
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(OBADH_APP_BUNDLE_ID)
@@ -115,27 +114,6 @@ targets:
         embed: true
       - target: ObadhKeyboard
         embed: true
-      - target: ObadhVoiceActivity
-        embed: true
-  # Dynamic Island / Lock Screen presence for a warm voice session.
-  ObadhVoiceActivity:
-    type: app-extension
-    platform: iOS
-    sources:
-      - path: ObadhVoiceActivity/Sources
-      - path: Shared/Sources/VoiceActivity
-      - path: Shared/Sources/Voice/VoiceSessionProtocol.swift
-      - path: Shared/Sources/Settings/ObadhIdentity.swift
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: $(OBADH_APP_BUNDLE_ID).voice-activity
-        INFOPLIST_FILE: ObadhVoiceActivity/Info.plist
-        CODE_SIGN_ENTITLEMENTS: Config/ObadhVoiceActivity.entitlements
-        APPLICATION_EXTENSION_API_ONLY: YES
-    configFiles:
-      Debug: Config/Signing.xcconfig
-      Debug-Legacy: Config/Signing.xcconfig
-      Release: Config/Signing.xcconfig
   ObadhKeyboard:
     type: app-extension
     platform: iOS

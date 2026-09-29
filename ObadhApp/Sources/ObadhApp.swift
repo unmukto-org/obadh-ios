@@ -72,12 +72,6 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.rootViewController = makeRootViewController()
         window.makeKeyAndVisible()
         self.window = window
-        VoiceSessionController.shared.activityPresenter = VoiceLiveActivityPresenter.shared
-        // A fresh process holds no microphone: any session activity still on screen
-        // belongs to a process that was killed.
-        if VoiceSessionController.shared.phase == .idle {
-            VoiceLiveActivityPresenter.shared.endStaleActivities()
-        }
 
         #if DEBUG
         VoiceSelfTest.runIfRequested()

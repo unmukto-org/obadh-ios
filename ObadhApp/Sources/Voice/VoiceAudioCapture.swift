@@ -18,6 +18,10 @@ final class VoiceAudioCapture: @unchecked Sendable {
 
     /// Called on the tap thread with 16 kHz mono samples.
     var onSamples: (@Sendable ([Float]) -> Void)?
+    /// Called on the main queue when iOS reconfigured the audio hardware (a route
+    /// change: AirPods, Bluetooth, a call ending) and the engine could not be brought
+    /// back. The session is no longer recording.
+    var onFailure: (@Sendable (Error) -> Void)?
 
     private let log = Logger(subsystem: "org.unmukto.obadh", category: "voice")
     private let engine = AVAudioEngine()
@@ -25,25 +29,72 @@ final class VoiceAudioCapture: @unchecked Sendable {
     private var converter: AVAudioConverter?
     private let levelWriter: VoiceLevelWriter?
     private let meter = LevelMeter()
-    private let lock = OSAllocatedUnfairLock(initialState: false)
+    private struct State {
+        var isMetering = false
+        var lastBufferAt: CFTimeInterval = 0
+        var wantsRunning = false
+    }
+    private let lock = OSAllocatedUnfairLock(initialState: State())
+    private var configurationObserver: NSObjectProtocol?
 
     /// Whether levels are written to the shared page. Toggled per dictation.
     var isMetering: Bool {
-        get { lock.withLock { $0 } }
+        get { lock.withLock { $0.isMetering } }
         set {
-            lock.withLock { $0 = newValue }
+            lock.withLock { $0.isMetering = newValue }
             if !newValue { levelWriter?.writeSilence() }
         }
     }
 
+    /// When the last converted buffer arrived (`CACurrentMediaTime`). The session's
+    /// watchdog compares this with the clock: a running engine that stopped
+    /// delivering is the "shows listening, hears nothing" failure.
+    var lastBufferAt: CFTimeInterval { lock.withLock { $0.lastBufferAt } }
+
     init(levelWriter: VoiceLevelWriter?) {
         self.levelWriter = levelWriter
+        // iOS stops the engine and changes the hardware format on a route change.
+        // The tap and converter are built for the old format, so without this every
+        // later buffer fails to convert and is silently dropped.
+        configurationObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+        ) { [weak self] _ in
+            self?.handleConfigurationChange()
+        }
+    }
+
+    deinit {
+        if let configurationObserver { NotificationCenter.default.removeObserver(configurationObserver) }
     }
 
     var isRunning: Bool { engine.isRunning }
 
     func start() throws {
+        lock.withLock { $0.wantsRunning = true }
         guard !engine.isRunning else { return }
+        try installAndStart()
+    }
+
+    /// Rebuild the tap and converter for the current hardware format and start.
+    func restart() throws {
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        try installAndStart()
+    }
+
+    private func handleConfigurationChange() {
+        guard lock.withLock({ $0.wantsRunning }) else { return }
+        log.notice("OBADH-VOICE audio configuration changed; rebuilding capture")
+        do {
+            try restart()
+        } catch {
+            log.error("OBADH-VOICE capture restart failed: \(String(describing: error), privacy: .public)")
+            lock.withLock { $0.wantsRunning = false }
+            onFailure?(error)
+        }
+    }
+
+    private func installAndStart() throws {
         let input = engine.inputNode
         let inputFormat = input.outputFormat(forBus: 0)
         guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else { throw CaptureError.noInput }
@@ -59,10 +110,13 @@ final class VoiceAudioCapture: @unchecked Sendable {
         }
         engine.prepare()
         try engine.start()
+        // A fresh start counts as alive; the watchdog measures from here.
+        lock.withLock { $0.lastBufferAt = CACurrentMediaTime() }
         log.notice("OBADH-VOICE capture started at \(inputFormat.sampleRate, privacy: .public) Hz")
     }
 
     func stop() {
+        lock.withLock { $0.wantsRunning = false }
         guard engine.isRunning else { return }
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
@@ -86,6 +140,7 @@ final class VoiceAudioCapture: @unchecked Sendable {
             return buffer
         }
         guard error == nil, let channel = output.floatChannelData?[0], output.frameLength > 0 else { return }
+        lock.withLock { $0.lastBufferAt = CACurrentMediaTime() }
         let samples = Array(UnsafeBufferPointer(start: channel, count: Int(output.frameLength)))
         if isMetering, let levelWriter {
             meter.measure(samples) { level, bands in

@@ -18,7 +18,16 @@ import os
 final class VoiceSessionController: ObservableObject {
     static let shared = VoiceSessionController()
 
-    @Published private(set) var phase: VoiceSessionPhase = .idle
+    @Published private(set) var phase: VoiceSessionPhase = .idle {
+        didSet {
+            guard phase != oldValue else { return }
+            log.notice("OBADH-VOICE phase \(oldValue.rawValue, privacy: .public) -> \(self.phase.rawValue, privacy: .public)")
+        }
+    }
+    /// Audio buffers are arriving right now (watchdog-measured, not assumed).
+    @Published private(set) var isAudioFlowing = false
+    /// The streaming recognizer is loaded.
+    @Published private(set) var isRecognizerReady = false
     @Published private(set) var segments: [VoiceSegment] = []
     @Published private(set) var failure: VoiceSessionFailure?
     @Published private(set) var expiresAt: Date?
@@ -30,7 +39,6 @@ final class VoiceSessionController: ObservableObject {
     }
 
     let levels: VoiceLevelSource
-    var activityPresenter: VoiceActivityPresenting?
 
     private let log = Logger(subsystem: "org.unmukto.obadh", category: "voice")
     private let preferences = VoicePreferences()
@@ -47,6 +55,14 @@ final class VoiceSessionController: ObservableObject {
     private var pendingPublish: DispatchWorkItem?
     private var hearsSpeech = false
     private var notificationTokens: [NSObjectProtocol] = []
+    /// The one bring-up in flight. A cold bounce delivers both the URL and the
+    /// keyboard's start command; without this they raced through the idle check and
+    /// started capture and model loading twice.
+    private var bringUp: Task<Bool, Never>?
+    private var watchdogTimer: Timer?
+    private var recoveryAttempted = false
+    /// Buffers arrive every ~50 ms; this long without one means the engine stalled.
+    private static let audioStallThreshold: CFTimeInterval = 0.8
 
     private init(models: VoiceModelLibrary = .shared) {
         self.models = models
@@ -73,38 +89,55 @@ final class VoiceSessionController: ObservableObject {
 
     /// Start (or keep) a warm session. `dictationID` begins dictating at once.
     func startSession(thenDictate dictationID: String?) async {
-        failure = nil
         if phase == .idle {
-            guard await ensureMicrophonePermission() else {
-                fail(.microphonePermissionDenied)
-                return
+            let task: Task<Bool, Never>
+            if let bringUp {
+                task = bringUp
+            } else {
+                task = Task { await self.performBringUp() }
+                bringUp = task
             }
-            guard let streaming = models.activeStreamingConfiguration() else {
-                fail(.noStreamingModel)
-                return
-            }
-            phase = .starting
-            publishNow()
-            do {
-                try configureAudioSession()
-                try capture.start()
-            } catch {
-                log.error("OBADH-VOICE audio start failed: \(String(describing: error), privacy: .public)")
-                fail(.audioEngineFailed)
-                return
-            }
-            // Audio is flowing (and buffered) before the models finish loading, so
-            // nothing said during the load is lost.
-            pipeline.load(streaming: streaming, refiner: models.activeRefinerConfiguration())
-            startHeartbeat()
-            phase = .ready
-            activityPresenter?.sessionStarted(expiresAt: refreshExpiry())
+            let started = await task.value
+            bringUp = nil
+            guard started else { return }
         }
         if let dictationID {
             beginDictation(dictationID)
         } else {
             publishNow()
         }
+    }
+
+    private func performBringUp() async -> Bool {
+        failure = nil
+        phase = .starting
+        publishNow()
+        guard await ensureMicrophonePermission() else {
+            fail(.microphonePermissionDenied)
+            return false
+        }
+        guard let streaming = models.activeStreamingConfiguration() else {
+            fail(.noStreamingModel)
+            return false
+        }
+        do {
+            try configureAudioSession()
+            try capture.start()
+        } catch {
+            log.error("OBADH-VOICE audio start failed: \(String(describing: error), privacy: .public)")
+            fail(.audioEngineFailed)
+            return false
+        }
+        // Audio is flowing (and buffered) before the model finishes loading, so
+        // nothing said during the load is lost.
+        isRecognizerReady = false
+        pipeline.load(streaming: streaming, refiner: models.activeRefinerConfiguration())
+        recoveryAttempted = false
+        startHeartbeat()
+        startWatchdog()
+        phase = .ready
+        refreshExpiry()
+        return true
     }
 
     func endSession() {
@@ -114,13 +147,15 @@ final class VoiceSessionController: ObservableObject {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         heartbeatTimer?.invalidate()
         heartbeatTimer = nil
+        watchdogTimer?.invalidate()
+        watchdogTimer = nil
+        isAudioFlowing = false
         expiryTimer?.invalidate()
         expiryTimer = nil
         phase = .idle
         dictationID = nil
         segments = []
         expiresAt = nil
-        activityPresenter?.sessionEnded()
         publishNow()
     }
 
@@ -143,7 +178,6 @@ final class VoiceSessionController: ObservableObject {
         pipeline.begin(dictationID: id)
         expiryTimer?.invalidate()
         expiresAt = nil
-        activityPresenter?.phaseChanged(.listening, expiresAt: nil)
         publishNow()
     }
 
@@ -152,7 +186,6 @@ final class VoiceSessionController: ObservableObject {
         phase = .finishing
         capture.isMetering = false
         pipeline.finish()
-        activityPresenter?.phaseChanged(.finishing, expiresAt: nil)
         publishNow()
     }
 
@@ -169,7 +202,7 @@ final class VoiceSessionController: ObservableObject {
         dictationID = nil
         segments = []
         if phase != .idle { phase = .ready }
-        activityPresenter?.phaseChanged(.ready, expiresAt: refreshExpiry())
+        refreshExpiry()
         publishNow()
     }
 
@@ -189,13 +222,27 @@ final class VoiceSessionController: ObservableObject {
                 MainActor.assumeIsolated {
                     guard let self, self.dictationID == id, self.phase == .finishing else { return }
                     self.phase = .ready
-                    self.activityPresenter?.phaseChanged(.ready, expiresAt: self.refreshExpiry())
+                    self.refreshExpiry()
                     self.publishNow()
                 }
             }
         }
         capture.onSamples = { [pipeline] samples in
             pipeline.append(samples)
+        }
+        capture.onFailure = { [weak self] _ in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.fail(.audioEngineFailed) }
+            }
+        }
+        pipeline.onStreamingReady = { [weak self] ready in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self, self.phase != .idle else { return }
+                    self.isRecognizerReady = ready
+                    if ready { self.publishNow() } else { self.fail(.noStreamingModel) }
+                }
+            }
         }
     }
 
@@ -214,7 +261,11 @@ final class VoiceSessionController: ObservableObject {
         lastCommandSeq = command.seq
         // A command older than a few seconds was left behind by a previous keyboard
         // process; acting on it now would start dictating out of nowhere.
-        guard Date().timeIntervalSince(command.issuedAt) < 10 else { return }
+        guard Date().timeIntervalSince(command.issuedAt) < 10 else {
+            log.notice("OBADH-VOICE ignored stale \(command.kind.rawValue, privacy: .public)")
+            return
+        }
+        log.notice("OBADH-VOICE command \(command.kind.rawValue, privacy: .public) in phase \(self.phase.rawValue, privacy: .public)")
         switch command.kind {
         case .start:
             if phase == .idle {
@@ -265,13 +316,53 @@ final class VoiceSessionController: ObservableObject {
             dictationID: dictationID,
             segments: segments,
             expiresAt: expiresAt,
-            failure: failure
+            failure: failure,
+            isAudioFlowing: isAudioFlowing,
+            isRecognizerReady: isRecognizerReady
         )
         do {
             try VoiceMessageFile.write(snapshot, to: VoiceSessionChannel.snapshotURL(in: directory))
             VoiceDarwinNotifier.post(VoiceSessionChannel.snapshotDarwinName)
         } catch {
             log.error("OBADH-VOICE snapshot write failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Checks four times a second that audio is really arriving. A stalled engine is
+    /// rebuilt once; if it stays silent the session ends and says why, rather than
+    /// showing "listening" while hearing nothing.
+    private func startWatchdog() {
+        watchdogTimer?.invalidate()
+        let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkAudioHealth() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        watchdogTimer = timer
+    }
+
+    private func checkAudioHealth() {
+        guard phase != .idle else { return }
+        let flowing = CACurrentMediaTime() - capture.lastBufferAt < Self.audioStallThreshold
+        if flowing != isAudioFlowing {
+            isAudioFlowing = flowing
+            log.notice("OBADH-VOICE audio \(flowing ? "flowing" : "stalled", privacy: .public)")
+            publishNow()
+        }
+        if flowing {
+            recoveryAttempted = false
+            return
+        }
+        guard !recoveryAttempted else {
+            fail(.audioEngineFailed)
+            return
+        }
+        recoveryAttempted = true
+        do {
+            try capture.restart()
+            log.notice("OBADH-VOICE capture rebuilt after a stall")
+        } catch {
+            log.error("OBADH-VOICE capture rebuild failed: \(String(describing: error), privacy: .public)")
+            fail(.audioEngineFailed)
         }
     }
 
@@ -372,12 +463,4 @@ private final class VoiceAppLevelSource: VoiceLevelSource {
         if reader == nil, let url { reader = VoiceLevelReader(url: url) }
         return reader?.read() ?? .silent
     }
-}
-
-/// Live Activity / Dynamic Island hooks, implemented by `VoiceLiveActivityPresenter`.
-@MainActor
-protocol VoiceActivityPresenting: AnyObject {
-    func sessionStarted(expiresAt: Date)
-    func phaseChanged(_ phase: VoiceSessionPhase, expiresAt: Date?)
-    func sessionEnded()
 }

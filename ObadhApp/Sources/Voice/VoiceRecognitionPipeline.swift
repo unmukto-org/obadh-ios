@@ -23,6 +23,9 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
 
     /// Called on `streamQueue` whenever the transcript changes.
     var onSegments: (@Sendable (_ dictationID: String, _ segments: [VoiceSegment], _ hearsSpeech: Bool) -> Void)?
+    /// Called on `streamQueue` when the streaming model finishes loading (true) or
+    /// fails to (false).
+    var onStreamingReady: (@Sendable (Bool) -> Void)?
     /// Called on `streamQueue` once a finish has settled every phrase.
     var onFinished: (@Sendable (_ dictationID: String) -> Void)?
 
@@ -62,8 +65,10 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
             do {
                 self.streaming = try SherpaStreamingRecognizer(paths: streaming.paths)
                 log.notice("OBADH-VOICE streaming model loaded in \(CFAbsoluteTimeGetCurrent() - start, privacy: .public)s")
+                onStreamingReady?(true)
             } catch {
                 log.error("OBADH-VOICE streaming model failed: \(String(describing: error), privacy: .public)")
+                onStreamingReady?(false)
             }
             if !backlog.isEmpty {
                 let pending = backlog

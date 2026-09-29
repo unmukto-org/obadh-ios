@@ -104,10 +104,14 @@ final class VoiceKeyboardCoordinator {
         setPanelVisible(true)
 
         let snapshot = readSnapshot() ?? .empty
+        log.notice("OBADH-VOICE tap: \(snapshot.isWarm() ? "warm start" : "bounce", privacy: .public) (app phase \(snapshot.phase.rawValue, privacy: .public))")
         if snapshot.isWarm() {
             // The app is holding the mic open; it should pick this up within one audio
             // buffer. If it doesn't (suspended between heartbeats), fall back to the bounce.
-            let deadline = DispatchWorkItem { [weak self] in self?.openApp(for: dictationID) }
+            let deadline = DispatchWorkItem { [weak self] in
+                self?.log.notice("OBADH-VOICE warm start unanswered; opening the app")
+                self?.openApp(for: dictationID)
+            }
             acknowledgementDeadline = deadline
             DispatchQueue.main.asyncAfter(deadline: .now() + VoiceSessionTiming.warmStartAcknowledgementTimeout, execute: deadline)
         } else {
@@ -152,6 +156,7 @@ final class VoiceKeyboardCoordinator {
     }
 
     private func endDictation() {
+        if reconciler.isActive { log.notice("OBADH-VOICE dictation ended") }
         acknowledgementDeadline?.cancel()
         finishDeadline?.cancel()
         reconciler.end()
@@ -177,7 +182,10 @@ final class VoiceKeyboardCoordinator {
             }
             return
         }
-        acknowledgementDeadline?.cancel()
+        if acknowledgementDeadline?.isCancelled == false {
+            acknowledgementDeadline?.cancel()
+            log.notice("OBADH-VOICE app acknowledged in phase \(snapshot.phase.rawValue, privacy: .public)")
+        }
         updatePanelPhase(from: snapshot)
         apply(snapshot)
     }
@@ -194,8 +202,14 @@ final class VoiceKeyboardCoordinator {
         case .ready:
             if phase != .finishing { setPhase(.ready) }
         case .listening:
-            let heard = snapshot.segments.contains { !$0.text.isEmpty }
-            setPhase(heard ? .listening : .ready)
+            // Only claim to listen while the app reports audio actually arriving; a
+            // stalled engine shows as connecting while the app's watchdog recovers.
+            if snapshot.isAudioFlowing == false {
+                setPhase(.connecting)
+            } else {
+                let heard = snapshot.segments.contains { !$0.text.isEmpty }
+                setPhase(heard ? .listening : .ready)
+            }
         case .finishing:
             setPhase(.finishing)
         }

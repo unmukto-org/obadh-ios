@@ -42,6 +42,11 @@ struct VoiceSessionSnapshot: Codable, Equatable, Sendable {
     var expiresAt: Date?
     /// A short, user-presentable reason the last start failed, if it did.
     var failure: VoiceSessionFailure?
+    /// Audio buffers are actually arriving (not just "the engine was started").
+    /// The keyboard shows listening only while this is true.
+    var isAudioFlowing: Bool? = nil
+    /// The streaming recognizer has loaded. Before that, audio is buffered.
+    var isRecognizerReady: Bool? = nil
 
     static let empty = VoiceSessionSnapshot(
         seq: 0,

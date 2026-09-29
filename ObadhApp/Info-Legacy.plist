@@ -35,8 +35,6 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Obadh listens only while you dictate from the Obadh keyboard. Speech is recognized on this iPhone and never leaves it.</string>
-	<key>NSSupportsLiveActivities</key>
-	<true/>
 	<key>OBADHBuildTime</key>
 	<string>$(OBADH_BUILD_TIME)</string>
 	<key>OBADHGitRevision</key>
