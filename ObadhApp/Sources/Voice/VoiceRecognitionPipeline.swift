@@ -38,6 +38,13 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
     private var segments: [VoiceSegment] = []
     private var nextSegmentID = 0
     private var phraseAudio: [Float] = []
+    /// The last moments before the current phrase began. A phrase handed to the
+    /// second pass gets this as pre-roll: measured on real clips, CTC models that
+    /// see speech with no silence before it can collapse (a whole phrase read as
+    /// "ত ত"), and recover completely with ~0.4 s of context.
+    private var preRoll: [Float] = []
+    private static let preRollSamples = 16_000 * 4 / 10
+    private static let tailPadding = [Float](repeating: 0, count: 16_000 * 3 / 10)
     /// Audio that arrived while the streaming model was still loading. Capped: the
     /// model loads in well under a second, this is only a safety net.
     private var backlog: [Float] = []
@@ -91,6 +98,7 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
             self.dictationID = dictationID
             segments = []
             phraseAudio = []
+            preRoll = []
             backlog = []
             finishRequested = false
             streaming?.reset()
@@ -163,7 +171,8 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
     private func closePhrase(force: Bool) {
         guard let streaming else { return }
         let draft = VoicePhraseArbiter.normalize(streaming.finishPhrase())
-        let audio = phraseAudio
+        let audio = preRoll + phraseAudio + Self.tailPadding
+        preRoll = Array(phraseAudio.suffix(Self.preRollSamples))
         phraseAudio = []
         streaming.reset()
         guard !draft.isEmpty else {

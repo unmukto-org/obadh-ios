@@ -97,8 +97,10 @@ final class SherpaStreamingRecognizer: @unchecked Sendable {
     }
 
     /// Flush the tail (so the last word is not cut off) and return the final text.
+    /// 0.5 s, not less: with 0.3 s the last word of a tightly ended real clip came
+    /// out as its first letter ("অনেক" → "অ").
     func finishPhrase() -> String {
-        var tail = [Float](repeating: 0, count: 4_800)  // 0.3 s of silence
+        var tail = [Float](repeating: 0, count: 8_000)  // 0.5 s of silence
         tail.withUnsafeBufferPointer { accept($0) }
         return text
     }

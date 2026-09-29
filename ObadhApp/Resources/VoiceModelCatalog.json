@@ -44,38 +44,6 @@
         "modelType": "zipformer2"
       },
       "isDefault": true
-    },
-    {
-      "id": "bn-indicconformer-large-ctc-int8",
-      "role": "refiner",
-      "runtime": "sherpa-onnx-nemo-ctc",
-      "displayName": "Bangla Accurate (IndicConformer)",
-      "summary": "Re-reads each phrase when you pause and corrects the draft.",
-      "languages": [
-        "bn"
-      ],
-      "baseURL": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/9721eb71eea141fae0982cfcdb9dd2e3d4953c4a/",
-      "files": [
-        {
-          "path": "bn/model.int8.onnx",
-          "size": 197595578,
-          "sha256": "e9120a534f69df065314be468bf15579f1b92a4cd8c07ad119b80b69244718a8"
-        },
-        {
-          "path": "tokens.txt",
-          "size": 67605,
-          "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2"
-        }
-      ],
-      "minimumMemoryGiB": 4,
-      "license": "MIT (model), Apache-2.0 (ONNX export)",
-      "attribution": "AI4Bharat IndicConformer bn; sherpa-onnx export by Parismita Global Solutions",
-      "options": {
-        "model": "bn/model.int8.onnx",
-        "tokens": "tokens.txt",
-        "guardRatio": "0.85"
-      },
-      "isDefault": true
     }
   ]
 }
