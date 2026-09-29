@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "models": [
+    {
+      "id": "bn-zipformer2-small-streaming-0.60",
+      "role": "streaming",
+      "runtime": "sherpa-onnx-transducer",
+      "displayName": "Bangla Streaming (Small)",
+      "summary": "Live draft text while you speak.",
+      "languages": ["bn"],
+      "baseURL": "https://huggingface.co/alphacep/vosk-model-small-streaming-bn/resolve/501097ae5257e5859d7956b50e4ba53a3f2be106/",
+      "files": [
+        { "path": "am-onnx/encoder.onnx", "size": 90994145, "sha256": "779f2412d6fa56f76be9fe71349cdf3edd10434ae9b1fc5e49834fb904320516" },
+        { "path": "am-onnx/decoder.onnx", "size": 2093080, "sha256": "fc03e8ca154593b95748198a56de115d4e6048d97c41692f93dfefb05f3693b4" },
+        { "path": "am-onnx/joiner.onnx", "size": 1026462, "sha256": "1df7319f4f9c36d7130cacaf629e1d52e904070e7a14bca9d4f209edeb162da6" },
+        { "path": "lang/tokens.txt", "size": 6252, "sha256": "6f3a4d64d7da07e7dd7f3fd679e07607be3ec149d1b807726dbb8bbcc80a9fe1" }
+      ],
+      "minimumMemoryGiB": 3,
+      "license": "Apache-2.0",
+      "attribution": "Alpha Cephei, vosk-model-small-streaming-bn 0.60",
+      "options": {
+        "encoder": "am-onnx/encoder.onnx",
+        "decoder": "am-onnx/decoder.onnx",
+        "joiner": "am-onnx/joiner.onnx",
+        "tokens": "lang/tokens.txt",
+        "modelType": "zipformer2"
+      },
+      "isDefault": true
+    }
+  ]
+}
