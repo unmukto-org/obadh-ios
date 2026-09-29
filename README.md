@@ -106,3 +106,9 @@ xcframework with pinned data fingerprints, and visual parity is gated by
 measured screenshots, not eyeballs. Debug builds carry the instrumentation
 that makes this scriptable; none of it exists in Release.
 [docs/testing.md](docs/testing.md) has the map.
+
+## License
+
+Mozilla Public License 2.0 ([LICENSE](LICENSE)). Third-party components and
+the voice models keep their own licenses; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
