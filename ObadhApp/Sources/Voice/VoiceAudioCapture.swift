@@ -16,8 +16,9 @@ final class VoiceAudioCapture: @unchecked Sendable {
         case converterUnavailable
     }
 
-    /// Called on the tap thread with 16 kHz mono samples.
-    var onSamples: (@Sendable ([Float]) -> Void)?
+    /// Called on the tap thread with 16 kHz mono samples. The buffer is reused for
+    /// the next call: copy out of it, do not keep it.
+    var onSamples: (@Sendable (UnsafeBufferPointer<Float>) -> Void)?
     /// Called on the main queue when iOS reconfigured the audio hardware (a route
     /// change: AirPods, Bluetooth, a call ending) and the engine could not be brought
     /// back. The session is no longer recording.
@@ -27,6 +28,9 @@ final class VoiceAudioCapture: @unchecked Sendable {
     private let engine = AVAudioEngine()
     private let targetFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
     private var converter: AVAudioConverter?
+    /// Reused for every buffer (rebuilt only when the hardware format changes), so
+    /// the tap allocates nothing per buffer.
+    private var converted: AVAudioPCMBuffer?
     private let levelWriter: VoiceLevelWriter?
     private let meter = LevelMeter()
     private struct State {
@@ -102,6 +106,8 @@ final class VoiceAudioCapture: @unchecked Sendable {
             throw CaptureError.converterUnavailable
         }
         self.converter = converter
+        // Room for a generous tap buffer at the new rate, allocated once.
+        converted = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: 16_000 / 2)
         // ~50 ms buffers: small enough that drafts and the visual feel immediate.
         let frames = AVAudioFrameCount(inputFormat.sampleRate * 0.05)
         input.removeTap(onBus: 0)
@@ -124,10 +130,8 @@ final class VoiceAudioCapture: @unchecked Sendable {
     }
 
     private func handle(_ buffer: AVAudioPCMBuffer) {
-        guard let converter else { return }
-        let ratio = targetFormat.sampleRate / buffer.format.sampleRate
-        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio + 32)
-        guard let output = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else { return }
+        guard let converter, let output = converted else { return }
+        output.frameLength = 0
         var supplied = false
         var error: NSError?
         converter.convert(to: output, error: &error) { _, status in
@@ -141,7 +145,7 @@ final class VoiceAudioCapture: @unchecked Sendable {
         }
         guard error == nil, let channel = output.floatChannelData?[0], output.frameLength > 0 else { return }
         lock.withLock { $0.lastBufferAt = CACurrentMediaTime() }
-        let samples = Array(UnsafeBufferPointer(start: channel, count: Int(output.frameLength)))
+        let samples = UnsafeBufferPointer(start: channel, count: Int(output.frameLength))
         if isMetering, let levelWriter {
             meter.measure(samples) { level, bands in
                 levelWriter.write(level: level, isSpeech: level > 0.08, bands: bands)
@@ -185,9 +189,10 @@ private final class LevelMeter: @unchecked Sendable {
         vDSP_destroy_fftsetup(setup)
     }
 
-    func measure(_ samples: [Float], deliver: (Float, UnsafeBufferPointer<Float>) -> Void) {
+    func measure(_ samples: UnsafeBufferPointer<Float>, deliver: (Float, UnsafeBufferPointer<Float>) -> Void) {
+        guard let base = samples.baseAddress, !samples.isEmpty else { return }
         var rms: Float = 0
-        vDSP_rmsqv(samples, 1, &rms, vDSP_Length(samples.count))
+        vDSP_rmsqv(base, 1, &rms, vDSP_Length(samples.count))
         let db = 20 * log10(max(rms, 1e-7))
         // -55 dBFS (room) ... -12 dBFS (close speech) mapped to 0...1, eased.
         let linear = min(max((db + 55) / 43, 0), 1)
@@ -196,7 +201,7 @@ private final class LevelMeter: @unchecked Sendable {
         let count = min(samples.count, fftSize)
         windowed.withUnsafeMutableBufferPointer { buffer in
             buffer.update(repeating: 0)
-            vDSP_vmul(samples, 1, window, 1, buffer.baseAddress!, 1, vDSP_Length(count))
+            vDSP_vmul(base, 1, window, 1, buffer.baseAddress!, 1, vDSP_Length(count))
         }
         real.withUnsafeMutableBufferPointer { realPointer in
             imaginary.withUnsafeMutableBufferPointer { imaginaryPointer in

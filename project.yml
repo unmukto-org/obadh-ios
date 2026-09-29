@@ -93,14 +93,11 @@ targets:
       - path: Shared/Sources/VoiceUI
       - path: Shared/Sources/VoiceGlow
       - path: Shared/Sources/VoiceModels
-      - path: Shared/Sources/VoiceActivity
       - path: Shared/Sources/Keyboard/VoiceStripIndicatorView.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(OBADH_APP_BUNDLE_ID)
         INFOPLIST_FILE: ObadhApp/Info.plist
-        # The shared voice intents run their app-side body only in the app.
-        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) OBADH_APP
         CODE_SIGN_ENTITLEMENTS: Config/Obadh.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
@@ -119,29 +116,6 @@ targets:
         embed: true
       - target: ObadhKeyboard
         embed: true
-      - target: ObadhVoiceControls
-        embed: true
-  # Control Center / Lock Screen / Action button voice-typing control, and the
-  # session's Live Activity (required while an intent-started recording runs).
-  ObadhVoiceControls:
-    type: app-extension
-    platform: iOS
-    sources:
-      - path: ObadhVoiceControls/Sources
-      - path: Shared/Sources/VoiceActivity
-      - path: Shared/Sources/Voice/VoiceSessionProtocol.swift
-      - path: Shared/Sources/Voice/VoiceTranscript.swift
-      - path: Shared/Sources/Settings/ObadhIdentity.swift
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: $(OBADH_APP_BUNDLE_ID).voice-controls
-        INFOPLIST_FILE: ObadhVoiceControls/Info.plist
-        CODE_SIGN_ENTITLEMENTS: Config/ObadhVoiceControls.entitlements
-        APPLICATION_EXTENSION_API_ONLY: YES
-    configFiles:
-      Debug: Config/Signing.xcconfig
-      Debug-Legacy: Config/Signing.xcconfig
-      Release: Config/Signing.xcconfig
   ObadhKeyboard:
     type: app-extension
     platform: iOS

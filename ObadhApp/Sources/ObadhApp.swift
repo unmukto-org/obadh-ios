@@ -73,12 +73,6 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.makeKeyAndVisible()
         self.window = window
 
-        // A fresh process holds no microphone: a session badge still on screen belongs
-        // to a process that was killed.
-        if VoiceSessionController.shared.phase == .idle {
-            VoiceLiveActivityPresenter.shared.endStale()
-        }
-
         #if DEBUG
         VoiceSelfTest.runIfRequested()
         #endif

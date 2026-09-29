@@ -7,9 +7,10 @@ import os
 protocol VoiceKeyboardHost: AnyObject {
     var voiceHasFullAccess: Bool { get }
     var voiceDocument: TextDocumentEditing { get }
-    /// Commit whatever word is being typed, so dictation starts after it.
+    /// Commit whatever word is being typed, so dictated text lands after it.
     func voiceWillBeginDictation()
-    /// Show voice typing's state in the suggestion strip; nil restores suggestions.
+    /// A short message in the suggestion strip, for something the user must act on;
+    /// nil restores the suggestions.
     func voiceShowIndicator(_ phase: VoicePanelPhase?)
     func voiceMicStateDidChange(_ state: SuggestionMicControl.Mode)
     /// Run proxy edits with the controller's own text-change callbacks suppressed.
@@ -17,93 +18,65 @@ protocol VoiceKeyboardHost: AnyObject {
     func voiceOpenContainingApp(_ url: URL, completion: @escaping (Bool) -> Void)
 }
 
-/// Keyboard side of voice typing. The keyboard cannot record, so this is a remote
-/// control plus a text writer: it sends start / stop to the app, and applies the
-/// transcript the app publishes to the document. See docs/voice-typing.md.
+/// Keyboard side of voice typing, one dictation at a time.
+///
+/// A keyboard cannot use the microphone, so the mic opens Obadh's voice screen,
+/// which listens, shows the words, and releases the microphone once the text is
+/// final. When the user comes back, this inserts that final text in one append and
+/// acknowledges it. Nothing is written into the field while the user is speaking,
+/// so there is nothing to rewrite, and nothing to jitter. See docs/voice-typing.md.
 @MainActor
 final class VoiceKeyboardCoordinator {
     private let log = Logger(subsystem: "org.unmukto.obadh.keyboard", category: "voice")
     weak var host: VoiceKeyboardHost?
-    /// The phase shown in the strip while voice typing is active.
-    private(set) var phase: VoicePanelPhase = .connecting
-    let levels = VoiceLevelFeed()
 
+    /// The dictation this keyboard is waiting for, with where its text will go.
     private var reconciler = VoiceDraftReconciler()
-    private var lastSnapshot = VoiceSessionSnapshot.empty
-    private var lastCommandSeq: UInt64 = 0
     private var snapshotObserver: VoiceDarwinObserver?
-    private var warmthTimer: Timer?
-    private var acknowledgementDeadline: DispatchWorkItem?
-    /// Draft writes are paced: each is several round trips to the host, and a host
-    /// fed faster than it echoes back reads stale.
-    private var pendingApply: DispatchWorkItem?
-    private var lastApplyAt: CFTimeInterval = 0
-    private static let applyInterval: CFTimeInterval = 0.08
-    /// Since when the document has not shown our draft. A brief mismatch is a host
-    /// catching up; only a persistent one means the text moved.
-    private var staleSince: CFTimeInterval?
-    private static let staleRetry: CFTimeInterval = 0.15
-    private static let staleGiveUp: CFTimeInterval = 0.6
-    private var finishDeadline: DispatchWorkItem?
-    /// True from opening the app until the keyboard reappears, so the disappearance
-    /// the bounce causes is not mistaken for the user leaving mid-dictation.
-    private var isHandingOff = false
-    private(set) var isPanelVisible = false
+    private var lastCommandSeq: UInt64 = 0
+    private var waitTimeout: DispatchWorkItem?
+    private var problemDismissal: DispatchWorkItem?
 
     private let persistence = UserDefaults.standard
-    private static let persistedReconcilerKey = "voice.keyboard.reconciler"
-
-    init() {}
-
-    /// A key was typed while dictating: finish first, like system dictation, so
-    /// typed and dictated text never compete for the cursor. The draft stays as
-    /// written; a late refinement lands only if the text is still untouched.
-    func finishBeforeTyping() {
-        guard isPanelVisible, reconciler.isActive else { return }
-        finish(returnToKeys: true)
-    }
-
-    var isDictating: Bool { isPanelVisible && reconciler.isActive }
+    private static let persistedKey = "voice.keyboard.pendingDictation"
+    /// How long a returning keyboard waits for text before giving up quietly.
+    private static let returnWait: TimeInterval = 6
 
     private var directory: URL? { VoiceSessionChannel.directory() }
 
     // MARK: Lifecycle, driven by the controller
 
     func hostWillAppear() {
-        isHandingOff = false
         if snapshotObserver == nil {
             snapshotObserver = VoiceDarwinObserver(name: VoiceSessionChannel.snapshotDarwinName) { [weak self] in
-                self?.snapshotDidChange()
+                self?.deliverIfReady()
             }
         }
-        restorePersistedDictation()
-        snapshotDidChange()
-        startWarmthTimer()
+        restorePending()
+        guard reconciler.isActive else { return }
+        // Back from the voice screen: the text is usually final already; if the user
+        // left mid-dictation it arrives within a moment.
+        let timeout = DispatchWorkItem { [weak self] in
+            guard let self, self.reconciler.isActive else { return }
+            self.log.notice("OBADH-VOICE no text arrived; giving up")
+            self.clearPending()
+        }
+        waitTimeout?.cancel()
+        waitTimeout = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.returnWait, execute: timeout)
+        deliverIfReady()
     }
 
     func hostDidDisappear() {
-        warmthTimer?.invalidate()
-        warmthTimer = nil
-        levels.detach()
-        // Opening the app for the bounce is the one disappearance that is not goodbye.
-        guard !isHandingOff else { return }
-        // The keyboard is closing (dismissed, another keyboard, another app). A
-        // dictation in flight is dropped rather than inserted into whatever field
-        // happens to be focused later. The session itself stays available (it ends
-        // after ten minutes unused), so the next dictation starts instantly.
-        if let dictationID = reconciler.dictationID {
-            send(.cancel, dictationID: dictationID)
-            endDictation()
-        }
+        // Keep a pending dictation: disappearing is usually the trip to the voice
+        // screen. It is cleared once delivered, or if nothing arrives on return.
+        waitTimeout?.cancel()
+        waitTimeout = nil
     }
 
     // MARK: Mic
 
     func micTapped() {
-        if isPanelVisible, reconciler.isActive {
-            finish(returnToKeys: false)
-            return
-        }
         guard let host else { return }
         guard host.voiceHasFullAccess, directory != nil else {
             showProblem("ভয়েস টাইপিংয়ের জন্য সেটিংসে Allow Full Access চালু করুন")
@@ -112,230 +85,60 @@ final class VoiceKeyboardCoordinator {
         host.voiceWillBeginDictation()
         let dictationID = String(UUID().uuidString.prefix(8)).lowercased()
         reconciler.begin(dictationID: dictationID, contextBefore: host.voiceDocument.contextBeforeInput)
-        persistReconciler()
-        send(.start, dictationID: dictationID)
-        setPhase(.connecting)
-        setPanelVisible(true)
-
-        let snapshot = readSnapshot() ?? .empty
-        log.notice("OBADH-VOICE tap: \(snapshot.isWarm() ? "warm start" : "bounce", privacy: .public) (app phase \(snapshot.phase.rawValue, privacy: .public))")
-        if snapshot.isWarm() {
-            // The app is holding the mic open; it should pick this up within one audio
-            // buffer. If it doesn't (suspended between heartbeats), fall back to the bounce.
-            let deadline = DispatchWorkItem { [weak self] in
-                self?.log.notice("OBADH-VOICE warm start unanswered; opening the app")
-                self?.openApp(for: dictationID)
-            }
-            acknowledgementDeadline = deadline
-            DispatchQueue.main.asyncAfter(deadline: .now() + VoiceSessionTiming.warmStartAcknowledgementTimeout, execute: deadline)
-        } else {
-            openApp(for: dictationID)
-        }
-    }
-
-    private func openApp(for dictationID: String) {
-        guard reconciler.dictationID == dictationID, let host else { return }
-        isHandingOff = true
+        persistPending()
+        log.notice("OBADH-VOICE opening the voice screen")
         host.voiceOpenContainingApp(VoiceSessionChannel.voiceURL(dictationID: dictationID)) { [weak self] opened in
             guard let self, !opened else { return }
-            self.isHandingOff = false
             self.showProblem("অবাধ অ্যাপ খোলা যায়নি")
-            self.endDictation()
+            self.clearPending()
         }
     }
 
-    // MARK: Finishing
+    /// Kept for the controller's typing path: with no live dictation in the field,
+    /// typing never competes with it.
+    func finishBeforeTyping() {}
 
-    private func finish(returnToKeys: Bool) {
-        guard let dictationID = reconciler.dictationID else {
-            setPanelVisible(false)
-            return
-        }
-        send(.stop, dictationID: dictationID)
-        if returnToKeys {
-            setPanelVisible(false)
-        } else {
-            setPhase(.finishing)
-        }
-        // Refinement usually lands well inside this; if it doesn't, the streaming
-        // text stays as written and the keyboard moves on.
-        finishDeadline?.cancel()
-        let deadline = DispatchWorkItem { [weak self] in
-            guard let self, self.reconciler.dictationID == dictationID else { return }
-            self.send(.acknowledge, dictationID: dictationID)
-            self.endDictation()
-        }
-        finishDeadline = deadline
-        DispatchQueue.main.asyncAfter(deadline: .now() + VoiceSessionTiming.finishTimeout, execute: deadline)
-    }
+    // MARK: Delivery
 
-    private func endDictation() {
-        if reconciler.isActive { log.notice("OBADH-VOICE dictation ended") }
-        acknowledgementDeadline?.cancel()
-        pendingApply?.cancel()
-        pendingApply = nil
-        staleSince = nil
-        finishDeadline?.cancel()
-        reconciler.end()
-        persistReconciler()
-        setPanelVisible(false)
-        publishMicState()
-    }
-
-    // MARK: Snapshots
-
-    private func snapshotDidChange() {
-        guard let snapshot = readSnapshot(), snapshot.seq >= lastSnapshot.seq else {
-            publishMicState()
-            return
-        }
-        lastSnapshot = snapshot
-        defer { publishMicState() }
-        guard let dictationID = reconciler.dictationID, snapshot.dictationID == dictationID else {
-            // The app moved on without us (restarted, or a newer dictation): a stale
-            // local dictation can never complete, so let it go.
-            if reconciler.isActive, snapshot.isWarm(), snapshot.phase == .ready, snapshot.dictationID != nil {
-                endDictation()
-            }
-            return
-        }
-        if acknowledgementDeadline?.isCancelled == false {
-            acknowledgementDeadline?.cancel()
-            log.notice("OBADH-VOICE app acknowledged in phase \(snapshot.phase.rawValue, privacy: .public)")
-        }
-        updatePanelPhase(from: snapshot)
-        scheduleApply(after: 0)
-    }
-
-    private func scheduleApply(after delay: CFTimeInterval) {
-        pendingApply?.cancel()
-        let wait = max(delay, Self.applyInterval - (CACurrentMediaTime() - lastApplyAt))
-        let work = DispatchWorkItem { [weak self] in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                self.pendingApply = nil
-                self.lastApplyAt = CACurrentMediaTime()
-                self.apply(self.lastSnapshot)
-            }
-        }
-        pendingApply = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, wait), execute: work)
-    }
-
-    private func updatePanelPhase(from snapshot: VoiceSessionSnapshot) {
-        guard isPanelVisible else { return }
+    private func deliverIfReady() {
+        guard reconciler.isActive, let host,
+              let snapshot = readSnapshot(), snapshot.dictationID == reconciler.dictationID else { return }
         if let failure = snapshot.failure {
             showProblem(Self.message(for: failure))
+            clearPending()
             return
         }
-        switch snapshot.phase {
-        case .idle, .starting:
-            setPhase(.connecting)
-        case .ready:
-            if phase != .finishing { setPhase(.ready) }
-        case .listening:
-            // Only claim to listen while the app reports audio actually arriving; a
-            // stalled engine shows as connecting while the app's watchdog recovers.
-            if snapshot.isAudioFlowing == false {
-                setPhase(.connecting)
-            } else {
-                let heard = !snapshot.transcript.text.isEmpty
-                setPhase(heard ? .listening : .ready)
-            }
-        case .finishing:
-            setPhase(.finishing)
-        }
-    }
-
-    private func apply(_ snapshot: VoiceSessionSnapshot) {
-        guard let host, let step = reconciler.step(for: snapshot) else { return }
-        var outcome = VoiceDraftWriter.Outcome.applied
-        host.voicePerformTextUpdate {
-            outcome = VoiceDraftWriter().apply(step, in: host.voiceDocument)
-        }
-        switch outcome {
-        case .applied:
-            staleSince = nil
-            reconciler.didApply(step)
-        case .stale:
-            let now = CACurrentMediaTime()
-            let since = staleSince ?? now
-            staleSince = since
-            guard now - since >= Self.staleGiveUp else {
-                // Most likely the host has not caught up yet: try again shortly.
-                scheduleApply(after: Self.staleRetry)
-                return
-            }
-            staleSince = nil
-            let window = host.voiceDocument.contextBeforeInput?.count ?? -1
-            log.notice("OBADH-VOICE tail not at the cursor (host window \(window, privacy: .public), tail \(step.currentText.count, privacy: .public)); continuing at the cursor")
-            // Nothing is deleted; committed words are written where the cursor is.
-            let insertion = reconciler.fallbackInsertion(for: step)
-            if !insertion.isEmpty {
-                host.voicePerformTextUpdate { host.voiceDocument.insertText(insertion) }
+        guard snapshot.transcript.isFinal else { return }
+        if let step = reconciler.step(for: snapshot) {
+            host.voicePerformTextUpdate {
+                if VoiceDraftWriter().apply(step, in: host.voiceDocument) == .stale {
+                    // Nothing of ours is at the cursor to verify against; append the
+                    // text where the cursor is.
+                    let insertion = reconciler.fallbackInsertion(for: step)
+                    if !insertion.isEmpty { host.voiceDocument.insertText(insertion) }
+                }
             }
         }
-        if step.completesDictation, let dictationID = reconciler.dictationID {
-            send(.acknowledge, dictationID: dictationID)
-            endDictation()
-        } else {
-            persistReconciler()
-        }
+        log.notice("OBADH-VOICE inserted \(snapshot.transcript.text.count, privacy: .public) chars")
+        send(.acknowledge, dictationID: snapshot.dictationID ?? "")
+        clearPending()
     }
 
-    // MARK: Mic state
-
-    private func startWarmthTimer() {
-        warmthTimer?.invalidate()
-        // Once a second while visible: re-check warmth, which decays silently if the
-        // app is suspended or was killed. Stops on disappear.
-        let timer = Timer(timeInterval: VoiceSessionTiming.presenceInterval, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.snapshotDidChange()
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        warmthTimer = timer
+    private func clearPending() {
+        waitTimeout?.cancel()
+        waitTimeout = nil
+        reconciler.end()
+        persistPending()
     }
 
-    private func publishMicState() {
-        let state: SuggestionMicControl.Mode
-        if isPanelVisible, reconciler.isActive {
-            state = .listening
-        } else if lastSnapshot.isWarm() {
-            state = .warm
-        } else {
-            state = .idle
-        }
-        host?.voiceMicStateDidChange(state)
-    }
-
-    private func setPanelVisible(_ visible: Bool) {
-        guard visible != isPanelVisible else { return }
-        isPanelVisible = visible
-        if visible {
-            levels.attach(directory.map(VoiceSessionChannel.levelsURL(in:)))
-        } else {
-            levels.detach()
-        }
-        host?.voiceShowIndicator(visible ? phase : nil)
-        publishMicState()
-    }
-
-    private func setPhase(_ newPhase: VoicePanelPhase) {
-        phase = newPhase
-        if isPanelVisible { host?.voiceShowIndicator(newPhase) }
-    }
+    // MARK: Problems (the only words voice typing puts in the strip)
 
     private func showProblem(_ message: String) {
-        setPhase(.problem(message))
-        setPanelVisible(true)
-        let dictationID = reconciler.dictationID
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-            guard let self, self.reconciler.dictationID == dictationID,
-                  case .problem = self.phase else { return }
-            self.endDictation()
-        }
+        host?.voiceShowIndicator(.problem(message))
+        problemDismissal?.cancel()
+        let dismissal = DispatchWorkItem { [weak self] in self?.host?.voiceShowIndicator(nil) }
+        problemDismissal = dismissal
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: dismissal)
     }
 
     private static func message(for failure: VoiceSessionFailure) -> String {
@@ -348,7 +151,6 @@ final class VoiceKeyboardCoordinator {
     }
 
     // MARK: IPC
-
 
     private func readSnapshot() -> VoiceSessionSnapshot? {
         guard let directory else { return nil }
@@ -370,55 +172,34 @@ final class VoiceKeyboardCoordinator {
         }
     }
 
-    #if DEBUG
-    /// `voice:demo|listening|ready|finishing|connecting|problem|off` shows the panel in a
-    /// given phase with synthetic levels, for reviewing the visual on the simulator.
-    func debugShowPanel(_ argument: String?) {
-        let phase: VoicePanelPhase?
-        switch argument ?? "demo" {
-        case "demo", "listening": phase = .listening
-        case "ready": phase = .ready
-        case "finishing": phase = .finishing
-        case "connecting": phase = .connecting
-        case "problem": phase = .problem("অবাধ অ্যাপে ভয়েস মডেল ডাউনলোড করুন")
-        default: phase = nil
-        }
-        levels.isSynthetic = phase != nil
-        guard let phase else {
-            setPanelVisible(false)
-            return
-        }
-        setPhase(phase)
-        setPanelVisible(true)
-    }
-    #endif
-
-    // MARK: Surviving the bounce
+    // MARK: Surviving the trip
 
     /// iOS often terminates the keyboard process while the user is in the app. The
-    /// dictation's bookkeeping is persisted so the returning keyboard (a new process)
-    /// knows which dictation it owns and what it has already written.
-    private func persistReconciler() {
+    /// pending dictation (and where its text goes) is persisted, so the returning
+    /// keyboard, a new process, still delivers it.
+    private func persistPending() {
         if reconciler.isActive, let data = try? JSONEncoder().encode(reconciler) {
-            persistence.set(data, forKey: Self.persistedReconcilerKey)
+            persistence.set(data, forKey: Self.persistedKey)
         } else {
-            persistence.removeObject(forKey: Self.persistedReconcilerKey)
+            persistence.removeObject(forKey: Self.persistedKey)
         }
     }
 
-    private func restorePersistedDictation() {
+    private func restorePending() {
         guard !reconciler.isActive,
-              let data = persistence.data(forKey: Self.persistedReconcilerKey),
+              let data = persistence.data(forKey: Self.persistedKey),
               let restored = try? JSONDecoder().decode(VoiceDraftReconciler.self, from: data) else { return }
-        // Only while the app still holds that dictation (it clears the id once the
-        // dictation is acknowledged, cancelled, or the session ends).
-        guard let snapshot = readSnapshot(), snapshot.dictationID == restored.dictationID else {
-            persistence.removeObject(forKey: Self.persistedReconcilerKey)
-            return
-        }
         reconciler = restored
-        let live = snapshot.phase == .listening || snapshot.phase == .ready || snapshot.phase == .starting
-        setPhase(snapshot.phase == .finishing ? .finishing : (live ? .ready : .finishing))
-        setPanelVisible(true)
     }
+
+    #if DEBUG
+    /// `voice:problem|off` shows or clears a strip message, for reviewing on the
+    /// simulator.
+    func debugShowPanel(_ argument: String?) {
+        switch argument {
+        case "off": host?.voiceShowIndicator(nil)
+        default: showProblem("অবাধ অ্যাপে ভয়েস মডেল ডাউনলোড করুন")
+        }
+    }
+    #endif
 }

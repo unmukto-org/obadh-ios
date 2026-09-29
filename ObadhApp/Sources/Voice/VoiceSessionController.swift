@@ -3,42 +3,38 @@ import Combine
 import UIKit
 import os
 
-/// The app side of voice typing: holds the microphone for a voice session, runs
-/// recognition, and publishes the transcript to the keyboard. See docs/voice-typing.md.
+/// The app side of voice typing, one dictation at a time.
 ///
-/// Lifecycle:
+///     keyboard mic ─▶ Obadh voice screen, already listening
+///                      │  speak (text appears on this screen)
+///                      ▼  Done, a long pause, or leaving the screen
+///                    finishing ─▶ final text; microphone released at once
+///                      │
+///     keyboard ◀───────┘  on ◀ Back: the keyboard inserts the final text and
+///                         acknowledges; the text is then forgotten here
 ///
-///     idle ──(start)──▶ starting ──▶ ready ◀──▶ listening ──▶ finishing ──▶ ready
-///       ▲                              │
-///       └──(10 min without dictating, turned off, or interrupted)──┘
-///
-/// A backgrounded app can keep a recording alive but cannot start one, so a session
-/// starts only with the app in the foreground (the keyboard's one-time bounce) or
-/// from the system's audio-recording intent (Control Center, Lock Screen, Action
-/// button). Once started, every dictation from the keyboard begins instantly, in any
-/// app, until the session has gone unused for `sessionIdleLimit`. While no dictation
-/// runs, audio is discarded as it arrives (the ring keeps only the last second).
+/// The microphone runs only while the voice screen is in front. There is no warm
+/// session, no background recording, and no indicator between dictations. While
+/// dictating nothing crosses to the keyboard: the text is shown on this screen and
+/// handed over once, when it is final.
 @MainActor
 final class VoiceSessionController: ObservableObject {
     static let shared = VoiceSessionController()
-
-    /// A session with no dictation for this long ends, releasing the microphone.
-    static let sessionIdleLimit: TimeInterval = 10 * 60
 
     @Published private(set) var phase: VoiceSessionPhase = .idle {
         didSet {
             guard phase != oldValue else { return }
             log.notice("OBADH-VOICE phase \(oldValue.rawValue, privacy: .public) -> \(self.phase.rawValue, privacy: .public)")
-            if phase == .ready { idleSince = CACurrentMediaTime() }
         }
     }
     /// Audio buffers are arriving right now (watchdog-measured, not assumed).
     @Published private(set) var isAudioFlowing = false
-    /// The streaming recognizer is loaded.
-    @Published private(set) var isRecognizerReady = false
     @Published private(set) var transcript = VoiceTranscript.empty
     @Published private(set) var failure: VoiceSessionFailure?
     @Published private(set) var dictationID: String?
+
+    /// The finished text is waiting for the keyboard to insert it.
+    var hasFinalText: Bool { transcript.isFinal && dictationID != nil }
 
     let levels = VoiceLevelFeed()
 
@@ -49,22 +45,18 @@ final class VoiceSessionController: ObservableObject {
     private let capture: VoiceAudioCapture
     private let pipeline = VoiceRecognitionPipeline()
     private var commandObserver: VoiceDarwinObserver?
-    private var heartbeatTimer: Timer?
     private var watchdogTimer: Timer?
-    /// When the audio last held voice (not recognized text: a quiet or unclear word
-    /// must not end a dictation).
+    /// When the audio last held voice (a quiet or unclear word must not end a
+    /// dictation, so this is voice activity, not recognized text).
     private var lastVoiceAt: CFTimeInterval = 0
-    /// When the session last became idle (ready, not dictating).
-    private var idleSince: CFTimeInterval = 0
     private var snapshotSeq: UInt64 = 0
     private var lastCommandSeq: UInt64 = 0
-    private var pendingPublish: DispatchWorkItem?
     private var notificationTokens: [NSObjectProtocol] = []
-    /// The one bring-up in flight. A cold bounce delivers both the URL and the
-    /// keyboard's start command; without this they raced through the idle check and
-    /// started capture and model loading twice.
+    /// The one start in flight: a cold launch may deliver the URL more than once.
     private var bringUp: Task<Bool, Never>?
     private var recoveryAttempted = false
+    /// Keeps the app running long enough to finish a dictation the user left mid-way.
+    private var finishingTask: UIBackgroundTaskIdentifier = .invalid
     /// Buffers arrive every ~50 ms; this long without one means the engine stalled.
     private static let audioStallThreshold: CFTimeInterval = 0.8
 
@@ -77,59 +69,44 @@ final class VoiceSessionController: ObservableObject {
         snapshotSeq = UInt64(Date().timeIntervalSince1970 * 1000)
         wirePipeline()
         observeCommands()
-        observeAudioSession()
+        observeLifecycle()
     }
 
     // MARK: Entry points
 
-    /// The keyboard opened `obadh://voice?d=<id>`: we are in the foreground, which is
-    /// one of the moments a recording may start.
+    /// The keyboard opened `obadh://voice?d=<id>`: start dictating at once.
     func handleVoiceURL(_ url: URL) {
-        let id = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-            .queryItems?.first { $0.name == VoiceSessionChannel.dictationQueryItem }?.value
-        readCommand()
-        Task { await startSession(thenDictate: id) }
+        guard let id = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == VoiceSessionChannel.dictationQueryItem })?.value else { return }
+        Task { await startDictation(id) }
     }
 
-    /// What started a session.
-    enum StartSource {
-        /// The keyboard opened the app (the one-time bounce).
-        case keyboard
-        /// Control Center, the Lock Screen, or the Action button, via the
-        /// audio-recording intent. The app is in the background: nothing may prompt.
-        case systemIntent
-    }
-
-    /// Start (or keep) a session. `dictationID` begins dictating at once.
-    @discardableResult
-    func startSession(thenDictate dictationID: String?, source: StartSource = .keyboard) async -> Bool {
-        if phase == .idle {
-            let task: Task<Bool, Never>
-            if let bringUp {
-                task = bringUp
-            } else {
-                task = Task { await self.performBringUp(source: source) }
-                bringUp = task
-            }
-            let started = await task.value
-            bringUp = nil
-            guard started else { return false }
-        }
-        if let dictationID {
-            beginDictation(dictationID)
+    func startDictation(_ id: String) async {
+        if dictationID == id, phase != .idle { return }
+        if phase != .idle { release() }
+        let task: Task<Bool, Never>
+        if let bringUp {
+            task = bringUp
         } else {
-            publishNow()
+            task = Task { await self.performBringUp() }
+            bringUp = task
         }
-        return true
+        let started = await task.value
+        bringUp = nil
+        guard started else { return }
+        dictationID = id
+        transcript = .empty
+        phase = .listening
+        capture.isMetering = true
+        pipeline.begin(dictationID: id)
+        lastVoiceAt = CACurrentMediaTime()
+        publishNow()
     }
 
-    private func performBringUp(source: StartSource) async -> Bool {
+    private func performBringUp() async -> Bool {
         failure = nil
         phase = .starting
-        publishNow()
-        // iOS requires the Live Activity to be up before an intent starts recording.
-        VoiceLiveActivityPresenter.shared.sessionStarted()
-        guard await ensureMicrophonePermission(canPrompt: source == .keyboard) else {
+        guard await ensureMicrophonePermission() else {
             fail(.microphonePermissionDenied)
             return false
         }
@@ -145,90 +122,57 @@ final class VoiceSessionController: ObservableObject {
             fail(.audioEngineFailed)
             return false
         }
-        // Audio flows into the ring before the model has loaded; the recognizer
-        // catches up from there, so nothing said during the load is lost.
-        isRecognizerReady = false
+        // Audio flows into the ring before the model has loaded; recognition catches
+        // up from there, so nothing said during the load is lost.
         pipeline.load(streaming: streaming)
         recoveryAttempted = false
-        startHeartbeat()
         startWatchdog()
-        phase = .ready
         return true
     }
 
-    /// Releases the microphone, unloads the model, and forgets all audio.
-    func endSession() {
+    /// Done: take the last moment of audio, recognize it, then release the mic.
+    /// `postRoll` is off when the microphone is about to stop anyway (leaving the
+    /// screen, a call): the dictation then ends at what was already heard.
+    func finishDictation(postRoll: Bool = true) {
+        guard phase == .listening else { return }
+        phase = .finishing
+        capture.isMetering = false
+        pipeline.finish(postRoll: postRoll)
+    }
+
+    /// Cancel: nothing is kept or inserted.
+    func cancelDictation() {
         pipeline.cancel()
+        release()
+        dictationID = nil
+        transcript = .empty
+        publishNow()
+    }
+
+    /// Microphone off, model unloaded, all audio forgotten. The final text (if any)
+    /// stays until the keyboard has inserted it.
+    private func release() {
         pipeline.unload()
-        isRecognizerReady = false
         capture.isMetering = false
         capture.stop()
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        heartbeatTimer?.invalidate()
-        heartbeatTimer = nil
         watchdogTimer?.invalidate()
         watchdogTimer = nil
         isAudioFlowing = false
-        VoiceLiveActivityPresenter.shared.sessionEnded()
         phase = .idle
-        dictationID = nil
-        transcript = .empty
-        publishNow()
+        endFinishingTask()
     }
 
-    /// In-app controls on the session screen.
-    func finishDictation() {
-        guard let dictationID else { return }
-        stop(dictationID)
-    }
-
-    // MARK: Dictation
-
-    private func beginDictation(_ id: String) {
-        guard phase == .ready || phase == .listening || phase == .finishing else { return }
-        if self.dictationID == id, phase == .listening { return }
-        dictationID = id
-        transcript = .empty
-        phase = .listening
-        VoiceLiveActivityPresenter.shared.dictationChanged(isDictating: true)
-        capture.isMetering = true
-        pipeline.begin(dictationID: id)
-        lastVoiceAt = CACurrentMediaTime()
-        publishNow()
-    }
-
-    private func stop(_ id: String) {
-        guard dictationID == id, phase == .listening else { return }
-        phase = .finishing
-        capture.isMetering = false
-        pipeline.finish()
-        publishNow()
-    }
-
-    private func cancel(_ id: String) {
-        guard dictationID == id else { return }
-        pipeline.cancel()
-        capture.isMetering = false
-        clearDictation()
-    }
-
-    /// The keyboard has what it needs: forget the transcript, so it does not linger
-    /// in the shared container.
-    private func clearDictation() {
-        dictationID = nil
-        transcript = .empty
-        VoiceLiveActivityPresenter.shared.dictationChanged(isDictating: false)
-        if phase != .idle { phase = .ready }
-        publishNow()
-    }
+    // MARK: Pipeline
 
     private func wirePipeline() {
         pipeline.onTranscript = { [weak self] id, transcript in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self, self.dictationID == id else { return }
+                    // Shown on the voice screen directly; nothing crosses to the
+                    // keyboard until the text is final.
                     self.transcript = transcript
-                    self.schedulePublish()
                 }
             }
         }
@@ -240,10 +184,18 @@ final class VoiceSessionController: ObservableObject {
         pipeline.onFinished = { [weak self] id in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    guard let self, self.dictationID == id, self.phase == .finishing else { return }
-                    self.phase = .ready
-                    VoiceLiveActivityPresenter.shared.dictationChanged(isDictating: false)
+                    guard let self, self.dictationID == id else { return }
+                    self.release()
+                    self.log.notice("OBADH-VOICE dictation final: \(self.transcript.text.count, privacy: .public) chars; microphone released")
                     self.publishNow()
+                }
+            }
+        }
+        pipeline.onStreamingReady = { [weak self] ready in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self, !ready, self.phase != .idle else { return }
+                    self.fail(.noStreamingModel)
                 }
             }
         }
@@ -255,18 +207,9 @@ final class VoiceSessionController: ObservableObject {
                 MainActor.assumeIsolated { self?.fail(.audioEngineFailed) }
             }
         }
-        pipeline.onStreamingReady = { [weak self] ready in
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
-                    guard let self, self.phase != .idle else { return }
-                    self.isRecognizerReady = ready
-                    if ready { self.publishNow() } else { self.fail(.noStreamingModel) }
-                }
-            }
-        }
     }
 
-    // MARK: Commands from the keyboard
+    // MARK: The keyboard's side
 
     private func observeCommands() {
         commandObserver = VoiceDarwinObserver(name: VoiceSessionChannel.commandDarwinName) { [weak self] in
@@ -279,55 +222,26 @@ final class VoiceSessionController: ObservableObject {
               let command = VoiceMessageFile.read(VoiceCommand.self, from: VoiceSessionChannel.commandURL(in: directory)),
               command.seq > lastCommandSeq else { return }
         lastCommandSeq = command.seq
-        // A command older than a few seconds was left behind by a previous keyboard
-        // process; acting on it now would start dictating out of nowhere.
-        guard Date().timeIntervalSince(command.issuedAt) < 10 else {
-            log.notice("OBADH-VOICE ignored stale \(command.kind.rawValue, privacy: .public)")
-            return
-        }
-        log.notice("OBADH-VOICE command \(command.kind.rawValue, privacy: .public) in phase \(self.phase.rawValue, privacy: .public)")
+        guard Date().timeIntervalSince(command.issuedAt) < 60 else { return }
+        log.notice("OBADH-VOICE command \(command.kind.rawValue, privacy: .public)")
         switch command.kind {
-        case .start:
-            if phase == .idle {
-                // Not running: only the foreground (the bounce) or the recording
-                // intent can start us. The keyboard falls back to opening the app
-                // when this goes unanswered.
-                if UIApplication.shared.applicationState == .active {
-                    Task { await startSession(thenDictate: command.dictationID) }
-                }
-            } else {
-                beginDictation(command.dictationID)
-            }
-        case .stop:
-            stop(command.dictationID)
-        case .cancel:
-            cancel(command.dictationID)
         case .acknowledge:
-            if dictationID == command.dictationID { clearDictation() }
-        case .endSession:
-            endSession()
+            // Inserted: the text is forgotten here.
+            guard dictationID == command.dictationID else { return }
+            dictationID = nil
+            transcript = .empty
+            publishNow()
+        case .cancel:
+            if dictationID == command.dictationID { cancelDictation() }
+        case .start, .stop, .endSession:
+            break
         }
     }
 
-    // MARK: Snapshot publishing
-
-    /// Transcript changes arrive every audio step; ~30 updates a second is plenty,
-    /// and each is a file write plus a cross-process wake-up.
-    private func schedulePublish() {
-        guard pendingPublish == nil else { return }
-        let work = DispatchWorkItem { [weak self] in
-            MainActor.assumeIsolated {
-                self?.pendingPublish = nil
-                self?.publishNow()
-            }
-        }
-        pendingPublish = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03, execute: work)
-    }
-
+    /// The snapshot is written only when something the keyboard needs changes: a
+    /// dictation starts (so a returning keyboard knows to wait), or its final text is
+    /// ready. Never per partial.
     private func publishNow() {
-        pendingPublish?.cancel()
-        pendingPublish = nil
         guard let directory else { return }
         snapshotSeq += 1
         let snapshot = VoiceSessionSnapshot(
@@ -335,10 +249,10 @@ final class VoiceSessionController: ObservableObject {
             phase: phase,
             heartbeat: Date(),
             dictationID: dictationID,
-            transcript: transcript,
+            transcript: transcript.isFinal ? transcript : .empty,
             failure: failure,
             isAudioFlowing: isAudioFlowing,
-            isRecognizerReady: isRecognizerReady
+            isRecognizerReady: nil
         )
         do {
             try VoiceMessageFile.write(snapshot, to: VoiceSessionChannel.snapshotURL(in: directory))
@@ -350,8 +264,6 @@ final class VoiceSessionController: ObservableObject {
 
     // MARK: Watchdog
 
-    /// Four times a second: audio really arriving, dictation still hearing a voice,
-    /// session still in use.
     private func startWatchdog() {
         watchdogTimer?.invalidate()
         let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
@@ -362,29 +274,17 @@ final class VoiceSessionController: ObservableObject {
     }
 
     private func tick() {
-        guard phase != .idle else { return }
+        guard phase == .listening else { return }
         let now = CACurrentMediaTime()
-        if phase == .listening, let dictationID,
-           now - lastVoiceAt > VoiceSessionTiming.silenceEndsDictation {
+        if now - lastVoiceAt > VoiceSessionTiming.silenceEndsDictation {
             log.notice("OBADH-VOICE silence ended the dictation")
-            stop(dictationID)
-        }
-        if phase == .ready, now - idleSince > Self.sessionIdleLimit {
-            log.notice("OBADH-VOICE session unused for \(Int(Self.sessionIdleLimit / 60), privacy: .public) min; releasing the microphone")
-            endSession()
+            finishDictation()
             return
         }
-        checkAudioFlow(now: now)
-    }
-
-    /// A stalled engine is rebuilt once; if it stays silent the session ends and
-    /// says why, rather than showing "listening" while hearing nothing.
-    private func checkAudioFlow(now: CFTimeInterval) {
         let flowing = now - capture.lastBufferAt < Self.audioStallThreshold
         if flowing != isAudioFlowing {
             isAudioFlowing = flowing
             log.notice("OBADH-VOICE audio \(flowing ? "flowing" : "stalled", privacy: .public)")
-            publishNow()
         }
         if flowing {
             recoveryAttempted = false
@@ -399,21 +299,11 @@ final class VoiceSessionController: ObservableObject {
             try capture.restart()
             log.notice("OBADH-VOICE capture rebuilt after a stall")
         } catch {
-            log.error("OBADH-VOICE capture rebuild failed: \(String(describing: error), privacy: .public)")
             fail(.audioEngineFailed)
         }
     }
 
-    private func startHeartbeat() {
-        heartbeatTimer?.invalidate()
-        let timer = Timer(timeInterval: VoiceSessionTiming.heartbeatInterval, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.publishNow() }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        heartbeatTimer = timer
-    }
-
-    // MARK: Audio session
+    // MARK: Audio session and app lifecycle
 
     private func configureAudioSession() throws {
         let session = AVAudioSession.sharedInstance()
@@ -430,17 +320,28 @@ final class VoiceSessionController: ObservableObject {
         try session.setActive(true)
     }
 
-    private func observeAudioSession() {
+    private func observeLifecycle() {
         let center = NotificationCenter.default
+        // Leaving the voice screen mid-dictation (◀ Back before Done) finishes it:
+        // the text is recognized in the moments iOS allows, then handed over.
+        notificationTokens.append(center.addObserver(
+            forName: UIApplication.willResignActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.phase == .listening else { return }
+                self.beginFinishingTask()
+                self.finishDictation(postRoll: false)
+            }
+        })
         notificationTokens.append(center.addObserver(
             forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
         ) { [weak self] notification in
             let typeValue = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
             MainActor.assumeIsolated {
-                guard let self, typeValue == AVAudioSession.InterruptionType.began.rawValue else { return }
-                // A call (or another recorder) took the microphone. The session cannot
-                // be restarted from the background, so end it cleanly and say why.
-                self.fail(.interrupted)
+                guard let self, typeValue == AVAudioSession.InterruptionType.began.rawValue,
+                      self.phase == .listening else { return }
+                // A call took the microphone: keep what was said.
+                self.finishDictation(postRoll: false)
             }
         })
         notificationTokens.append(center.addObserver(
@@ -450,19 +351,31 @@ final class VoiceSessionController: ObservableObject {
         })
     }
 
-    private func ensureMicrophonePermission(canPrompt: Bool) async -> Bool {
+    private func beginFinishingTask() {
+        guard finishingTask == .invalid else { return }
+        finishingTask = UIApplication.shared.beginBackgroundTask(withName: "Finish dictation") { [weak self] in
+            MainActor.assumeIsolated { self?.endFinishingTask() }
+        }
+    }
+
+    private func endFinishingTask() {
+        guard finishingTask != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(finishingTask)
+        finishingTask = .invalid
+    }
+
+    private func ensureMicrophonePermission() async -> Bool {
         switch AVAudioApplication.shared.recordPermission {
         case .granted: return true
         case .denied: return false
-        default: return canPrompt ? await AVAudioApplication.requestRecordPermission() : false
+        default: return await AVAudioApplication.requestRecordPermission()
         }
     }
 
     private func fail(_ failure: VoiceSessionFailure) {
-        let keptDictation = dictationID
-        endSession()
+        pipeline.cancel()
+        release()
         self.failure = failure
-        dictationID = keptDictation
         publishNow()
     }
 }

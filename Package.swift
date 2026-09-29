@@ -20,7 +20,6 @@ let package = Package(
                 "Design",
                 "VoiceUI",
                 "VoiceGlow",
-                "VoiceActivity",
                 "Keyboard/Emoji/EmojiPanelView.swift",
                 "Keyboard/Emoji/EmojiVariantPopoverView.swift",
                 "Keyboard/KeyboardDebugChannel.swift",

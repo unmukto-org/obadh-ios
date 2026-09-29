@@ -26,7 +26,7 @@ struct VoiceSettingsView: View {
                     .onChange(of: micButtonEnabled) { _, value in
                         preferences.micButtonEnabled = value
                         // Off means off: the microphone is released right now.
-                        if !value { session.endSession() }
+                        if !value { session.cancelDictation() }
                     }
             } footer: {
                 Text("Tap the microphone on the Obadh keyboard and speak in Bangla.")

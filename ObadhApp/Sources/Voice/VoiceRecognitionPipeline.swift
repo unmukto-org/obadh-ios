@@ -107,9 +107,13 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
     // MARK: Audio in
 
     /// Audio thread: store, then let the worker catch up. Never blocks on recognition.
-    func append(_ samples: [Float]) {
+    func append(_ samples: UnsafeBufferPointer<Float>) {
         ring.write(samples)
         wakeup.add(data: 1)
+    }
+
+    func append(_ samples: [Float]) {
+        samples.withUnsafeBufferPointer { append($0) }
     }
 
     // MARK: Dictation
@@ -139,9 +143,10 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
     }
 
     /// Take `postRoll` more audio, recognize everything up to there, then finish.
-    /// The end position, like the start, is taken when requested.
-    func finish() {
-        let end = ring.writeIndex + Int64(Self.postRollSamples)
+    /// The end position, like the start, is taken when requested. Without post-roll
+    /// it ends at the audio already captured (the microphone is about to stop).
+    func finish(postRoll: Bool = true) {
+        let end = ring.writeIndex + (postRoll ? Int64(Self.postRollSamples) : 0)
         queue.async { [self] in
             guard dictationID != nil, stopAt == nil else { return }
             stopAt = end
