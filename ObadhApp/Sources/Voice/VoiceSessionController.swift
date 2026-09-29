@@ -91,15 +91,24 @@ final class VoiceSessionController: ObservableObject {
         Task { await startSession(thenDictate: id) }
     }
 
+    /// What started a session.
+    enum StartSource {
+        /// The keyboard opened the app (the one-time bounce).
+        case keyboard
+        /// Control Center, the Lock Screen, or the Action button, via the
+        /// audio-recording intent. The app is in the background: nothing may prompt.
+        case systemIntent
+    }
+
     /// Start (or keep) a session. `dictationID` begins dictating at once.
     @discardableResult
-    func startSession(thenDictate dictationID: String?) async -> Bool {
+    func startSession(thenDictate dictationID: String?, source: StartSource = .keyboard) async -> Bool {
         if phase == .idle {
             let task: Task<Bool, Never>
             if let bringUp {
                 task = bringUp
             } else {
-                task = Task { await self.performBringUp() }
+                task = Task { await self.performBringUp(source: source) }
                 bringUp = task
             }
             let started = await task.value
@@ -114,11 +123,13 @@ final class VoiceSessionController: ObservableObject {
         return true
     }
 
-    private func performBringUp() async -> Bool {
+    private func performBringUp(source: StartSource) async -> Bool {
         failure = nil
         phase = .starting
         publishNow()
-        guard await ensureMicrophonePermission() else {
+        // iOS requires the Live Activity to be up before an intent starts recording.
+        VoiceLiveActivityPresenter.shared.sessionStarted()
+        guard await ensureMicrophonePermission(canPrompt: source == .keyboard) else {
             fail(.microphonePermissionDenied)
             return false
         }
@@ -158,6 +169,7 @@ final class VoiceSessionController: ObservableObject {
         watchdogTimer?.invalidate()
         watchdogTimer = nil
         isAudioFlowing = false
+        VoiceLiveActivityPresenter.shared.sessionEnded()
         phase = .idle
         dictationID = nil
         transcript = .empty
@@ -178,6 +190,7 @@ final class VoiceSessionController: ObservableObject {
         dictationID = id
         transcript = .empty
         phase = .listening
+        VoiceLiveActivityPresenter.shared.dictationChanged(isDictating: true)
         capture.isMetering = true
         pipeline.begin(dictationID: id)
         lastVoiceAt = CACurrentMediaTime()
@@ -204,6 +217,7 @@ final class VoiceSessionController: ObservableObject {
     private func clearDictation() {
         dictationID = nil
         transcript = .empty
+        VoiceLiveActivityPresenter.shared.dictationChanged(isDictating: false)
         if phase != .idle { phase = .ready }
         publishNow()
     }
@@ -228,6 +242,7 @@ final class VoiceSessionController: ObservableObject {
                 MainActor.assumeIsolated {
                     guard let self, self.dictationID == id, self.phase == .finishing else { return }
                     self.phase = .ready
+                    VoiceLiveActivityPresenter.shared.dictationChanged(isDictating: false)
                     self.publishNow()
                 }
             }
@@ -435,11 +450,11 @@ final class VoiceSessionController: ObservableObject {
         })
     }
 
-    private func ensureMicrophonePermission() async -> Bool {
+    private func ensureMicrophonePermission(canPrompt: Bool) async -> Bool {
         switch AVAudioApplication.shared.recordPermission {
         case .granted: return true
         case .denied: return false
-        default: return await AVAudioApplication.requestRecordPermission()
+        default: return canPrompt ? await AVAudioApplication.requestRecordPermission() : false
         }
     }
 
