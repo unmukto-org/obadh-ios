@@ -1,267 +1,275 @@
 import Foundation
 import os
 
-/// Two-pass recognition for one warm session.
+/// Recognition for one voice session.
 ///
-///     16 kHz audio ─▶ streaming recognizer ─▶ draft text (every buffer)
-///                  └▶ phrase buffer ─(pause)─▶ refiner ─▶ settled text
+///     microphone ─▶ VoiceAudioRing ─▶ worker (own cursor) ─▶ streaming recognizer
+///                                                            └▶ VoiceTranscriptBuilder
+///                                                                 (committed | tentative)
 ///
-/// Threading: everything about the current phrase lives on `streamQueue`. The refiner
-/// runs on its own serial `refineQueue`, so a slow re-read never delays the draft of
-/// the next phrase, and phrases settle strictly in order (the keyboard relies on
-/// that; see VoiceDraftReconciler).
+/// The microphone only ever writes into the ring and never waits on anything. The
+/// worker reads from its own cursor at its own pace. A dictation is a span of ring
+/// positions: it starts `preRoll` before the tap and ends `postRoll` after Done, so
+/// the first and last syllables are never chopped, and audio that arrives while the
+/// model is still loading is simply read once it has loaded. The recognizer runs
+/// continuously through a dictation, never reset at a pause: a pause only commits
+/// the words so far. (A freshly reset stream intermittently swallowed the first word
+/// after it.) Only a very long dictation is reset, at a pause, to bound its cost.
+///
+/// Threading: all recognition state lives on `queue`. `append` may be called from
+/// the audio thread; it only writes to the ring and schedules a pump.
 final class VoiceRecognitionPipeline: @unchecked Sendable {
     struct StreamingConfiguration {
         let paths: SherpaStreamingRecognizer.Paths
     }
 
-    struct RefinerConfiguration {
-        let model: URL
-        let tokens: URL
-        let guardRatio: Double
-    }
-
-    /// Called on `streamQueue` whenever the transcript changes.
-    var onSegments: (@Sendable (_ dictationID: String, _ segments: [VoiceSegment], _ hearsSpeech: Bool) -> Void)?
-    /// Called on `streamQueue` when the streaming model finishes loading (true) or
-    /// fails to (false).
+    /// Called on `queue` whenever the transcript changes.
+    var onTranscript: (@Sendable (_ dictationID: String, _ transcript: VoiceTranscript) -> Void)?
+    /// Called on `queue` when the streaming model finishes loading (true) or fails.
     var onStreamingReady: (@Sendable (Bool) -> Void)?
-    /// Called on `streamQueue` once a finish has settled every phrase.
+    /// Called on `queue` once a finished dictation's last audio has been recognized.
     var onFinished: (@Sendable (_ dictationID: String) -> Void)?
+    /// Called on `queue`, at most four times a second, while the audio holds voice.
+    var onVoiceActivity: (@Sendable () -> Void)?
+
+    /// Audio kept from before the tap: the first syllable often starts with it.
+    static let preRollSamples = 16_000 * 35 / 100
+    /// Audio still taken after Done: the last syllable often ends after it.
+    static let postRollSamples = 16_000 * 45 / 100
+    /// While not dictating, only this much audio is kept (enough for pre-roll).
+    static let idleRetainedSamples = 16_000
 
     private let log = Logger(subsystem: "org.unmukto.obadh", category: "voice")
-    private let streamQueue = DispatchQueue(label: "org.unmukto.obadh.voice.stream", qos: .userInteractive)
-    private let refineQueue = DispatchQueue(label: "org.unmukto.obadh.voice.refine", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "org.unmukto.obadh.voice.recognition", qos: .userInteractive)
+    let ring = VoiceAudioRing(seconds: 60)
+    /// Coalescing event source: any number of audio arrivals between two runs of the
+    /// worker become one wake-up.
+    private lazy var wakeup: DispatchSourceUserDataAdd = {
+        let source = DispatchSource.makeUserDataAddSource(queue: queue)
+        source.setEventHandler { [weak self] in self?.pump() }
+        source.activate()
+        return source
+    }()
+    private let pumpLock = NSLock()
+    /// Set the instant a dictation is requested (under `pumpLock`): audio from here
+    /// on is never trimmed, even if the queue is still busy loading the model.
+    private var armedFrom: Int64?
 
-    // streamQueue state
+    // queue state
     private var streaming: SherpaStreamingRecognizer?
-    private var refiner: SherpaPhraseRecognizer?
-    private var guardRatio = VoicePhraseArbiter.defaultGuardRatio
     private var dictationID: String?
-    private var segments: [VoiceSegment] = []
-    private var nextSegmentID = 0
-    private var phraseAudio: [Float] = []
-    /// The last moments before the current phrase began. A phrase handed to the
-    /// second pass gets this as pre-roll: measured on real clips, CTC models that
-    /// see speech with no silence before it can collapse (a whole phrase read as
-    /// "ত ত"), and recover completely with ~0.4 s of context.
-    private var preRoll: [Float] = []
-    private static let preRollSamples = 16_000 * 4 / 10
-    private static let tailPadding = [Float](repeating: 0, count: 16_000 * 3 / 10)
-    /// Audio that arrived while the streaming model was still loading. Capped: the
-    /// model loads in well under a second, this is only a safety net.
-    private var backlog: [Float] = []
-    private static let backlogLimit = 16_000 * 20
-    private var pendingRefinements = 0
-    // Health counters, logged once a second while dictating (no transcript text).
+    private var cursor: Int64 = 0
+    private var stopAt: Int64?
+    private var builder = VoiceTranscriptBuilder()
+    private var lastHypothesis = ""
+    private var lastPublished = VoiceTranscript.empty
+    private var noiseFloor: Float = 0.004
+    private var lastVoiceReport: CFAbsoluteTime = 0
+    /// Hysteresis: voice starts above `onsetFactor` × floor and continues until the
+    /// level drops below `offsetFactor` × floor for the hangover.
+    private var inVoice = false
+    private var belowOffsetSince: CFAbsoluteTime = 0
+    private static let onsetFactor: Float = 3.2
+    private static let offsetFactor: Float = 1.8
+    private static let hangover: CFAbsoluteTime = 0.3
+    // Health counters, logged once a second while dictating (never any text).
     private var statSamples = 0
     private var statPeak: Float = 0
     private var statSince = CFAbsoluteTimeGetCurrent()
-    private var finishRequested = false
 
     // MARK: Loading
 
-    /// Loads the models off the main thread. The streaming model comes first because
-    /// it is what the user sees; the refiner follows and is used from the next phrase.
-    func load(streaming: StreamingConfiguration, refiner: RefinerConfiguration?) {
-        streamQueue.async { [self] in
+    func load(streaming configuration: StreamingConfiguration) {
+        queue.async { [self] in
             let start = CFAbsoluteTimeGetCurrent()
             do {
-                self.streaming = try SherpaStreamingRecognizer(paths: streaming.paths)
+                streaming = try SherpaStreamingRecognizer(paths: configuration.paths)
                 log.notice("OBADH-VOICE streaming model loaded in \(CFAbsoluteTimeGetCurrent() - start, privacy: .public)s")
                 onStreamingReady?(true)
+                pump()
             } catch {
                 log.error("OBADH-VOICE streaming model failed: \(String(describing: error), privacy: .public)")
                 onStreamingReady?(false)
             }
-            if !backlog.isEmpty {
-                let pending = backlog
-                backlog.removeAll()
-                pending.withUnsafeBufferPointer { process($0) }
-            }
-        }
-        guard let refiner else { return }
-        refineQueue.async { [self] in
-            let start = CFAbsoluteTimeGetCurrent()
-            do {
-                let recognizer = try SherpaPhraseRecognizer(model: refiner.model, tokens: refiner.tokens)
-                log.notice("OBADH-VOICE refiner loaded in \(CFAbsoluteTimeGetCurrent() - start, privacy: .public)s")
-                streamQueue.async {
-                    self.refiner = recognizer
-                    self.guardRatio = refiner.guardRatio
-                }
-            } catch {
-                log.error("OBADH-VOICE refiner failed: \(String(describing: error), privacy: .public)")
-            }
         }
     }
 
-    var isStreamingLoaded: Bool {
-        streamQueue.sync { streaming != nil }
+    /// Frees the model and forgets all audio (the session ended).
+    func unload() {
+        queue.async { [self] in
+            streaming = nil
+            dictationID = nil
+            stopAt = nil
+            ring.reset()
+        }
+    }
+
+    // MARK: Audio in
+
+    /// Audio thread: store, then let the worker catch up. Never blocks on recognition.
+    func append(_ samples: [Float]) {
+        ring.write(samples)
+        wakeup.add(data: 1)
     }
 
     // MARK: Dictation
 
+    /// The start position is taken now, when the dictation is requested, not when the
+    /// queue gets to it: the queue may be busy loading the model, and everything said
+    /// meanwhile belongs to this dictation.
     func begin(dictationID: String) {
-        streamQueue.async { [self] in
+        let start = max(ring.oldestIndex, ring.writeIndex - Int64(Self.preRollSamples))
+        pumpLock.lock()
+        armedFrom = start
+        pumpLock.unlock()
+        queue.async { [self] in
             self.dictationID = dictationID
-            segments = []
-            phraseAudio = []
-            preRoll = []
-            backlog = []
-            finishRequested = false
+            cursor = start
+            pumpLock.lock()
+            armedFrom = nil
+            pumpLock.unlock()
+            stopAt = nil
+            builder = VoiceTranscriptBuilder()
+            lastHypothesis = ""
+            lastPublished = .empty
             streaming?.reset()
-            publish(hearsSpeech: false)
+            publish(force: true)
+            pump()
         }
     }
 
-    /// Feed converted audio. Ignored unless dictating: while the session is merely
-    /// warm, every buffer is dropped here, never stored or recognized.
-    func append(_ samples: [Float]) {
-        streamQueue.async { [self] in
-            guard dictationID != nil, !finishRequested else { return }
-            recordHealth(samples)
-            guard streaming != nil else {
-                backlog.append(contentsOf: samples)
-                if backlog.count > Self.backlogLimit {
-                    backlog.removeFirst(backlog.count - Self.backlogLimit)
-                }
-                return
-            }
-            samples.withUnsafeBufferPointer { process($0) }
-        }
-    }
-
-    /// Close the open phrase and settle everything, then call `onFinished`.
+    /// Take `postRoll` more audio, recognize everything up to there, then finish.
+    /// The end position, like the start, is taken when requested.
     func finish() {
-        streamQueue.async { [self] in
-            guard dictationID != nil, !finishRequested else { return }
-            finishRequested = true
-            closePhrase(force: true)
-            completeFinishIfSettled()
+        let end = ring.writeIndex + Int64(Self.postRollSamples)
+        queue.async { [self] in
+            guard dictationID != nil, stopAt == nil else { return }
+            stopAt = end
+            pump()
         }
     }
 
     func cancel() {
-        streamQueue.async { [self] in
+        pumpLock.lock()
+        armedFrom = nil
+        pumpLock.unlock()
+        queue.async { [self] in
             dictationID = nil
-            segments = []
-            phraseAudio = []
-            backlog = []
-            finishRequested = false
+            stopAt = nil
+            builder = VoiceTranscriptBuilder()
             streaming?.reset()
         }
     }
 
-    /// Frees the models (the session ended). They load again, in well under a
-    /// second, at the next session.
-    func unload() {
-        streamQueue.async { [self] in
-            streaming = nil
-            refiner = nil
-            backlog = []
-            phraseAudio = []
-            preRoll = []
+    // MARK: Worker
+
+    /// Recognize everything between the cursor and what the ring holds (or the
+    /// dictation's end), in 100 ms steps.
+    private func pump() {
+        guard let dictationID else {
+            // Not dictating: keep only the last moment, for the next pre-roll, and
+            // never anything a just-requested dictation starts from.
+            pumpLock.lock()
+            let armed = armedFrom
+            pumpLock.unlock()
+            ring.discard(before: min(ring.writeIndex - Int64(Self.idleRetainedSamples), armed ?? .max))
+            return
+        }
+        guard let streaming else { return }   // still loading: the ring holds the audio
+        let limit = min(stopAt ?? .max, ring.writeIndex)
+        while cursor < limit {
+            let read = ring.read(from: cursor, maxCount: min(1_600, Int(limit - cursor)))
+            guard !read.samples.isEmpty else { break }
+            cursor = read.next
+            read.samples.withUnsafeBufferPointer { streaming.accept($0) }
+            detectVoice(read.samples)
+            recordHealth(read.samples)
+            let hypothesis = streaming.text
+            if hypothesis != lastHypothesis {
+                lastHypothesis = hypothesis
+                builder.setOpenPhrase(hypothesis)
+            }
+            if streaming.isEndpoint {
+                // A pause: commit everything so far; the stream keeps its context.
+                builder.commitAll()
+                if hypothesis.count > Self.resetAfterCharacters {
+                    closePhrase(streaming)
+                }
+            }
+            publish(force: false)
+        }
+        if let stopAt, cursor >= stopAt {
+            builder.closeOpenPhrase(final: streaming.finishPhrase())
+            builder.finish()
+            publish(force: true)
+            self.dictationID = nil
+            self.stopAt = nil
+            streaming.reset()
+            onFinished?(dictationID)
         }
     }
 
-    // MARK: streamQueue internals
+    /// Past this much text, a pause also resets the stream (its decoding state grows
+    /// with the dictation). Dictations rarely get here.
+    static let resetAfterCharacters = 600
 
-    /// Once a second while dictating: how much audio arrived, how loud it was, and
-    /// whether recognition is producing anything. Never the text itself.
+    /// The stream is reset at a pause: the phrase is committed in full, and the fresh
+    /// stream is primed with the audio just before, so it does not start cold.
+    private func closePhrase(_ streaming: SherpaStreamingRecognizer) {
+        builder.closeOpenPhrase(final: streaming.finishPhrase())
+        lastHypothesis = ""
+        streaming.reset()
+        let primer = ring.read(from: cursor - 4_000, maxCount: 4_000)
+        primer.samples.withUnsafeBufferPointer { streaming.accept($0) }
+        publish(force: true)
+    }
+
+    private func publish(force: Bool) {
+        guard let dictationID else { return }
+        let transcript = builder.transcript
+        guard force || transcript != lastPublished else { return }
+        lastPublished = transcript
+        onTranscript?(dictationID, transcript)
+    }
+
+    /// Voice activity detection: energy against an adaptive noise floor, with
+    /// hysteresis (separate onset and offset thresholds, plus a hangover) so a word's
+    /// quiet ending is not cut off and room noise does not flicker in and out.
+    /// Silence detection runs on this, not on recognized text, so a quiet or unclear
+    /// word never ends a dictation.
+    private func detectVoice(_ samples: [Float]) {
+        var sum: Float = 0
+        for sample in samples { sum += sample * sample }
+        let rms = (sum / Float(max(samples.count, 1))).squareRoot()
+        // The floor falls quickly toward quiet and rises slowly, so speech never
+        // becomes the floor; it is not adapted while voice is present.
+        if !inVoice || rms < noiseFloor {
+            noiseFloor += (rms - noiseFloor) * (rms < noiseFloor ? 0.25 : 0.003)
+        }
+        let now = CFAbsoluteTimeGetCurrent()
+        if rms > max(noiseFloor * Self.onsetFactor, 0.006) {
+            inVoice = true
+            belowOffsetSince = 0
+        } else if inVoice, rms < noiseFloor * Self.offsetFactor {
+            if belowOffsetSince == 0 { belowOffsetSince = now }
+            if now - belowOffsetSince > Self.hangover { inVoice = false }
+        }
+        guard inVoice, now - lastVoiceReport > 0.25 else { return }
+        lastVoiceReport = now
+        onVoiceActivity?()
+    }
+
+    /// Once a second while dictating: how much audio arrived and how far recognition
+    /// runs behind the microphone. Never the text itself.
     private func recordHealth(_ samples: [Float]) {
         statSamples += samples.count
         for sample in samples where abs(sample) > statPeak { statPeak = abs(sample) }
         let now = CFAbsoluteTimeGetCurrent()
         guard now - statSince >= 1 else { return }
-        let characters = segments.reduce(0) { $0 + $1.text.count }
-        log.notice("OBADH-VOICE health: \(self.statSamples, privacy: .public) samples, peak \(String(format: "%.3f", self.statPeak), privacy: .public), recognizer \(self.streaming == nil ? "loading" : "ready", privacy: .public), backlog \(self.backlog.count, privacy: .public), \(self.segments.count, privacy: .public) phrases, \(characters, privacy: .public) chars")
+        let lagMs = Double(ring.writeIndex - cursor) / 16
+        log.notice("OBADH-VOICE health: \(self.statSamples, privacy: .public) samples, peak \(String(format: "%.3f", self.statPeak), privacy: .public), lag \(Int(lagMs), privacy: .public) ms, \(self.lastPublished.text.count, privacy: .public) chars (\(self.lastPublished.stableLength, privacy: .public) committed)")
         statSamples = 0
         statPeak = 0
         statSince = now
-    }
-
-    private func process(_ samples: UnsafeBufferPointer<Float>) {
-        guard let streaming else { return }
-        phraseAudio.append(contentsOf: samples)
-        streaming.accept(samples)
-        let text = streaming.text
-        updateOpenSegment(text: text)
-        if streaming.isEndpoint {
-            closePhrase(force: false)
-        }
-    }
-
-    private func updateOpenSegment(text: String) {
-        let normalized = VoicePhraseArbiter.normalize(text)
-        if let last = segments.last, !last.isSettled, last.id == nextSegmentID {
-            guard last.text != normalized else { return }
-            segments[segments.count - 1].text = normalized
-        } else {
-            guard !normalized.isEmpty else { return }
-            segments.append(VoiceSegment(id: nextSegmentID, text: normalized, isSettled: false))
-        }
-        publish(hearsSpeech: true)
-    }
-
-    private func closePhrase(force: Bool) {
-        guard let streaming else { return }
-        let draft = VoicePhraseArbiter.normalize(streaming.finishPhrase())
-        let audio = preRoll + phraseAudio + Self.tailPadding
-        preRoll = Array(phraseAudio.suffix(Self.preRollSamples))
-        phraseAudio = []
-        streaming.reset()
-        guard !draft.isEmpty else {
-            // Silence or noise: nothing was said, so the audio is simply dropped.
-            if let index = segments.lastIndex(where: { $0.id == nextSegmentID }) {
-                segments.remove(at: index)
-                publish(hearsSpeech: false)
-            }
-            return
-        }
-        let id = nextSegmentID
-        nextSegmentID += 1
-        if let index = segments.lastIndex(where: { $0.id == id }) {
-            segments[index].text = draft
-        } else {
-            segments.append(VoiceSegment(id: id, text: draft, isSettled: false))
-        }
-        guard let refiner else {
-            settle(id: id, text: draft)
-            return
-        }
-        pendingRefinements += 1
-        let guardRatio = self.guardRatio
-        let dictation = dictationID
-        refineQueue.async { [self] in
-            let start = CFAbsoluteTimeGetCurrent()
-            let reading = refiner.transcribe(audio)
-            let elapsed = CFAbsoluteTimeGetCurrent() - start
-            log.notice("OBADH-VOICE refined \(Double(audio.count) / 16_000, privacy: .public)s phrase in \(elapsed, privacy: .public)s")
-            streamQueue.async {
-                self.pendingRefinements -= 1
-                guard self.dictationID == dictation else { return }
-                self.settle(id: id, text: VoicePhraseArbiter.choose(streaming: draft, refined: reading, guardRatio: guardRatio))
-                self.completeFinishIfSettled()
-            }
-        }
-        publish(hearsSpeech: true)
-    }
-
-    private func settle(id: Int, text: String) {
-        guard let index = segments.firstIndex(where: { $0.id == id }) else { return }
-        segments[index].text = text
-        segments[index].isSettled = true
-        publish(hearsSpeech: true)
-    }
-
-    private func completeFinishIfSettled() {
-        guard finishRequested, pendingRefinements == 0, let dictationID else { return }
-        onFinished?(dictationID)
-    }
-
-    private func publish(hearsSpeech: Bool) {
-        guard let dictationID else { return }
-        onSegments?(dictationID, segments, hearsSpeech)
     }
 }

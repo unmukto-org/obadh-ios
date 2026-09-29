@@ -154,18 +154,6 @@ final class VoiceModelLibrary: ObservableObject {
         ))
     }
 
-    func activeRefinerConfiguration() -> VoiceRecognitionPipeline.RefinerConfiguration? {
-        guard preferences.refinementEnabled,
-              let id = activeRefinerID, let model = catalog.model(id: id), store.isInstalled(model),
-              model.runtime == .sherpaOnnxNemoCTC,
-              let file = model.option("model"), let tokens = model.option("tokens") else { return nil }
-        return .init(
-            model: store.fileURL(file, of: model),
-            tokens: store.fileURL(tokens, of: model),
-            guardRatio: model.option("guardRatio").flatMap(Double.init) ?? VoicePhraseArbiter.defaultGuardRatio
-        )
-    }
-
     // MARK: Internals
 
     private func refreshStates() {

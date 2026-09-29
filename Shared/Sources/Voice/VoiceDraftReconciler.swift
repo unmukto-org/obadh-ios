@@ -2,39 +2,38 @@ import Foundation
 
 /// Turns the app's transcript snapshots into document edits, keyboard side.
 ///
-/// The document holds the dictation as ordinary text. Settled phrases are left
-/// alone for good; only the unsettled tail (the phrase being spoken plus any phrase
-/// still waiting for the refiner) is tracked and rewritten in place. Because the
-/// app refines phrases in order, settled phrases are always a prefix, so the tracked
-/// region is always the text immediately before the cursor.
+/// The document holds, right before the cursor, the dictation's committed text
+/// (already appended, never touched again) followed by a small tentative tail
+/// (usually the last word, which the recognizer may still revise). Each update
+/// replaces only that tail with whatever became committed plus the new tail. So
+/// text is deleted only within the tail, a word or two at most, and committed text
+/// can never be lost to a host that answers late or shows only part of the field.
 ///
-/// This type is pure: it decides what the tracked region should read, and how much
-/// of it to let go of afterwards. `VoiceDraftWriter` applies that to a live document.
+/// This type is pure: it decides what the tail should read. `VoiceDraftWriter`
+/// applies that to a live document.
 struct VoiceDraftReconciler: Equatable, Codable {
     struct Step: Equatable {
-        /// What the tracked region reads now (as last applied).
+        /// The tentative tail as it reads in the document now.
         let currentText: String
-        /// What it should read.
+        /// What should replace it: newly committed text, then the new tail.
         let desiredText: String
-        /// After applying `desiredText`, how much of it stays tracked. Always a suffix
-        /// of `desiredText`; the rest has settled and is released.
+        /// The tentative part of `desiredText` (its suffix) that stays tracked.
         let retainedText: String
-        /// Everything in the snapshot is settled; the dictation is complete.
+        /// Committed characters (of the rendered dictation) after this step.
+        let committedAfter: Int
+        /// The dictation is complete and fully in the document after this step.
         let completesDictation: Bool
     }
 
     private(set) var dictationID: String?
-    /// Segments with an id at or below this are released (settled and applied, or
-    /// abandoned because the tracked text was lost).
-    private(set) var releasedThroughID = -1
-    /// Whether any text of this dictation has been released into the document, which
-    /// means the next phrase needs a separating space.
-    private(set) var hasReleasedText = false
-    /// Exact text currently tracked in the document.
-    private(set) var trackedText = ""
-    /// Separator to put before the very first phrase, decided at `begin` from what
-    /// precedes the cursor.
+    /// Separator before the first word, decided at `begin` from what precedes the
+    /// cursor.
     private(set) var leadingSeparator = ""
+    /// Characters of the rendered dictation (separator + text) already committed
+    /// into the document.
+    private(set) var committed = 0
+    /// The tentative text currently in the document after the committed text.
+    private(set) var trackedText = ""
 
     var isActive: Bool { dictationID != nil }
 
@@ -51,75 +50,47 @@ struct VoiceDraftReconciler: Equatable, Codable {
     /// The edit a snapshot calls for, or nil when there is nothing to do.
     func step(for snapshot: VoiceSessionSnapshot) -> Step? {
         guard let dictationID, snapshot.dictationID == dictationID else { return nil }
-
-        let pending = snapshot.segments
-            .filter { $0.id > releasedThroughID }
-            .sorted { $0.id < $1.id }
-
-        let desired = compose(pending)
-        let settledPrefix = pending.prefix { $0.isSettled }
-        let unsettled = pending.dropFirst(settledPrefix.count)
-        let allSettled = unsettled.isEmpty
-            && (snapshot.phase == .ready || snapshot.phase == .idle)
-
-        // What remains tracked is the unsettled tail, rendered exactly as `compose`
-        // renders it inside `desired`, so it is a true suffix.
-        let retained: String
-        if unsettled.contains(where: { !$0.text.isEmpty }) {
-            let releasedAnything = hasReleasedText || settledPrefix.contains { !$0.text.isEmpty }
-            retained = Self.join(Array(unsettled), prefix: releasedAnything ? " " : leadingSeparator)
-        } else {
-            retained = ""
-        }
-
-        if desired == trackedText, retained == trackedText, settledPrefix.isEmpty, !allSettled {
+        let transcript = snapshot.transcript
+        let rendered = render(transcript.text)
+        let stable = transcript.stableLength > 0 ? render(String(transcript.stableText)).count : 0
+        // Committed text only grows; a snapshot that claims less is out of date.
+        let committedAfter = max(stable, committed)
+        let desired = String(rendered.dropFirst(committed))
+        let retained = String(rendered.dropFirst(committedAfter))
+        let completes = transcript.isFinal && (snapshot.phase == .ready || snapshot.phase == .idle)
+        if desired == trackedText, committedAfter == committed, !completes {
             return nil
         }
         return Step(
             currentText: trackedText,
             desiredText: desired,
             retainedText: retained,
-            completesDictation: allSettled
+            committedAfter: committedAfter,
+            completesDictation: completes
         )
     }
 
     /// Record that `step` was applied to the document.
-    mutating func didApply(_ step: Step, snapshot: VoiceSessionSnapshot) {
-        let pending = snapshot.segments
-            .filter { $0.id > releasedThroughID }
-            .sorted { $0.id < $1.id }
-        let settledPrefix = pending.prefix { $0.isSettled }
-        if let last = settledPrefix.last {
-            releasedThroughID = last.id
-            if settledPrefix.contains(where: { !$0.text.isEmpty }) {
-                hasReleasedText = true
-            }
-        }
+    mutating func didApply(_ step: Step) {
+        committed = step.committedAfter
         trackedText = step.retainedText
         assert(step.desiredText.hasSuffix(step.retainedText))
     }
 
-    /// The tracked text is no longer where we left it: the user moved the cursor or
-    /// the host changed the field. Release everything known so far without touching
-    /// the document (it may now be anywhere), and carry on with later phrases at
-    /// wherever the cursor is.
-    mutating func abandonTracked(snapshot: VoiceSessionSnapshot, contextBefore: String?) {
-        if let maxID = snapshot.segments.map(\.id).max() {
-            releasedThroughID = max(releasedThroughID, maxID)
-        }
+    /// The tail could not be verified for a while: the document no longer shows it
+    /// before the cursor, which almost always means the cursor moved or the host
+    /// changed the field. Nothing is deleted. The newly committed text is written at
+    /// the cursor, wherever it now is (dropping it would lose speech), and tracking
+    /// restarts from there. Returns what to insert.
+    mutating func fallbackInsertion(for step: Step) -> String {
+        let newlyCommitted = String(step.desiredText.prefix(step.committedAfter - committed))
+        committed = step.committedAfter
         trackedText = ""
-        hasReleasedText = false
-        leadingSeparator = Self.separator(after: contextBefore ?? "")
+        return newlyCommitted
     }
 
-    private func compose(_ segments: [VoiceSegment]) -> String {
-        Self.join(segments, prefix: hasReleasedText ? " " : leadingSeparator)
-    }
-
-    private static func join(_ segments: [VoiceSegment], prefix: String) -> String {
-        let texts = segments.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-        guard !texts.isEmpty else { return "" }
-        return prefix + texts.joined(separator: " ")
+    private func render(_ text: String) -> String {
+        text.isEmpty ? "" : leadingSeparator + text
     }
 
     /// A space when the cursor follows a word; nothing at the start of the field or

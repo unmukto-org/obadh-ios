@@ -66,8 +66,8 @@ struct VoiceSessionScreen: View {
                     .font(.system(.headline, design: .rounded))
                     .foregroundStyle(.secondary)
                     .contentTransition(.opacity)
-                if !session.transcript.isEmpty {
-                    Text(session.transcript)
+                if !session.transcript.text.isEmpty {
+                    Text(session.transcript.text)
                         .font(.system(size: 22))
                         .multilineTextAlignment(.center)
                         .lineLimit(4)
@@ -75,7 +75,7 @@ struct VoiceSessionScreen: View {
                         .transition(.opacity)
                 }
             }
-            .animation(.smooth, value: session.transcript)
+            .animation(.smooth, value: session.transcript.text)
         }
     }
 
@@ -91,7 +91,7 @@ struct VoiceSessionScreen: View {
         switch session.phase {
         case .idle, .starting: "Starting the microphone…"
         case .ready: "Microphone ready"
-        case .listening: session.transcript.isEmpty ? "Listening. Speak in Bangla." : "Listening"
+        case .listening: session.transcript.text.isEmpty ? "Listening. Speak in Bangla." : "Listening"
         case .finishing: "Finishing…"
         }
     }

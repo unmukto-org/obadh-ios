@@ -37,7 +37,7 @@ final class SherpaStreamingRecognizer: @unchecked Sendable {
 
     /// `trailingSilence` is how long a pause (after speech) closes a phrase. Short
     /// enough to feel responsive, long enough not to split a sentence at a breath.
-    init(paths: Paths, trailingSilence: Float = 0.9, threads: Int32 = 2) throws {
+    init(paths: Paths, trailingSilence: Float = 1.2, threads: Int32 = 2) throws {
         let strings = CStrings()
         var config = SherpaOnnxOnlineRecognizerConfig()
         config.feat_config.sample_rate = 16_000

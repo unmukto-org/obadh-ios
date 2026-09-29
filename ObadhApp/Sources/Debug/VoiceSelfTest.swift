@@ -36,9 +36,7 @@ enum VoiceSelfTest {
     }
 
     nonisolated private static func run(path: String) async {
-        let (streaming, refiner) = await MainActor.run {
-            (VoiceModelLibrary.shared.activeStreamingConfiguration(), VoiceModelLibrary.shared.activeRefinerConfiguration())
-        }
+        let streaming = await MainActor.run { VoiceModelLibrary.shared.activeStreamingConfiguration() }
         guard let streaming else {
             log.error("OBADH-VOICE selftest: no streaming model installed")
             return
@@ -49,13 +47,14 @@ enum VoiceSelfTest {
         }
         let pipeline = VoiceRecognitionPipeline()
         let finished = AsyncStream<Void>.makeStream()
-        pipeline.onSegments = { _, segments, _ in
-            let rendered = segments.map { "\($0.isSettled ? "✓" : "…")\($0.id):\($0.text)" }.joined(separator: " | ")
-            log.notice("OBADH-VOICE selftest segments: \(rendered, privacy: .public)")
+        pipeline.onTranscript = { _, transcript in
+            let stable = String(transcript.stableText)
+            let tail = String(transcript.text.dropFirst(transcript.stableLength))
+            log.notice("OBADH-VOICE selftest transcript: [\(stable, privacy: .public)]\(tail, privacy: .public)\(transcript.isFinal ? " (final)" : "", privacy: .public)")
         }
         pipeline.onFinished = { _ in finished.continuation.yield() }
         let start = CFAbsoluteTimeGetCurrent()
-        pipeline.load(streaming: streaming, refiner: refiner)
+        pipeline.load(streaming: streaming)
         pipeline.begin(dictationID: "selftest")
         let chunk = 800  // 50 ms
         for offset in stride(from: 0, to: samples.count, by: chunk) {

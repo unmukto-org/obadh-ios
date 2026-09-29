@@ -3,47 +3,46 @@ import Combine
 import UIKit
 import os
 
-/// The app side of voice typing: holds the microphone for a warm session, runs the
-/// recognizers, and publishes the transcript to the keyboard. See docs/voice-typing.md.
+/// The app side of voice typing: holds the microphone for a voice session, runs
+/// recognition, and publishes the transcript to the keyboard. See docs/voice-typing.md.
 ///
 /// Lifecycle:
 ///
-///     idle ──(foreground start)──▶ starting ──▶ ready ◀──▶ listening ──▶ finishing ──▶ ready
-///       ▲                                         │
-///       └──(keyboard closes: mic released, models unloaded)──┘
+///     idle ──(start)──▶ starting ──▶ ready ◀──▶ listening ──▶ finishing ──▶ ready
+///       ▲                              │
+///       └──(10 min without dictating, turned off, or interrupted)──┘
 ///
-/// A backgrounded app can keep a recording alive but cannot start one, so the only
-/// way into `starting` is with the app in the foreground (the keyboard's bounce).
-/// The session never outlives the keyboard: it ends the moment the keyboard closes
-/// (or is found missing), and a dictation ends after a spell of silence. No timers
-/// the user has to think about.
+/// A backgrounded app can keep a recording alive but cannot start one, so a session
+/// starts only with the app in the foreground (the keyboard's one-time bounce) or
+/// from the system's audio-recording intent (Control Center, Lock Screen, Action
+/// button). Once started, every dictation from the keyboard begins instantly, in any
+/// app, until the session has gone unused for `sessionIdleLimit`. While no dictation
+/// runs, audio is discarded as it arrives (the ring keeps only the last second).
 @MainActor
 final class VoiceSessionController: ObservableObject {
     static let shared = VoiceSessionController()
+
+    /// A session with no dictation for this long ends, releasing the microphone.
+    static let sessionIdleLimit: TimeInterval = 10 * 60
 
     @Published private(set) var phase: VoiceSessionPhase = .idle {
         didSet {
             guard phase != oldValue else { return }
             log.notice("OBADH-VOICE phase \(oldValue.rawValue, privacy: .public) -> \(self.phase.rawValue, privacy: .public)")
+            if phase == .ready { idleSince = CACurrentMediaTime() }
         }
     }
     /// Audio buffers are arriving right now (watchdog-measured, not assumed).
     @Published private(set) var isAudioFlowing = false
     /// The streaming recognizer is loaded.
     @Published private(set) var isRecognizerReady = false
-    @Published private(set) var segments: [VoiceSegment] = []
+    @Published private(set) var transcript = VoiceTranscript.empty
     @Published private(set) var failure: VoiceSessionFailure?
     @Published private(set) var dictationID: String?
-
-    /// The live transcript, for the in-app session screen.
-    var transcript: String {
-        segments.map(\.text).filter { !$0.isEmpty }.joined(separator: " ")
-    }
 
     let levels = VoiceLevelFeed()
 
     private let log = Logger(subsystem: "org.unmukto.obadh", category: "voice")
-    private let preferences = VoicePreferences()
     private let models: VoiceModelLibrary
     private let directory: URL?
     private let levelWriter: VoiceLevelWriter?
@@ -51,30 +50,20 @@ final class VoiceSessionController: ObservableObject {
     private let pipeline = VoiceRecognitionPipeline()
     private var commandObserver: VoiceDarwinObserver?
     private var heartbeatTimer: Timer?
-    /// When newly recognized speech last arrived in the current dictation.
-    private var lastSpeechAt: CFTimeInterval = 0
-    /// Until when a missing keyboard is tolerated (the user tapping back from the
-    /// bounce needs a moment for the keyboard to reappear).
-    private var keyboardGraceUntil: CFTimeInterval = 0
-    /// Set while the bounce screen is on screen: the one time the keyboard is
-    /// expected to be away while the session runs.
-    var isBounceScreenVisible = false {
-        didSet {
-            if oldValue, !isBounceScreenVisible {
-                keyboardGraceUntil = CACurrentMediaTime() + VoiceSessionTiming.returnGrace
-            }
-        }
-    }
+    private var watchdogTimer: Timer?
+    /// When the audio last held voice (not recognized text: a quiet or unclear word
+    /// must not end a dictation).
+    private var lastVoiceAt: CFTimeInterval = 0
+    /// When the session last became idle (ready, not dictating).
+    private var idleSince: CFTimeInterval = 0
     private var snapshotSeq: UInt64 = 0
     private var lastCommandSeq: UInt64 = 0
     private var pendingPublish: DispatchWorkItem?
-    private var hearsSpeech = false
     private var notificationTokens: [NSObjectProtocol] = []
     /// The one bring-up in flight. A cold bounce delivers both the URL and the
     /// keyboard's start command; without this they raced through the idle check and
     /// started capture and model loading twice.
     private var bringUp: Task<Bool, Never>?
-    private var watchdogTimer: Timer?
     private var recoveryAttempted = false
     /// Buffers arrive every ~50 ms; this long without one means the engine stalled.
     private static let audioStallThreshold: CFTimeInterval = 0.8
@@ -94,7 +83,7 @@ final class VoiceSessionController: ObservableObject {
     // MARK: Entry points
 
     /// The keyboard opened `obadh://voice?d=<id>`: we are in the foreground, which is
-    /// the one moment a recording may start.
+    /// one of the moments a recording may start.
     func handleVoiceURL(_ url: URL) {
         let id = URLComponents(url: url, resolvingAgainstBaseURL: false)?
             .queryItems?.first { $0.name == VoiceSessionChannel.dictationQueryItem }?.value
@@ -102,8 +91,9 @@ final class VoiceSessionController: ObservableObject {
         Task { await startSession(thenDictate: id) }
     }
 
-    /// Start (or keep) a warm session. `dictationID` begins dictating at once.
-    func startSession(thenDictate dictationID: String?) async {
+    /// Start (or keep) a session. `dictationID` begins dictating at once.
+    @discardableResult
+    func startSession(thenDictate dictationID: String?) async -> Bool {
         if phase == .idle {
             let task: Task<Bool, Never>
             if let bringUp {
@@ -114,13 +104,14 @@ final class VoiceSessionController: ObservableObject {
             }
             let started = await task.value
             bringUp = nil
-            guard started else { return }
+            guard started else { return false }
         }
         if let dictationID {
             beginDictation(dictationID)
         } else {
             publishNow()
         }
+        return true
     }
 
     private func performBringUp() async -> Bool {
@@ -143,10 +134,10 @@ final class VoiceSessionController: ObservableObject {
             fail(.audioEngineFailed)
             return false
         }
-        // Audio is flowing (and buffered) before the model finishes loading, so
-        // nothing said during the load is lost.
+        // Audio flows into the ring before the model has loaded; the recognizer
+        // catches up from there, so nothing said during the load is lost.
         isRecognizerReady = false
-        pipeline.load(streaming: streaming, refiner: models.activeRefinerConfiguration())
+        pipeline.load(streaming: streaming)
         recoveryAttempted = false
         startHeartbeat()
         startWatchdog()
@@ -154,8 +145,7 @@ final class VoiceSessionController: ObservableObject {
         return true
     }
 
-    /// Releases the microphone and unloads the models. The session exists only while
-    /// the keyboard is on screen; nothing listens, or stays in memory, after.
+    /// Releases the microphone, unloads the model, and forgets all audio.
     func endSession() {
         pipeline.cancel()
         pipeline.unload()
@@ -170,7 +160,7 @@ final class VoiceSessionController: ObservableObject {
         isAudioFlowing = false
         phase = .idle
         dictationID = nil
-        segments = []
+        transcript = .empty
         publishNow()
     }
 
@@ -186,12 +176,11 @@ final class VoiceSessionController: ObservableObject {
         guard phase == .ready || phase == .listening || phase == .finishing else { return }
         if self.dictationID == id, phase == .listening { return }
         dictationID = id
-        segments = []
-        hearsSpeech = false
+        transcript = .empty
         phase = .listening
         capture.isMetering = true
         pipeline.begin(dictationID: id)
-        lastSpeechAt = CACurrentMediaTime()
+        lastVoiceAt = CACurrentMediaTime()
         publishNow()
     }
 
@@ -214,21 +203,24 @@ final class VoiceSessionController: ObservableObject {
     /// in the shared container.
     private func clearDictation() {
         dictationID = nil
-        segments = []
+        transcript = .empty
         if phase != .idle { phase = .ready }
         publishNow()
     }
 
     private func wirePipeline() {
-        pipeline.onSegments = { [weak self] id, segments, hears in
+        pipeline.onTranscript = { [weak self] id, transcript in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self, self.dictationID == id else { return }
-                    if segments != self.segments { self.lastSpeechAt = CACurrentMediaTime() }
-                    self.segments = segments
-                    self.hearsSpeech = hears
+                    self.transcript = transcript
                     self.schedulePublish()
                 }
+            }
+        }
+        pipeline.onVoiceActivity = { [weak self] in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.lastVoiceAt = CACurrentMediaTime() }
             }
         }
         pipeline.onFinished = { [weak self] id in
@@ -282,8 +274,9 @@ final class VoiceSessionController: ObservableObject {
         switch command.kind {
         case .start:
             if phase == .idle {
-                // Not running: only the foreground bounce can start us. The keyboard
-                // falls back to opening the app when this goes unanswered.
+                // Not running: only the foreground (the bounce) or the recording
+                // intent can start us. The keyboard falls back to opening the app
+                // when this goes unanswered.
                 if UIApplication.shared.applicationState == .active {
                     Task { await startSession(thenDictate: command.dictationID) }
                 }
@@ -303,8 +296,8 @@ final class VoiceSessionController: ObservableObject {
 
     // MARK: Snapshot publishing
 
-    /// Partials arrive every audio buffer; the keyboard does not need more than
-    /// ~25 updates a second, and each is a file write plus a cross-process wake-up.
+    /// Transcript changes arrive every audio step; ~30 updates a second is plenty,
+    /// and each is a file write plus a cross-process wake-up.
     private func schedulePublish() {
         guard pendingPublish == nil else { return }
         let work = DispatchWorkItem { [weak self] in
@@ -314,7 +307,7 @@ final class VoiceSessionController: ObservableObject {
             }
         }
         pendingPublish = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03, execute: work)
     }
 
     private func publishNow() {
@@ -327,7 +320,7 @@ final class VoiceSessionController: ObservableObject {
             phase: phase,
             heartbeat: Date(),
             dictationID: dictationID,
-            segments: segments,
+            transcript: transcript,
             failure: failure,
             isAudioFlowing: isAudioFlowing,
             isRecognizerReady: isRecognizerReady
@@ -340,29 +333,39 @@ final class VoiceSessionController: ObservableObject {
         }
     }
 
-    /// Checks four times a second that audio is really arriving. A stalled engine is
-    /// rebuilt once; if it stays silent the session ends and says why, rather than
-    /// showing "listening" while hearing nothing.
+    // MARK: Watchdog
+
+    /// Four times a second: audio really arriving, dictation still hearing a voice,
+    /// session still in use.
     private func startWatchdog() {
         watchdogTimer?.invalidate()
         let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.checkAudioHealth() }
+            MainActor.assumeIsolated { self?.tick() }
         }
         RunLoop.main.add(timer, forMode: .common)
         watchdogTimer = timer
     }
 
-    private func checkAudioHealth() {
+    private func tick() {
         guard phase != .idle else { return }
-        checkKeyboardPresence()
-        guard phase != .idle else { return }
-        // Nothing new recognized for a while: the user has stopped talking.
+        let now = CACurrentMediaTime()
         if phase == .listening, let dictationID,
-           CACurrentMediaTime() - lastSpeechAt > VoiceSessionTiming.silenceEndsDictation {
+           now - lastVoiceAt > VoiceSessionTiming.silenceEndsDictation {
             log.notice("OBADH-VOICE silence ended the dictation")
             stop(dictationID)
         }
-        let flowing = CACurrentMediaTime() - capture.lastBufferAt < Self.audioStallThreshold
+        if phase == .ready, now - idleSince > Self.sessionIdleLimit {
+            log.notice("OBADH-VOICE session unused for \(Int(Self.sessionIdleLimit / 60), privacy: .public) min; releasing the microphone")
+            endSession()
+            return
+        }
+        checkAudioFlow(now: now)
+    }
+
+    /// A stalled engine is rebuilt once; if it stays silent the session ends and
+    /// says why, rather than showing "listening" while hearing nothing.
+    private func checkAudioFlow(now: CFTimeInterval) {
+        let flowing = now - capture.lastBufferAt < Self.audioStallThreshold
         if flowing != isAudioFlowing {
             isAudioFlowing = flowing
             log.notice("OBADH-VOICE audio \(flowing ? "flowing" : "stalled", privacy: .public)")
@@ -384,24 +387,6 @@ final class VoiceSessionController: ObservableObject {
             log.error("OBADH-VOICE capture rebuild failed: \(String(describing: error), privacy: .public)")
             fail(.audioEngineFailed)
         }
-    }
-
-    /// The microphone is held only while the Obadh keyboard is on screen. The keyboard
-    /// says goodbye when it closes; this catches the case where it could not (iOS
-    /// killed it). While the app itself is in front (the bounce), the keyboard is
-    /// expected to be away.
-    private func checkKeyboardPresence() {
-        // Only the bounce screen excuses a missing keyboard. Browsing the Obadh app
-        // itself does not: that used to keep the microphone on while in Settings.
-        let bounceInFront = isBounceScreenVisible && UIApplication.shared.applicationState == .active
-        guard !bounceInFront,
-              CACurrentMediaTime() > keyboardGraceUntil,
-              let directory else { return }
-        let url = VoiceSessionChannel.presenceURL(in: directory)
-        let touched = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-        guard Date().timeIntervalSince(touched) > VoiceSessionTiming.presenceTolerance else { return }
-        log.notice("OBADH-VOICE keyboard is gone; releasing the microphone")
-        endSession()
     }
 
     private func startHeartbeat() {
@@ -432,13 +417,6 @@ final class VoiceSessionController: ObservableObject {
 
     private func observeAudioSession() {
         let center = NotificationCenter.default
-        notificationTokens.append(center.addObserver(
-            forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.keyboardGraceUntil = CACurrentMediaTime() + VoiceSessionTiming.returnGrace
-            }
-        })
         notificationTokens.append(center.addObserver(
             forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
         ) { [weak self] notification in

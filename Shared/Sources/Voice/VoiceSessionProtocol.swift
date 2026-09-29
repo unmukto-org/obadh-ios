@@ -20,24 +20,15 @@ enum VoiceSessionPhase: String, Codable, Sendable {
     case finishing
 }
 
-/// One phrase of a dictation, delimited by a pause.
-struct VoiceSegment: Codable, Equatable, Sendable {
-    let id: Int
-    var text: String
-    /// Settled segments will not change again: refined, or refinement was skipped
-    /// or failed and the streaming text stands.
-    var isSettled: Bool
-}
-
 struct VoiceSessionSnapshot: Codable, Equatable, Sendable {
     var seq: UInt64
     var phase: VoiceSessionPhase
     /// Refreshed at least once a second while the app process is alive. A stale
     /// heartbeat means the app was suspended or killed, whatever `phase` says.
     var heartbeat: Date
-    /// The dictation the segments belong to, as issued by the keyboard.
+    /// The dictation the transcript belongs to, as issued by the keyboard.
     var dictationID: String?
-    var segments: [VoiceSegment]
+    var transcript: VoiceTranscript
     /// A short, user-presentable reason the last start failed, if it did.
     var failure: VoiceSessionFailure?
     /// Audio buffers are actually arriving (not just "the engine was started").
@@ -51,7 +42,7 @@ struct VoiceSessionSnapshot: Codable, Equatable, Sendable {
         phase: .idle,
         heartbeat: .distantPast,
         dictationID: nil,
-        segments: [],
+        transcript: .empty,
         failure: nil
     )
 
@@ -102,16 +93,10 @@ enum VoiceSessionTiming {
     /// The longest "Done" waits for the last phrase to be refined before the
     /// keyboard settles for the streaming text.
     static let finishTimeout: TimeInterval = 4.0
-    /// Dictation ends by itself after this long without newly recognized speech.
+    /// Dictation ends by itself after this long without voice in the audio.
     static let silenceEndsDictation: TimeInterval = 8.0
-    /// The keyboard refreshes its presence this often while on screen.
+    /// How often the keyboard re-checks the session while on screen.
     static let presenceInterval: TimeInterval = 1.0
-    /// No presence for this long, with the app in the background, means the
-    /// keyboard is gone: the microphone is released.
-    static let presenceTolerance: TimeInterval = 3.0
-    /// After the app goes to the background (the user tapping back from the
-    /// bounce), how long the keyboard has to reappear.
-    static let returnGrace: TimeInterval = 4.0
 }
 
 /// Names and places shared by both processes.
@@ -158,11 +143,6 @@ enum VoiceSessionChannel {
         directory.appendingPathComponent("levels.bin")
     }
 
-    /// Touched by the keyboard while it is on screen. Its modification date is the
-    /// whole message: the microphone is held only while the keyboard is there.
-    static func presenceURL(in directory: URL) -> URL {
-        directory.appendingPathComponent("keyboard.presence")
-    }
 }
 
 /// Atomic JSON persistence for the two message files.

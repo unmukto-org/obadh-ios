@@ -76,7 +76,6 @@ final class VoiceKeyboardCoordinator {
                 self?.snapshotDidChange()
             }
         }
-        touchPresence()
         restorePersistedDictation()
         snapshotDidChange()
         startWarmthTimer()
@@ -88,16 +87,13 @@ final class VoiceKeyboardCoordinator {
         levels.detach()
         // Opening the app for the bounce is the one disappearance that is not goodbye.
         guard !isHandingOff else { return }
-        // The keyboard is closing (dismissed, another keyboard, another app): the
-        // microphone must not outlive it. Any dictation in flight is dropped rather
-        // than inserted into whatever field happens to be focused later.
+        // The keyboard is closing (dismissed, another keyboard, another app). A
+        // dictation in flight is dropped rather than inserted into whatever field
+        // happens to be focused later. The session itself stays available (it ends
+        // after ten minutes unused), so the next dictation starts instantly.
         if let dictationID = reconciler.dictationID {
             send(.cancel, dictationID: dictationID)
             endDictation()
-        }
-        if lastSnapshot.phase != .idle {
-            log.notice("OBADH-VOICE keyboard closing; releasing the microphone")
-            send(.endSession, dictationID: "")
         }
     }
 
@@ -243,7 +239,7 @@ final class VoiceKeyboardCoordinator {
             if snapshot.isAudioFlowing == false {
                 setPhase(.connecting)
             } else {
-                let heard = snapshot.segments.contains { !$0.text.isEmpty }
+                let heard = !snapshot.transcript.text.isEmpty
                 setPhase(heard ? .listening : .ready)
             }
         case .finishing:
@@ -260,7 +256,7 @@ final class VoiceKeyboardCoordinator {
         switch outcome {
         case .applied:
             staleSince = nil
-            reconciler.didApply(step, snapshot: snapshot)
+            reconciler.didApply(step)
         case .stale:
             let now = CACurrentMediaTime()
             let since = staleSince ?? now
@@ -272,8 +268,12 @@ final class VoiceKeyboardCoordinator {
             }
             staleSince = nil
             let window = host.voiceDocument.contextBeforeInput?.count ?? -1
-            log.notice("OBADH-VOICE draft no longer at the cursor (host window \(window, privacy: .public), draft \(step.currentText.count, privacy: .public)); continuing at the cursor")
-            reconciler.abandonTracked(snapshot: snapshot, contextBefore: host.voiceDocument.contextBeforeInput)
+            log.notice("OBADH-VOICE tail not at the cursor (host window \(window, privacy: .public), tail \(step.currentText.count, privacy: .public)); continuing at the cursor")
+            // Nothing is deleted; committed words are written where the cursor is.
+            let insertion = reconciler.fallbackInsertion(for: step)
+            if !insertion.isEmpty {
+                host.voicePerformTextUpdate { host.voiceDocument.insertText(insertion) }
+            }
         }
         if step.completesDictation, let dictationID = reconciler.dictationID {
             send(.acknowledge, dictationID: dictationID)
@@ -287,12 +287,10 @@ final class VoiceKeyboardCoordinator {
 
     private func startWarmthTimer() {
         warmthTimer?.invalidate()
-        // Once a second while visible: tell the app the keyboard is still here (the
-        // microphone is held only while it is), and re-check warmth, which decays
-        // silently if the app is suspended. Stops on disappear.
+        // Once a second while visible: re-check warmth, which decays silently if the
+        // app is suspended or was killed. Stops on disappear.
         let timer = Timer(timeInterval: VoiceSessionTiming.presenceInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.touchPresence()
                 self?.snapshotDidChange()
             }
         }
@@ -351,16 +349,6 @@ final class VoiceKeyboardCoordinator {
 
     // MARK: IPC
 
-    /// A zero-byte file whose modification date says "the keyboard is on screen".
-    private func touchPresence() {
-        guard let directory else { return }
-        let url = VoiceSessionChannel.presenceURL(in: directory)
-        if !FileManager.default.fileExists(atPath: url.path) {
-            FileManager.default.createFile(atPath: url.path, contents: Data())
-        } else {
-            try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path)
-        }
-    }
 
     private func readSnapshot() -> VoiceSessionSnapshot? {
         guard let directory else { return nil }
