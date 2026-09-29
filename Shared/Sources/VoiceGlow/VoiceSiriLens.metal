@@ -58,7 +58,11 @@ fragment float4 lensFragment(VertexOut in [[stage_in]], constant LensUniforms &u
     float x = p.x / center.x;
     float envelope = smoothstep(1.0, 0.55, abs(x));
     float y = -p.y;                                   // up is positive, 0 at the horizon
-    float H = center.y * 0.80;                        // tallest a lobe may grow, clear of the edges
+    // Tallest a lobe may grow. Kept well inside the ribbon: its bottom edge sits
+    // right on the top row of keys, so light reaching it read as spilling onto them.
+    float H = center.y * 0.62;
+    // And anything near the top or bottom edge fades out rather than stopping hard.
+    float vertical = smoothstep(center.y * 0.95, center.y * 0.60, abs(y));
 
     float live = u.mode < 0.5 ? 1.0 : 0.0;
     float waiting = (u.mode > 0.5 && u.mode < 1.5) ? 1.0 : 0.0;
@@ -78,6 +82,7 @@ fragment float4 lensFragment(VertexOut in [[stage_in]], constant LensUniforms &u
         float3(1.00, 0.18, 0.55)    // magenta
     };
     float3 light = float3(0);
+    float presence = 0;                               // how much light is at this x
     float t = u.time;
     float voice = live * (0.10 + 1.25 * u.level) + waiting * 0.05 + finishing * 0.04;
     for (int i = 0; i < count; i++) {
@@ -95,19 +100,28 @@ fragment float4 lensFragment(VertexOut in [[stage_in]], constant LensUniforms &u
         bump *= bump;
         float top = amp * bump * envelope;
         float yy = y * side;                             // distance on this lobe's side
-        float body = smoothstep(-aa, aa, top - yy) * smoothstep(-aa, aa, yy);
+        // A lobe with no height contributes nothing (edge smoothing alone left every
+        // lobe a one-pixel sliver on the horizon, which summed into a standing line).
+        float exists = smoothstep(0.0, 1.5 * u.scale, top);
+        float body = smoothstep(-aa, aa, top - yy) * smoothstep(-aa, aa, yy) * exists;
         // Brighter toward the lobe's edge, as light gathers at the rim of the wave.
         float k = top > 0.5 ? clamp(yy / top, 0.0, 1.0) : 0.0;
         float intensity = body * mix(0.55, 1.35, k * k);
-        float halo = exp(-max(0.0, yy - top) / (3.0 * u.scale)) * step(0.0, yy) * bump * envelope * 0.5;
+        float halo = exp(-max(0.0, yy - top) / (3.0 * u.scale)) * step(0.0, yy) * bump * envelope * 0.5 * exists;
         light += colors[i] * (intensity + halo);
+        presence += bump * envelope * clamp(amp / H, 0.0, 1.0);
     }
 
-    // Horizon: a hairline along the ribbon, brighter where the light is.
-    float line = exp(-(y * y) / (0.45 * u.scale * u.scale)) * envelope;
+    // Horizon: a hairline that glints only under the light, never a standing line.
+    // While waiting or finishing, a short soft shimmer at the centre is the only
+    // sign of life.
+    float line = exp(-(y * y) / (0.45 * u.scale * u.scale));
     float shimmer = 0.6 + 0.4 * sin(t * 3.0 - x * 7.0);
-    float lineStrength = 0.10 + 0.45 * finishing * shimmer + 0.12 * waiting * shimmer + 0.30 * u.level * live;
+    float centre = exp(-(x * x) / 0.08);
+    float lineStrength = live * 0.9 * clamp(presence, 0.0, 1.0)
+                       + (waiting * 0.25 + finishing * 0.55) * shimmer * centre;
     light += float3(0.95, 0.97, 1.0) * line * lineStrength;
+    light *= vertical;
 
     float peak = max(light.r, max(light.g, light.b));
     float coverage = 1.0 - exp(-peak * 2.1);
