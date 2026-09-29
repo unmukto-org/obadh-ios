@@ -135,10 +135,10 @@ final class SuggestionBarView: UIView {
 
     /// Show the voice waveform (or a short status) in place of the candidates;
     /// `nil` restores them.
-    func setVoiceIndicator(_ phase: VoicePanelPhase?, levelSource: (() -> VoiceLevelFrame)?) {
+    func setVoiceIndicator(_ phase: VoicePanelPhase?, levelFeed: VoiceLevelFeed?) {
         let showing = phase != nil
         if let phase {
-            voiceIndicator.levelSource = levelSource
+            voiceIndicator.levelFeed = levelFeed
             voiceIndicator.setPhase(phase, textColor: KeyboardTheme.suggestionTextColor(for: traitCollection))
         }
         guard showing != isShowingVoiceIndicator else { return }
@@ -223,7 +223,9 @@ final class SuggestionBarView: UIView {
             micButton.bottomAnchor.constraint(equalTo: stackView.bottomAnchor),
             micWidth,
             stackView.leadingAnchor.constraint(equalTo: micButton.trailingAnchor),
-            voiceIndicator.leadingAnchor.constraint(equalTo: micButton.trailingAnchor),
+            // The whole strip, so the lens centres on it; the mic sits above and
+            // keeps its own taps.
+            voiceIndicator.leadingAnchor.constraint(equalTo: leadingAnchor),
             voiceIndicator.trailingAnchor.constraint(equalTo: trailingAnchor),
             voiceIndicator.topAnchor.constraint(equalTo: stackView.topAnchor),
             voiceIndicator.bottomAnchor.constraint(equalTo: stackView.bottomAnchor),

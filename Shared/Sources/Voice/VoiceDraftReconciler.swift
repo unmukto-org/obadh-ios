@@ -130,22 +130,46 @@ struct VoiceDraftReconciler: Equatable, Codable {
     }
 }
 
-/// Applies reconciler steps to a live document, verifying before every edit that
-/// the tracked text is still immediately before the cursor.
+/// Applies reconciler steps to a live document.
+///
+/// Before touching anything it checks that the draft it wrote is still immediately
+/// before the cursor, so it can never delete text it does not own. The check uses
+/// an anchor (the draft's last characters), not the whole draft: hosts expose only a
+/// window of text before the cursor, and a long phrase outgrows it. Matching the
+/// whole draft made the keyboard give up mid-dictation ("lost track of draft") while
+/// speech kept arriving, which looked like the recognizer skipping words.
 @MainActor
 struct VoiceDraftWriter {
     enum Outcome: Equatable {
         case applied
-        /// The tracked text was not at the cursor. Nothing was edited.
-        case lostTrack
+        /// The document did not (yet) show our draft at the cursor. Nothing was
+        /// edited. Usually a host that has not caught up; the caller retries and
+        /// gives up only if it persists.
+        case stale
+    }
+
+    /// Long enough to be unambiguous, short enough to fit any host's window.
+    /// Counted in Unicode scalars: that is what we inserted, and some hosts delete
+    /// one scalar per backspace, leaving a half cluster that a Character comparison
+    /// cannot see.
+    static let anchorScalars = 48
+
+    /// Whether `context` (what the host shows before the cursor) ends with `text`,
+    /// judged scalar for scalar on `text`'s last `anchorScalars`. A host window
+    /// shorter than that is accepted when it is entirely the end of `text`.
+    static func contextEnds(_ context: String, with text: String) -> Bool {
+        let anchor = Array(text.unicodeScalars.suffix(anchorScalars))
+        guard !anchor.isEmpty else { return true }
+        let tail = Array(context.unicodeScalars.suffix(anchor.count))
+        if tail == anchor { return true }
+        let window = Array(context.unicodeScalars)
+        return window.count >= 4 && window.count < anchor.count && anchor.suffix(window.count).elementsEqual(window)
     }
 
     func apply(_ step: VoiceDraftReconciler.Step, in document: TextDocumentEditing) -> Outcome {
         let context = document.contextBeforeInput ?? ""
         let current = step.currentText
-        if !current.isEmpty, !context.hasSuffix(current) {
-            return .lostTrack
-        }
+        guard Self.contextEnds(context, with: current) else { return .stale }
         let desired = step.desiredText
         guard desired != current else { return .applied }
 
@@ -156,26 +180,41 @@ struct VoiceDraftWriter {
             return .applied
         }
 
-        // Rewrite the changed suffix, deleting against the live document by scalar
-        // count (the host decides how much one deleteBackward removes), exactly as
-        // TextCompositionController does for typed words.
-        // The shared prefix is counted in Characters so the delete stops on a
-        // grapheme boundary and never splits a conjunct.
+        // Rewrite from the first changed character. The shared prefix is counted in
+        // Characters so the edit starts on a grapheme boundary and never splits a
+        // conjunct.
         var keptCharacters = 0
         for (old, new) in zip(current, desired) {
             guard old == new else { break }
             keptCharacters += 1
         }
-        let keptScalars = current.prefix(keptCharacters).unicodeScalars.count
-        let removeScalars = current.unicodeScalars.count - keptScalars
-        let targetScalars = context.unicodeScalars.count - removeScalars
-        var budget = removeScalars + 8
-        while budget > 0, (document.contextBeforeInput?.unicodeScalars.count ?? 0) > targetScalars {
+        var remaining = String(current.dropFirst(keptCharacters))
+        // Delete only while the document still visibly ends with (what is left of)
+        // the text being replaced. How much one deleteBackward removes is up to the
+        // host; after each press we re-read what remains rather than count.
+        var steps = remaining.unicodeScalars.count + 2
+        while !remaining.isEmpty, steps > 0 {
+            guard Self.contextEnds(document.contextBeforeInput ?? "", with: remaining) else { break }
             document.deleteBackward()
-            budget -= 1
+            steps -= 1
+            remaining = Self.remainder(of: remaining, after: document.contextBeforeInput ?? "")
         }
         let insertion = String(desired.dropFirst(keptCharacters))
         if !insertion.isEmpty { document.insertText(insertion) }
         return .applied
+    }
+
+    /// The longest proper prefix of `text` (in scalars) that the document still
+    /// ends with.
+    private static func remainder(of text: String, after context: String) -> String {
+        var scalars = Array(text.unicodeScalars)
+        while !scalars.isEmpty {
+            scalars.removeLast()
+            var candidate = String.UnicodeScalarView()
+            candidate.append(contentsOf: scalars)
+            let string = String(candidate)
+            if scalars.isEmpty || contextEnds(context, with: string) { return string }
+        }
+        return ""
     }
 }

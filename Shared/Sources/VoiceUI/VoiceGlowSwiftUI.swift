@@ -1,32 +1,25 @@
 import SwiftUI
 import UIKit
 
-/// `VoiceGlowView` in SwiftUI, for the app's screens. The same view the keyboard's
-/// strip uses, so the two can never drift apart visually.
-struct VoiceGlow: UIViewRepresentable {
-    let source: VoiceLevelSource
-    var mode: VoiceGlowView.Mode = .live
+/// `VoiceLensView` in SwiftUI, for the app's screens: the same lens the keyboard's
+/// strip shows, so the two can never drift apart visually.
+struct VoiceLens: UIViewRepresentable {
+    let feed: VoiceLevelFeed
+    var mode: VoiceLensView.Mode = .live
 
-    func makeUIView(context: Context) -> VoiceGlowView {
-        let view = VoiceGlowView()
-        view.levelSource = { [weak source] in source?.currentFrame() ?? .silent }
+    func makeUIView(context: Context) -> VoiceLensView {
+        let view = VoiceLensView()
+        view.levelFeed = feed
         view.setMode(mode)
         return view
     }
 
-    func updateUIView(_ view: VoiceGlowView, context: Context) {
+    func updateUIView(_ view: VoiceLensView, context: Context) {
         view.setMode(mode)
     }
 }
 
 enum VoiceUIPalette {
-    /// Obadh's own accent, for controls. The glow itself uses the Siri palette.
+    /// Obadh's own accent, for controls. The lens itself uses the Siri palette.
     static let teal = Color(red: 0x3C / 255, green: 0xBF / 255, blue: 0xBC / 255)
 }
-
-#if DEBUG
-@MainActor
-final class SyntheticVoiceLevelSource: VoiceLevelSource {
-    func currentFrame() -> VoiceLevelFrame { SyntheticVoiceLevels.frame(at: CACurrentMediaTime()) }
-}
-#endif

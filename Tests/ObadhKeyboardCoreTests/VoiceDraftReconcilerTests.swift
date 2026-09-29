@@ -26,7 +26,7 @@ final class VoiceDraftReconcilerTests: XCTestCase {
         let outcome = VoiceDraftWriter().apply(step, in: document)
         switch outcome {
         case .applied: reconciler.didApply(step, snapshot: snapshot)
-        case .lostTrack: reconciler.abandonTracked(snapshot: snapshot, contextBefore: document.contextBeforeInput)
+        case .stale: reconciler.abandonTracked(snapshot: snapshot, contextBefore: document.contextBeforeInput)
         }
         return outcome
     }
@@ -105,7 +105,7 @@ final class VoiceDraftReconcilerTests: XCTestCase {
 
         document.insertText(" typed")  // the host text changed under us
         let outcome = feed(snapshot([VoiceSegment(id: 0, text: "চূড়ান্ত", isSettled: true)]), &reconciler, document)
-        XCTAssertEqual(outcome, .lostTrack)
+        XCTAssertEqual(outcome, .stale)
         XCTAssertEqual(document.text, "খসড়া typed")
 
         feed(snapshot([
@@ -125,6 +125,31 @@ final class VoiceDraftReconcilerTests: XCTestCase {
         feed(snapshot([VoiceSegment(id: 0, text: "বাংলাদেশ স্বাধীনতা", isSettled: false)]), &reconciler, document)
         feed(snapshot([VoiceSegment(id: 0, text: "বাংলাদেশের স্বাধীনতা", isSettled: true)], phase: .ready), &reconciler, document)
         XCTAssertEqual(document.contextBeforeInput, "বাংলাদেশের স্বাধীনতা")
+    }
+
+    /// Hosts expose only a window before the cursor. A draft longer than the window
+    /// must still be rewritten in place, not abandoned.
+    func testLongDraftInNarrowHostWindowStillRewrites() {
+        let document = WindowedDocument(window: 40)
+        var reconciler = VoiceDraftReconciler()
+        reconciler.begin(dictationID: "d1", contextBefore: "")
+        let long = "আজ আমি অফিসে যাব না কারণ আমার শরীর ভালো লাগছে না তাই বাসায় থাকব"
+        XCTAssertEqual(feed(snapshot([VoiceSegment(id: 0, text: long, isSettled: false)]), &reconciler, document), .applied)
+        let corrected = long + " আজকে"
+        XCTAssertEqual(feed(snapshot([VoiceSegment(id: 0, text: corrected, isSettled: false)]), &reconciler, document), .applied)
+        let reworded = "আজ আমি অফিসে যাব না কারণ আমার শরীর ভালো লাগছে না তাই বাসায় থাকবো"
+        XCTAssertEqual(feed(snapshot([VoiceSegment(id: 0, text: reworded, isSettled: true)], phase: .ready), &reconciler, document), .applied)
+        XCTAssertEqual(document.fullText, reworded)
+    }
+
+    /// If the document stops ending with our draft mid-delete, deletion stops: text
+    /// that is not ours is never removed.
+    func testDeletionStopsAtForeignText() {
+        let document = FakeCompositionDocument(initialText: "keep ")
+        let writer = VoiceDraftWriter()
+        let step = VoiceDraftReconciler.Step(currentText: "ab", desiredText: "xy", retainedText: "xy", completesDictation: false)
+        XCTAssertEqual(writer.apply(step, in: document), .stale, "document does not end with the draft")
+        XCTAssertEqual(document.text, "keep ")
     }
 
     func testEmptyStreamingSegmentsAddNothing() {
@@ -193,4 +218,16 @@ final class VoiceSessionProtocolTests: XCTestCase {
         XCTAssertEqual(reader.read().level, 1, "reader clamps")
         XCTAssertEqual(reader.read().bands.first, 0, "reader drops non-finite")
     }
+}
+
+/// A host that, like real ones, shows only the last `window` characters before the
+/// cursor.
+@MainActor
+final class WindowedDocument: TextDocumentEditing {
+    private(set) var fullText = ""
+    let window: Int
+    init(window: Int) { self.window = window }
+    var contextBeforeInput: String? { String(fullText.suffix(window)) }
+    func insertText(_ text: String) { fullText.append(text) }
+    func deleteBackward() { if !fullText.isEmpty { fullText.removeLast() } }
 }

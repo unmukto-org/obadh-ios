@@ -14,13 +14,6 @@ enum VoicePanelPhase: Equatable {
     case problem(String)
 }
 
-/// Where the voice visual gets its audio levels, once per displayed frame. The
-/// keyboard reads the shared page the app writes; the app reads the same page.
-@MainActor
-protocol VoiceLevelSource: AnyObject {
-    func currentFrame() -> VoiceLevelFrame
-}
-
 /// Smooths raw levels into what the eye should see: a fast attack so syllables land
 /// on the beat, a slower release so the light does not flicker between them, and a
 /// much slower "presence" envelope that warms the colours while someone keeps talking.

@@ -58,9 +58,8 @@ struct VoiceSessionScreen: View {
             failureView(failure)
         } else {
             VStack(spacing: 20) {
-                VoiceGlow(source: session.levels, mode: glowMode)
-                    .frame(height: 140)
-                    .padding(.horizontal, -24)
+                VoiceLens(feed: session.levels, mode: lensMode)
+                    .frame(width: 220, height: 64)
                 Text(statusText)
                     .font(.system(.headline, design: .rounded))
                     .foregroundStyle(.secondary)
@@ -78,7 +77,7 @@ struct VoiceSessionScreen: View {
         }
     }
 
-    private var glowMode: VoiceGlowView.Mode {
+    private var lensMode: VoiceLensView.Mode {
         switch session.phase {
         case .listening, .ready: session.isAudioFlowing ? .live : .waiting
         case .finishing: .finishing

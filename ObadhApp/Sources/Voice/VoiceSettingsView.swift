@@ -23,7 +23,11 @@ struct VoiceSettingsView: View {
         Form {
             Section {
                 Toggle("Voice Typing", isOn: $micButtonEnabled)
-                    .onChange(of: micButtonEnabled) { _, value in preferences.micButtonEnabled = value }
+                    .onChange(of: micButtonEnabled) { _, value in
+                        preferences.micButtonEnabled = value
+                        // Off means off: the microphone is released right now.
+                        if !value { session.endSession() }
+                    }
             } footer: {
                 Text("Tap the microphone on the Obadh keyboard and speak in Bangla.")
             }

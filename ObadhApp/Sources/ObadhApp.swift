@@ -147,11 +147,13 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
         while let presented = top.presentedViewController { top = presented }
         top.present(screen, animated: false)
         voiceScreen = screen
+        VoiceSessionController.shared.isBounceScreenVisible = true
     }
 
     private func dismissVoiceScreen() {
         voiceScreen?.dismiss(animated: true)
         voiceScreen = nil
+        VoiceSessionController.shared.isBounceScreenVisible = false
     }
 
     private func makeRootViewController() -> UIViewController {

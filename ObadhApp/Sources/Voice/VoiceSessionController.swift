@@ -40,7 +40,7 @@ final class VoiceSessionController: ObservableObject {
         segments.map(\.text).filter { !$0.isEmpty }.joined(separator: " ")
     }
 
-    let levels: VoiceLevelSource
+    let levels = VoiceLevelFeed()
 
     private let log = Logger(subsystem: "org.unmukto.obadh", category: "voice")
     private let preferences = VoicePreferences()
@@ -56,6 +56,15 @@ final class VoiceSessionController: ObservableObject {
     /// Until when a missing keyboard is tolerated (the user tapping back from the
     /// bounce needs a moment for the keyboard to reappear).
     private var keyboardGraceUntil: CFTimeInterval = 0
+    /// Set while the bounce screen is on screen: the one time the keyboard is
+    /// expected to be away while the session runs.
+    var isBounceScreenVisible = false {
+        didSet {
+            if oldValue, !isBounceScreenVisible {
+                keyboardGraceUntil = CACurrentMediaTime() + VoiceSessionTiming.returnGrace
+            }
+        }
+    }
     private var snapshotSeq: UInt64 = 0
     private var lastCommandSeq: UInt64 = 0
     private var pendingPublish: DispatchWorkItem?
@@ -75,7 +84,7 @@ final class VoiceSessionController: ObservableObject {
         directory = VoiceSessionChannel.directory()
         levelWriter = directory.flatMap { VoiceLevelWriter(url: VoiceSessionChannel.levelsURL(in: $0)) }
         capture = VoiceAudioCapture(levelWriter: levelWriter)
-        levels = VoiceAppLevelSource(url: directory.map(VoiceSessionChannel.levelsURL(in:)))
+        levels.attach(directory.map(VoiceSessionChannel.levelsURL(in:)))
         snapshotSeq = UInt64(Date().timeIntervalSince1970 * 1000)
         wirePipeline()
         observeCommands()
@@ -382,7 +391,10 @@ final class VoiceSessionController: ObservableObject {
     /// killed it). While the app itself is in front (the bounce), the keyboard is
     /// expected to be away.
     private func checkKeyboardPresence() {
-        guard UIApplication.shared.applicationState != .active,
+        // Only the bounce screen excuses a missing keyboard. Browsing the Obadh app
+        // itself does not: that used to keep the microphone on while in Settings.
+        let bounceInFront = isBounceScreenVisible && UIApplication.shared.applicationState == .active
+        guard !bounceInFront,
               CACurrentMediaTime() > keyboardGraceUntil,
               let directory else { return }
         let url = VoiceSessionChannel.presenceURL(in: directory)
@@ -459,22 +471,5 @@ final class VoiceSessionController: ObservableObject {
         self.failure = failure
         dictationID = keptDictation
         publishNow()
-    }
-}
-
-/// The app reads its own level page, so the session screen shows exactly what the
-/// keyboard shows.
-@MainActor
-private final class VoiceAppLevelSource: VoiceLevelSource {
-    private let url: URL?
-    private var reader: VoiceLevelReader?
-
-    init(url: URL?) {
-        self.url = url
-    }
-
-    func currentFrame() -> VoiceLevelFrame {
-        if reader == nil, let url { reader = VoiceLevelReader(url: url) }
-        return reader?.read() ?? .silent
     }
 }

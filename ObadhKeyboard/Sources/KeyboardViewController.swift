@@ -2410,9 +2410,7 @@ extension KeyboardViewController: VoiceKeyboardHost {
     /// Voice typing lives in the suggestion strip: the candidates give way to the
     /// live waveform and the keys stay exactly as they are.
     func voiceShowIndicator(_ phase: VoicePanelPhase?) {
-        suggestionBar.setVoiceIndicator(phase, levelSource: phase == nil ? nil : { [weak self] in
-            self?.voice.levels.currentFrame() ?? .silent
-        })
+        suggestionBar.setVoiceIndicator(phase, levelFeed: phase == nil ? nil : voice.levels)
         if phase == nil {
             refreshSuggestions()
         }

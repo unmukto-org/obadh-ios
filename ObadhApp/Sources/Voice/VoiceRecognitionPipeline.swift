@@ -53,6 +53,10 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
     private var backlog: [Float] = []
     private static let backlogLimit = 16_000 * 20
     private var pendingRefinements = 0
+    // Health counters, logged once a second while dictating (no transcript text).
+    private var statSamples = 0
+    private var statPeak: Float = 0
+    private var statSince = CFAbsoluteTimeGetCurrent()
     private var finishRequested = false
 
     // MARK: Loading
@@ -116,6 +120,7 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
     func append(_ samples: [Float]) {
         streamQueue.async { [self] in
             guard dictationID != nil, !finishRequested else { return }
+            recordHealth(samples)
             guard streaming != nil else {
                 backlog.append(contentsOf: samples)
                 if backlog.count > Self.backlogLimit {
@@ -161,6 +166,20 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
     }
 
     // MARK: streamQueue internals
+
+    /// Once a second while dictating: how much audio arrived, how loud it was, and
+    /// whether recognition is producing anything. Never the text itself.
+    private func recordHealth(_ samples: [Float]) {
+        statSamples += samples.count
+        for sample in samples where abs(sample) > statPeak { statPeak = abs(sample) }
+        let now = CFAbsoluteTimeGetCurrent()
+        guard now - statSince >= 1 else { return }
+        let characters = segments.reduce(0) { $0 + $1.text.count }
+        log.notice("OBADH-VOICE health: \(self.statSamples, privacy: .public) samples, peak \(String(format: "%.3f", self.statPeak), privacy: .public), recognizer \(self.streaming == nil ? "loading" : "ready", privacy: .public), backlog \(self.backlog.count, privacy: .public), \(self.segments.count, privacy: .public) phrases, \(characters, privacy: .public) chars")
+        statSamples = 0
+        statPeak = 0
+        statSince = now
+    }
 
     private func process(_ samples: UnsafeBufferPointer<Float>) {
         guard let streaming else { return }

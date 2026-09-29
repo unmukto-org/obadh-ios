@@ -26,7 +26,7 @@ final class VoiceKeyboardCoordinator {
     weak var host: VoiceKeyboardHost?
     /// The phase shown in the strip while voice typing is active.
     private(set) var phase: VoicePanelPhase = .connecting
-    let levels = VoiceKeyboardLevelSource()
+    let levels = VoiceLevelFeed()
 
     private var reconciler = VoiceDraftReconciler()
     private var lastSnapshot = VoiceSessionSnapshot.empty
@@ -34,6 +34,16 @@ final class VoiceKeyboardCoordinator {
     private var snapshotObserver: VoiceDarwinObserver?
     private var warmthTimer: Timer?
     private var acknowledgementDeadline: DispatchWorkItem?
+    /// Draft writes are paced: each is several round trips to the host, and a host
+    /// fed faster than it echoes back reads stale.
+    private var pendingApply: DispatchWorkItem?
+    private var lastApplyAt: CFTimeInterval = 0
+    private static let applyInterval: CFTimeInterval = 0.08
+    /// Since when the document has not shown our draft. A brief mismatch is a host
+    /// catching up; only a persistent one means the text moved.
+    private var staleSince: CFTimeInterval?
+    private static let staleRetry: CFTimeInterval = 0.15
+    private static let staleGiveUp: CFTimeInterval = 0.6
     private var finishDeadline: DispatchWorkItem?
     /// True from opening the app until the keyboard reappears, so the disappearance
     /// the bounce causes is not mistaken for the user leaving mid-dictation.
@@ -75,7 +85,7 @@ final class VoiceKeyboardCoordinator {
     func hostDidDisappear() {
         warmthTimer?.invalidate()
         warmthTimer = nil
-        levels.close()
+        levels.detach()
         // Opening the app for the bounce is the one disappearance that is not goodbye.
         guard !isHandingOff else { return }
         // The keyboard is closing (dismissed, another keyboard, another app): the
@@ -166,6 +176,9 @@ final class VoiceKeyboardCoordinator {
     private func endDictation() {
         if reconciler.isActive { log.notice("OBADH-VOICE dictation ended") }
         acknowledgementDeadline?.cancel()
+        pendingApply?.cancel()
+        pendingApply = nil
+        staleSince = nil
         finishDeadline?.cancel()
         reconciler.end()
         persistReconciler()
@@ -195,7 +208,22 @@ final class VoiceKeyboardCoordinator {
             log.notice("OBADH-VOICE app acknowledged in phase \(snapshot.phase.rawValue, privacy: .public)")
         }
         updatePanelPhase(from: snapshot)
-        apply(snapshot)
+        scheduleApply(after: 0)
+    }
+
+    private func scheduleApply(after delay: CFTimeInterval) {
+        pendingApply?.cancel()
+        let wait = max(delay, Self.applyInterval - (CACurrentMediaTime() - lastApplyAt))
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.pendingApply = nil
+                self.lastApplyAt = CACurrentMediaTime()
+                self.apply(self.lastSnapshot)
+            }
+        }
+        pendingApply = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, wait), execute: work)
     }
 
     private func updatePanelPhase(from snapshot: VoiceSessionSnapshot) {
@@ -231,9 +259,20 @@ final class VoiceKeyboardCoordinator {
         }
         switch outcome {
         case .applied:
+            staleSince = nil
             reconciler.didApply(step, snapshot: snapshot)
-        case .lostTrack:
-            log.notice("OBADH-VOICE lost track of draft; releasing without edits")
+        case .stale:
+            let now = CACurrentMediaTime()
+            let since = staleSince ?? now
+            staleSince = since
+            guard now - since >= Self.staleGiveUp else {
+                // Most likely the host has not caught up yet: try again shortly.
+                scheduleApply(after: Self.staleRetry)
+                return
+            }
+            staleSince = nil
+            let window = host.voiceDocument.contextBeforeInput?.count ?? -1
+            log.notice("OBADH-VOICE draft no longer at the cursor (host window \(window, privacy: .public), draft \(step.currentText.count, privacy: .public)); continuing at the cursor")
             reconciler.abandonTracked(snapshot: snapshot, contextBefore: host.voiceDocument.contextBeforeInput)
         }
         if step.completesDictation, let dictationID = reconciler.dictationID {
@@ -277,9 +316,9 @@ final class VoiceKeyboardCoordinator {
         guard visible != isPanelVisible else { return }
         isPanelVisible = visible
         if visible {
-            levels.open()
+            levels.attach(directory.map(VoiceSessionChannel.levelsURL(in:)))
         } else {
-            levels.close()
+            levels.detach()
         }
         host?.voiceShowIndicator(visible ? phase : nil)
         publishMicState()
@@ -393,46 +432,5 @@ final class VoiceKeyboardCoordinator {
         let live = snapshot.phase == .listening || snapshot.phase == .ready || snapshot.phase == .starting
         setPhase(snapshot.phase == .finishing ? .finishing : (live ? .ready : .finishing))
         setPanelVisible(true)
-    }
-}
-
-/// Reads the app's shared level page for the keyboard's visual. Opening is retried
-/// at most twice a second until the app has created the page (cold start).
-@MainActor
-final class VoiceKeyboardLevelSource: VoiceLevelSource {
-    #if DEBUG
-    /// Synthetic speech-like levels so the visual can be reviewed on the simulator
-    /// without the app recording (`scripts/sim-kbd.py debug voice:demo`).
-    var isSynthetic = false
-    #endif
-    private var reader: VoiceLevelReader?
-    private var isOpen = false
-    private var lastAttempt: CFTimeInterval = 0
-
-    func open() {
-        isOpen = true
-        attach()
-    }
-
-    func close() {
-        isOpen = false
-        reader = nil
-    }
-
-    func currentFrame() -> VoiceLevelFrame {
-        #if DEBUG
-        if isSynthetic { return SyntheticVoiceLevels.frame(at: CACurrentMediaTime()) }
-        #endif
-        if reader == nil, isOpen, CACurrentMediaTime() - lastAttempt > 0.5 {
-            attach()
-        }
-        return reader?.read() ?? .silent
-    }
-
-
-    private func attach() {
-        lastAttempt = CACurrentMediaTime()
-        guard let directory = VoiceSessionChannel.directory() else { return }
-        reader = VoiceLevelReader(url: VoiceSessionChannel.levelsURL(in: directory))
     }
 }

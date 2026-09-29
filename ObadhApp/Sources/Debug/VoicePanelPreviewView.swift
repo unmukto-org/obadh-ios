@@ -8,18 +8,22 @@ import UIKit
 /// where the strip's look is reviewed. Uses the keyboard's own indicator view.
 struct VoicePanelPreviewView: View {
     let phase: VoicePanelPhase
-    private let source = SyntheticVoiceLevelSource()
+    private let feed: VoiceLevelFeed = {
+        let feed = VoiceLevelFeed()
+        feed.isSynthetic = true
+        return feed
+    }()
 
     var body: some View {
         ZStack(alignment: .bottom) {
             // Neutral, like most apps behind a keyboard.
             Color(.systemBackground).ignoresSafeArea()
             VStack(spacing: 0) {
-                HStack(spacing: 0) {
+                ZStack(alignment: .leading) {
+                    StripIndicator(phase: phase, feed: feed)
                     Image(systemName: phase == .listening || phase == .ready ? "mic.fill" : "mic")
                         .font(.system(size: 17))
                         .frame(width: 44)
-                    StripIndicator(phase: phase, source: source)
                 }
                 .frame(height: 36)
                 VStack(spacing: 11) {
@@ -44,11 +48,11 @@ struct VoicePanelPreviewView: View {
 
 private struct StripIndicator: UIViewRepresentable {
     let phase: VoicePanelPhase
-    let source: SyntheticVoiceLevelSource
+    let feed: VoiceLevelFeed
 
     func makeUIView(context: Context) -> VoiceStripIndicatorView {
         let view = VoiceStripIndicatorView()
-        view.levelSource = { [weak source] in source?.currentFrame() ?? .silent }
+        view.levelFeed = feed
         return view
     }
 
