@@ -65,6 +65,42 @@ final class VoiceModelLibrary: ObservableObject {
             .reduce(0) { $0 + $1.totalBytes }
     }
 
+    /// The whole download as one thing, which is how the user sees it.
+    enum SetStatus: Equatable {
+        case notInstalled(bytes: Int64)
+        case downloading(progress: Double)
+        case installed(bytes: Int64)
+        case failed
+    }
+
+    var defaultSet: [VoiceModelDescriptor] {
+        VoiceModelRole.allCases.compactMap { catalog.defaultModel(for: $0, deviceMemoryGiB: deviceMemoryGiB) }
+    }
+
+    var defaultSetStatus: SetStatus {
+        let set = defaultSet
+        let total = set.reduce(Int64(0)) { $0 + $1.totalBytes }
+        if set.allSatisfy({ state(of: $0) == .installed }) { return .installed(bytes: total) }
+        var done: Double = 0
+        var downloading = false
+        var failed = false
+        for model in set {
+            switch state(of: model) {
+            case .installed: done += Double(model.totalBytes)
+            case .downloading(let fraction): downloading = true; done += fraction * Double(model.totalBytes)
+            case .failed: failed = true
+            case .notInstalled: break
+            }
+        }
+        if downloading { return .downloading(progress: done / Double(max(total, 1))) }
+        if failed { return .failed }
+        return .notInstalled(bytes: defaultSetDownloadBytes)
+    }
+
+    func removeDefaultSet() {
+        for model in defaultSet { remove(model) }
+    }
+
     func downloadDefaultSet() {
         for role in VoiceModelRole.allCases {
             guard let model = catalog.defaultModel(for: role, deviceMemoryGiB: deviceMemoryGiB),

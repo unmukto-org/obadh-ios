@@ -1,19 +1,5 @@
 import SwiftUI
 
-/// What the keyboard's voice panel is showing.
-enum VoicePanelPhase: Equatable {
-    /// Waiting for the app: opening it, or a warm start not yet acknowledged.
-    case connecting
-    /// The app is recording; nothing heard yet in this dictation.
-    case ready
-    /// Speech is flowing.
-    case listening
-    /// Stopped; the last phrase is being refined.
-    case finishing
-    /// Something the user has to fix (shown as a short sentence).
-    case problem(String)
-}
-
 @MainActor
 final class VoicePanelModel: ObservableObject {
     @Published var phase: VoicePanelPhase = .connecting

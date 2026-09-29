@@ -50,7 +50,11 @@ final class SherpaStreamingRecognizer: @unchecked Sendable {
         config.model_config.provider = strings.make("cpu")
         config.model_config.model_type = strings.make(paths.modelType)
         config.model_config.debug = 0
-        config.decoding_method = strings.make("modified_beam_search")
+        // Greedy, not beam search: beam search revises words it has already shown
+        // (measured on SUBAK.KO: 1.7 rewrites and ~33 characters retyped per minute,
+        // which reads as jitter in the text field). Greedy never revises a shown
+        // word and costs 0.5 WER points.
+        config.decoding_method = strings.make("greedy_search")
         config.max_active_paths = 4
         config.enable_endpoint = 1
         config.rule1_min_trailing_silence = 2.4

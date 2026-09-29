@@ -9,7 +9,8 @@ protocol VoiceKeyboardHost: AnyObject {
     var voiceDocument: TextDocumentEditing { get }
     /// Commit whatever word is being typed, so dictation starts after it.
     func voiceWillBeginDictation()
-    func voiceSetPanelVisible(_ visible: Bool)
+    /// Show voice typing's state in the suggestion strip; nil restores suggestions.
+    func voiceShowIndicator(_ phase: VoicePanelPhase?)
     func voiceMicStateDidChange(_ state: SuggestionMicControl.Mode)
     /// Run proxy edits with the controller's own text-change callbacks suppressed.
     func voicePerformTextUpdate(_ update: () -> Void)
@@ -23,7 +24,8 @@ protocol VoiceKeyboardHost: AnyObject {
 final class VoiceKeyboardCoordinator {
     private let log = Logger(subsystem: "org.unmukto.obadh.keyboard", category: "voice")
     weak var host: VoiceKeyboardHost?
-    let panelModel = VoicePanelModel()
+    /// The phase shown in the strip while voice typing is active.
+    private(set) var phase: VoicePanelPhase = .connecting
     let levels = VoiceKeyboardLevelSource()
 
     private var reconciler = VoiceDraftReconciler()
@@ -41,10 +43,17 @@ final class VoiceKeyboardCoordinator {
     private let persistence = UserDefaults.standard
     private static let persistedReconcilerKey = "voice.keyboard.reconciler"
 
-    init() {
-        panelModel.onDone = { [weak self] in self?.finish(returnToKeys: false) }
-        panelModel.onKeyboard = { [weak self] in self?.finish(returnToKeys: true) }
+    init() {}
+
+    /// A key was typed while dictating: finish first, like system dictation, so
+    /// typed and dictated text never compete for the cursor. The draft stays as
+    /// written; a late refinement lands only if the text is still untouched.
+    func finishBeforeTyping() {
+        guard isPanelVisible, reconciler.isActive else { return }
+        finish(returnToKeys: true)
     }
+
+    var isDictating: Bool { isPanelVisible && reconciler.isActive }
 
     private var directory: URL? { VoiceSessionChannel.directory() }
 
@@ -91,7 +100,7 @@ final class VoiceKeyboardCoordinator {
         reconciler.begin(dictationID: dictationID, contextBefore: host.voiceDocument.contextBeforeInput)
         persistReconciler()
         send(.start, dictationID: dictationID)
-        panelModel.phase = .connecting
+        setPhase(.connecting)
         setPanelVisible(true)
 
         let snapshot = readSnapshot() ?? .empty
@@ -128,7 +137,7 @@ final class VoiceKeyboardCoordinator {
         if returnToKeys {
             setPanelVisible(false)
         } else {
-            panelModel.phase = .finishing
+            setPhase(.finishing)
         }
         // Refinement usually lands well inside this; if it doesn't, the streaming
         // text stays as written and the keyboard moves on.
@@ -181,14 +190,14 @@ final class VoiceKeyboardCoordinator {
         }
         switch snapshot.phase {
         case .idle, .starting:
-            panelModel.phase = .connecting
+            setPhase(.connecting)
         case .ready:
-            if panelModel.phase != .finishing { panelModel.phase = .ready }
+            if phase != .finishing { setPhase(.ready) }
         case .listening:
             let heard = snapshot.segments.contains { !$0.text.isEmpty }
-            panelModel.phase = heard ? .listening : .ready
+            setPhase(heard ? .listening : .ready)
         case .finishing:
-            panelModel.phase = .finishing
+            setPhase(.finishing)
         }
     }
 
@@ -246,17 +255,22 @@ final class VoiceKeyboardCoordinator {
         } else {
             levels.close()
         }
-        host?.voiceSetPanelVisible(visible)
+        host?.voiceShowIndicator(visible ? phase : nil)
         publishMicState()
     }
 
+    private func setPhase(_ newPhase: VoicePanelPhase) {
+        phase = newPhase
+        if isPanelVisible { host?.voiceShowIndicator(newPhase) }
+    }
+
     private func showProblem(_ message: String) {
-        panelModel.phase = .problem(message)
+        setPhase(.problem(message))
         setPanelVisible(true)
         let dictationID = reconciler.dictationID
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
             guard let self, self.reconciler.dictationID == dictationID,
-                  case .problem = self.panelModel.phase else { return }
+                  case .problem = self.phase else { return }
             self.endDictation()
         }
     }
@@ -310,7 +324,7 @@ final class VoiceKeyboardCoordinator {
             setPanelVisible(false)
             return
         }
-        panelModel.phase = phase
+        setPhase(phase)
         setPanelVisible(true)
     }
     #endif
@@ -340,7 +354,7 @@ final class VoiceKeyboardCoordinator {
         }
         reconciler = restored
         let live = snapshot.phase == .listening || snapshot.phase == .ready || snapshot.phase == .starting
-        panelModel.phase = snapshot.phase == .finishing ? .finishing : (live ? .ready : .finishing)
+        setPhase(snapshot.phase == .finishing ? .finishing : (live ? .ready : .finishing))
         setPanelVisible(true)
     }
 }

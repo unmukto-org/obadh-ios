@@ -31,6 +31,7 @@ let package = Package(
                 "Keyboard/KeyboardRowView.swift",
                 "Keyboard/KeyboardTouchSurfaceView.swift",
                 "Keyboard/SuggestionBarView.swift",
+                "Keyboard/VoiceStripIndicatorView.swift",
                 "Engine/ObadhBridgeClient.swift"
             ]
         ),

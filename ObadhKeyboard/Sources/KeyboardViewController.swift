@@ -1,4 +1,3 @@
-import SwiftUI
 import UIKit
 import os
 
@@ -31,7 +30,6 @@ final class KeyboardViewController: UIInputViewController {
     private let suggestionBar = SuggestionBarView()
     /// Voice typing: remote control for the app's recognizer plus the draft writer.
     private let voice = VoiceKeyboardCoordinator()
-    private var voicePanelHost: UIHostingController<VoicePanelView>?
     private let voicePreferences = VoicePreferences()
     /// Emoji for the word that was just committed, kept on screen after a space
     /// while the text slots move on to next-word suggestions. Cleared by the next
@@ -1286,6 +1284,7 @@ final class KeyboardViewController: UIInputViewController {
         KeystrokeProfile.shared.beginKeystroke()
         defer { KeystrokeProfile.shared.endKeystroke() }
         #endif
+        voice.finishBeforeTyping()
         if isEmojiSearchActive {
             if key == .backspace {
                 endBackspacePress()
@@ -2408,46 +2407,13 @@ extension KeyboardViewController: VoiceKeyboardHost {
         suggestionBar.setMicButton(visible: voicePreferences.micButtonEnabled, state: state)
     }
 
-    /// The panel takes the key area; the strip stays, so the mic (now filled) is
-    /// still where the user's thumb is and tapping it again finishes.
-    func voiceSetPanelVisible(_ visible: Bool) {
-        if visible, voicePanelHost == nil {
-            let host = UIHostingController(rootView: VoicePanelView(model: voice.panelModel, levels: voice.levels))
-            host.sizingOptions = []
-            // Near-invisible but not clear: iOS drops extension touches over fully
-            // transparent pixels before they reach any view.
-            host.view.backgroundColor = UIColor.white.withAlphaComponent(0.004)
-            host.view.translatesAutoresizingMaskIntoConstraints = false
-            host.view.alpha = 0
-            addChild(host)
-            view.addSubview(host.view)
-            NSLayoutConstraint.activate([
-                host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-                host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-                host.view.topAnchor.constraint(equalTo: suggestionBar.bottomAnchor),
-                host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
-            ])
-            host.didMove(toParent: self)
-            voicePanelHost = host
-        }
-        guard let host = voicePanelHost else { return }
-        keyboardTouchSurface.cancelTracking()
-        hideKeyPreview(animated: false)
-        let keys: UIView = keyboardGlassContainer ?? keyboardStack
-        keyboardTouchSurface.isUserInteractionEnabled = !visible
-        let animations = {
-            host.view.alpha = visible ? 1 : 0
-            keys.alpha = visible ? 0 : 1
-            keys.transform = visible ? CGAffineTransform(scaleX: 0.97, y: 0.97) : .identity
-        }
-        if UIAccessibility.isReduceMotionEnabled {
-            UIView.animate(withDuration: 0.15, animations: animations)
-        } else {
-            UIView.animate(withDuration: 0.32, delay: 0, usingSpringWithDamping: 0.9, initialSpringVelocity: 0,
-                           options: [.allowUserInteraction, .beginFromCurrentState], animations: animations)
-        }
-        host.view.isUserInteractionEnabled = visible
-        if !visible {
+    /// Voice typing lives in the suggestion strip: the candidates give way to the
+    /// live waveform and the keys stay exactly as they are.
+    func voiceShowIndicator(_ phase: VoicePanelPhase?) {
+        suggestionBar.setVoiceIndicator(phase, levelSource: phase == nil ? nil : { [weak self] in
+            self?.voice.levels.currentFrame() ?? .silent
+        })
+        if phase == nil {
             refreshSuggestions()
         }
     }

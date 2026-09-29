@@ -44,6 +44,10 @@ final class SuggestionBarView: UIView {
     /// by the mic's width; with it hidden the strip is exactly the old layout.
     private(set) var showsMicButton = false
     private var micState: SuggestionMicControl.Mode = .idle
+    /// Voice typing's live waveform. While shown it replaces the candidates: there is
+    /// nothing to autocomplete while speaking, and the keys stay untouched.
+    private let voiceIndicator = VoiceStripIndicatorView()
+    private(set) var isShowingVoiceIndicator = false
 
     /// Fixed so the candidates never jump as the mic's state changes. Wide enough for
     /// a 44pt touch target on every strip height.
@@ -85,7 +89,7 @@ final class SuggestionBarView: UIView {
         // A lone suggestion sits in the middle slot rather than hard left.
         let startIndex = (!hasEmoji && visibleSuggestions.count == 1) ? (slotCount - 1) / 2 : 0
         let textSlotCount = hasEmoji ? slotCount - 1 : slotCount
-        let showsChrome = !visibleSuggestions.isEmpty || hasEmoji
+        let showsChrome = (!visibleSuggestions.isEmpty || hasEmoji) && !isShowingVoiceIndicator
         stackView.isHidden = !showsChrome
         setSeparatorsHidden(!showsChrome)
 
@@ -105,7 +109,7 @@ final class SuggestionBarView: UIView {
             )
         }
 
-        emojiGroup.isHidden = !hasEmoji
+        emojiGroup.isHidden = !hasEmoji || isShowingVoiceIndicator
         if hasEmoji {
             emojiGroup.update(emojis: self.emojis, traitCollection: traitCollection, metrics: metrics)
         } else {
@@ -127,6 +131,32 @@ final class SuggestionBarView: UIView {
         guard layoutChanged else { return }
         micWidthConstraint?.constant = visible ? Self.micSlotWidth : 0
         setNeedsLayout()
+    }
+
+    /// Show the voice waveform (or a short status) in place of the candidates;
+    /// `nil` restores them.
+    func setVoiceIndicator(_ phase: VoicePanelPhase?, levelSource: (() -> VoiceLevelFrame)?) {
+        let showing = phase != nil
+        if let phase {
+            voiceIndicator.levelSource = levelSource
+            voiceIndicator.setPhase(phase, traitCollection: traitCollection)
+        }
+        guard showing != isShowingVoiceIndicator else { return }
+        isShowingVoiceIndicator = showing
+        if showing {
+            dismissVariantPopover(animated: false)
+            voiceIndicator.alpha = 0
+            voiceIndicator.isHidden = false
+        }
+        UIView.animate(withDuration: 0.22, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
+            self.voiceIndicator.alpha = showing ? 1 : 0
+            self.stackView.alpha = showing ? 0 : 1
+            self.emojiGroup.alpha = showing ? 0 : 1
+            for separator in self.separators { separator.alpha = showing ? 0 : 1 }
+        } completion: { _ in
+            if !self.isShowingVoiceIndicator { self.voiceIndicator.isHidden = true }
+        }
+        update(suggestions: suggestions, emojis: emojis, quotedText: quotedText)
     }
 
     func applyMetrics(_ metrics: KeyboardMetrics) {
@@ -152,6 +182,11 @@ final class SuggestionBarView: UIView {
         stackView.spacing = 0
         stackView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stackView)
+
+        voiceIndicator.translatesAutoresizingMaskIntoConstraints = false
+        voiceIndicator.isHidden = true
+        voiceIndicator.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(handleMicTap)))
+        addSubview(voiceIndicator)
 
         micButton.translatesAutoresizingMaskIntoConstraints = false
         micButton.isHidden = true
@@ -188,6 +223,10 @@ final class SuggestionBarView: UIView {
             micButton.bottomAnchor.constraint(equalTo: stackView.bottomAnchor),
             micWidth,
             stackView.leadingAnchor.constraint(equalTo: micButton.trailingAnchor),
+            voiceIndicator.leadingAnchor.constraint(equalTo: micButton.trailingAnchor),
+            voiceIndicator.trailingAnchor.constraint(equalTo: trailingAnchor),
+            voiceIndicator.topAnchor.constraint(equalTo: stackView.topAnchor),
+            voiceIndicator.bottomAnchor.constraint(equalTo: stackView.bottomAnchor),
             stackView.trailingAnchor.constraint(equalTo: trailingAnchor),
             contentTopConstraint,
             contentBottomConstraint,

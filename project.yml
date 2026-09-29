@@ -145,7 +145,6 @@ targets:
       - path: Shared/Sources/Engine
       - path: Shared/Sources/Keyboard
       - path: Shared/Sources/Voice
-      - path: Shared/Sources/VoiceUI
       - path: Shared/Sources/Settings/KeyboardPreferences.swift
       - path: Shared/Sources/Settings/ObadhIdentity.swift
       - path: Shared/Sources/Settings/KeyboardSizingLog.swift
@@ -202,7 +201,6 @@ targets:
       - path: Shared/Sources/Engine
       - path: Shared/Sources/Keyboard
       - path: Shared/Sources/Voice
-      - path: Shared/Sources/VoiceUI
       - path: Shared/Sources/Settings/KeyboardPreferences.swift
       - path: Shared/Sources/Settings/ObadhIdentity.swift
       - path: Shared/Sources/Settings/KeyboardSizingLog.swift
