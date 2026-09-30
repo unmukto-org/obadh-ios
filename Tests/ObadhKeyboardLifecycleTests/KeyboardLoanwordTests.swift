@@ -152,4 +152,5 @@ private final class LoanwordSuggestionDelegate: SuggestionBarViewDelegate {
     func suggestionBar(_ suggestionBar: SuggestionBarView, didSelectEmoji emoji: String) {}
     func suggestionBar(_ suggestionBar: SuggestionBarView, didPickEmojiVariant emoji: String, base: String) {}
     func suggestionBar(_ suggestionBar: SuggestionBarView, variantOptionsFor base: String) -> [EmojiItem] { [] }
+    func suggestionBarDidTapMic(_ suggestionBar: SuggestionBarView) {}
 }

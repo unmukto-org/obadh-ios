@@ -2,6 +2,13 @@ import UIKit
 import os
 
 final class KeyboardViewController: UIInputViewController {
+    // UIKit's view-service operator can retain loaded children that it never
+    // presents. Keep only weak discovery links; a sibling appearance is our
+    // timer-free signal to release their expensive render trees.
+    private static let loadedControllers = NSHashTable<KeyboardViewController>.weakObjects()
+    private(set) var isContentSuspended = false
+    private var isPresentationActive = false
+    private let memoryProbe = MemoryProbe()
     /// Lifecycle telemetry so the running extension can be observed on the
     /// Simulator via: `xcrun simctl spawn booted log stream --predicate
     /// 'subsystem == "org.unmukto.obadh.keyboard"'`.
@@ -27,7 +34,7 @@ final class KeyboardViewController: UIInputViewController {
     private let engineQueue = DispatchQueue(label: "org.unmukto.obadh.engine", qos: .userInitiated)
     private let feedbackController = KeyboardFeedbackController()
     private let backspaceRepeater = BackspaceRepeatController()
-    private let suggestionBar = SuggestionBarView()
+    private var suggestionBar = SuggestionBarView()
     /// Voice typing: remote control for the app's recognizer plus the draft writer.
     private let voice = VoiceKeyboardCoordinator()
     private let voicePreferences = VoicePreferences()
@@ -37,19 +44,19 @@ final class KeyboardViewController: UIInputViewController {
     /// suggestion one keystroke out of reach at exactly the moment a user reaches
     /// for it.
     private var carriedEmojis: [EmojiSuggestion] = []
-    private let emojiPanelView = EmojiPanelView()
+    private var emojiPanelView = EmojiPanelView()
     private let emojiRecentStore = EmojiRecentStore()
     // Per-emoji skin-tone memory, shared with the emoji panel (same App Group
     // store), so a tone picked anywhere is remembered everywhere.
     private let emojiVariantPreferenceStore = EmojiVariantPreferenceStore()
     private lazy var emojiDataStore = EmojiDataStore(bundle: Bundle(for: KeyboardViewController.self))
-    private let keyboardStack = UIStackView()
+    private var keyboardStack = UIStackView()
     // The system's own keyboard backdrop material (blur + tint). On iOS 26 this
     // adopts the Liquid Glass keyboard look automatically, and it is
     // non-transparent so touches over the inter-key gaps still reach the clear
     // KeyboardTouchSurfaceView. Preferred over a hand-rolled UIVisualEffect,
     // which reads as a distinct rectangle vs. the surrounding keyboard.
-    private let keyboardBackgroundView = UIInputView(frame: .zero, inputViewStyle: .keyboard)
+    private var keyboardBackgroundView = UIInputView(frame: .zero, inputViewStyle: .keyboard)
     private let keyboardTouchSurface = KeyboardTouchSurfaceView()
     private let keyPreviewCallout = KeyboardKeyPreviewCallout()
     /// iOS 26+ Liquid Glass group hosting `keyboardStack`, so all per-key glass
@@ -196,24 +203,108 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         lifecycleLog.notice("OBADH-LIFECYCLE viewDidLoad — extension loaded, backdrop=\(String(describing: type(of: self.keyboardBackgroundView)), privacy: .public)")
+        memoryProbe.controllerDidLoad(self)
+        Self.loadedControllers.add(self)
+        memoryProbe.record("viewDidLoad")
         recordFullAccessIfGranted()
         configureInputViewShell()
         let configuration = engine.configureModels(in: Bundle(for: KeyboardViewController.self))
         if configuration.autosuggestAvailable {
             restorePersonalAutosuggest()
         }
-        feedbackController.prepare(hasFullAccess: hasFullAccess)
+        memoryProbe.record("models and autosuggest restored")
+        // Haptics are prepared in viewWillAppear, only for an actual presentation.
         configureRootView()
         configureSuggestionBar()
+        memoryProbe.record("root and suggestion bar configured")
         configureEmojiPanel()
+        memoryProbe.record("emoji panel configured")
         voice.host = self
         reloadKeyboardRows()
+        memoryProbe.record("key rows built")
         refreshKeyboard()
         #if DEBUG
         startKeyTintObserver()
         configurePresentationProbe()
         startBandObservationProbe()
         #endif
+        memoryProbe.record("viewDidLoad end")
+        if Self.loadedControllers.allObjects.contains(where: { $0 !== self && $0.isPresentationActive }) {
+            suspendContentIfInactive()
+        }
+    }
+
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+        memoryProbe.record("memoryWarning")
+        suspendContentIfInactive()
+    }
+
+    /// Leave UIKit's root input view and sizing contract intact. Only our own
+    /// content is discarded; a later appearance recreates it synchronously.
+    private func suspendContentIfInactive() {
+        guard isViewLoaded, !isPresentationActive, !isContentSuspended else { return }
+        resetCompositionBookkeeping()
+        keyboardTouchSurface.cancelTracking()
+        hideKeyPreview(animated: false)
+        backspaceRepeater.end()
+        spaceLanguageIntroDismissal?.cancel()
+        spaceLanguageIntroDismissal = nil
+        voice.hostDidDisappear()
+        feedbackController.suspend()
+        isContentSuspended = true
+
+        highlightedKeyButton = nil
+        activeTouchKey = nil
+        keyButtons.removeAll()
+        keyboardTouchSurface.keyRows = []
+        NSLayoutConstraint.deactivate(rowHeightConstraints)
+        rowHeightConstraints.removeAll()
+        for row in keyboardStack.arrangedSubviews {
+            keyboardStack.removeArrangedSubview(row)
+            row.removeFromSuperview()
+        }
+        keyboardStack.removeFromSuperview()
+        // Removing each owned subview also removes its constraints to the root.
+        for child in [keyboardBackgroundView, suggestionBar, emojiPanelView,
+                      keyboardTouchSurface, keyPreviewCallout] { child.removeFromSuperview() }
+        keyboardGlassContainer?.removeFromSuperview()
+        keyboardGlassContainer = nil
+        // UIStackView keeps layout bookkeeping for removed arranged subviews.
+        // Drop the stack itself as well, rather than parking that cache.
+        keyboardStack = UIStackView()
+        keyboardStackLeadingConstraint = nil
+        keyboardStackTrailingConstraint = nil
+        keyboardStackTopConstraint = nil
+        keyboardStackBottomConstraint = nil
+        keyboardStackHeightConstraint = nil
+        emojiPanelBottomToSafeAreaConstraint = nil
+        emojiPanelBottomToKeyboardConstraint = nil
+
+        // Empty, detached controls keep late host callbacks harmless without
+        // retaining the laid-out collection, glass surfaces or backing stores.
+        suggestionBar = SuggestionBarView()
+        emojiPanelView = EmojiPanelView()
+        keyboardBackgroundView = UIInputView(frame: .zero, inputViewStyle: .keyboard)
+        emojiDataStore = .empty
+        lastAppliedMetricSize = .zero
+        lastAppearanceState = nil
+        metricsCache = nil
+        memoryProbe.record("content shed")
+    }
+
+    private func restoreContentIfNeeded() {
+        guard isContentSuspended else { return }
+        isContentSuspended = false
+        configureKeyboardBackground()
+        configureSuggestionBar()
+        emojiDataStore = EmojiDataStore(bundle: Bundle(for: KeyboardViewController.self))
+        configureEmojiPanel()
+        if isEmojiSearchActive { syncEmojiSearchQuery() }
+        reloadKeyboardRows()
+        refreshKeyboard()
+        view.setNeedsLayout()
+        memoryProbe.record("content restored")
     }
 
     deinit {
@@ -391,6 +482,9 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        isPresentationActive = true
+        restoreContentIfNeeded()
+        memoryProbe.record("viewWillAppear")
         viewWillAppearWasCalled = true
         // Every presentation re-detects the host's container style (the host app
         // can differ each time we appear).
@@ -438,6 +532,12 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        for controller in Self.loadedControllers.allObjects where controller !== self {
+            controller.suspendContentIfInactive()
+        }
+        let residents = Self.loadedControllers.allObjects.filter { !$0.isContentSuspended }.count
+        lifecycleLog.notice("OBADH-MEM resident hierarchies: \(residents, privacy: .public)")
+        memoryProbe.record("viewDidAppear entry")
         lifecycleLog.notice("OBADH-LIFECYCLE viewDidAppear — keyboard visible, build=\(AppBuildInfo.summary, privacy: .public) style=\(self.traitCollection.userInterfaceStyle == .dark ? "dark" : "light", privacy: .public) size=\(NSCoder.string(for: self.view.bounds.size), privacy: .public)")
         #if DEBUG
         logBandObservationCandidates()
@@ -450,6 +550,7 @@ final class KeyboardViewController: UIInputViewController {
         #if DEBUG
         debugChannel.start()
         #endif
+        memoryProbe.record("viewDidAppear")
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -464,6 +565,7 @@ final class KeyboardViewController: UIInputViewController {
         spaceLanguageIntroDismissal = nil
         viewWillAppearWasCalled = false
         voice.hostDidDisappear()
+        memoryProbe.record("viewWillDisappear")
         #if DEBUG
         stopFrameMonitor()
         // Capture short presentations too, before the deferred write would fire.
@@ -474,15 +576,23 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        guard !isContentSuspended else { return }
         #if DEBUG
         traceLayoutPass()
         #endif
         recordPresentationTransient()
         applyLayoutMetricsIfNeeded()
         updateKeyboardTouchRegions()
+        memoryProbe.recordFirstLayout(of: view)
         #if DEBUG
         updatePresentationProbe()
         #endif
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        isPresentationActive = false
+        suspendContentIfInactive()
     }
 
     #if DEBUG
@@ -822,6 +932,24 @@ final class KeyboardViewController: UIInputViewController {
         view.isOpaque = false
         view.clipsToBounds = true
 
+        configureKeyboardBackground()
+
+        let heightConstraint = view.heightAnchor.constraint(equalToConstant: preferredActiveKeyboardHeight)
+        heightConstraint.priority = UILayoutPriority.required - 1
+        keyboardHeightConstraint = heightConstraint
+
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (controller: KeyboardViewController, _) in
+            guard !controller.isContentSuspended else { return }
+            controller.view.backgroundColor = .clear
+            controller.view.clipsToBounds = true
+            controller.view.setNeedsUpdateConstraints()
+            controller.applyLayoutMetricsIfNeeded(force: true)
+            controller.refreshKeyboard()
+        }
+    }
+
+    private func configureKeyboardBackground() {
+
         // A native-material backdrop covering the whole keyboard: it gives the
         // system keyboard's glassy look uniformly (so there's no visible
         // rectangle around the key area) and, being non-transparent, it is what
@@ -837,17 +965,6 @@ final class KeyboardViewController: UIInputViewController {
             keyboardBackgroundView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
 
-        let heightConstraint = view.heightAnchor.constraint(equalToConstant: preferredActiveKeyboardHeight)
-        heightConstraint.priority = UILayoutPriority.required - 1
-        keyboardHeightConstraint = heightConstraint
-
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (controller: KeyboardViewController, _) in
-            controller.view.backgroundColor = .clear
-            controller.view.clipsToBounds = true
-            controller.view.setNeedsUpdateConstraints()
-            controller.applyLayoutMetricsIfNeeded(force: true)
-            controller.refreshKeyboard()
-        }
     }
 
     private func configureSuggestionBar() {
@@ -974,6 +1091,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func reloadKeyboardRows() {
+        guard !isContentSuspended else { return }
         let metrics = currentMetrics
         keyboardTouchSurface.cancelTracking()
         hideKeyPreview(animated: false)
@@ -1054,6 +1172,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func refreshKeyboard() {
+        guard !isContentSuspended else { return }
         let metrics = currentMetrics
         updateKeyboardHeightConstraintIfReady()
         view.backgroundColor = .clear
@@ -1121,6 +1240,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func refreshSuggestions() {
+        guard !isContentSuspended else { return }
         #if DEBUG
         measureMain("refreshSuggestions") { refreshSuggestionsBody() }
         #else
@@ -1875,6 +1995,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func applyLayoutMetricsIfNeeded(force: Bool = false) {
+        guard !isContentSuspended else { return }
         let size = view.bounds.size
         let preferredHeight = preferredActiveKeyboardHeight
         let metricSize = CGSize(width: size.width, height: preferredKeyboardHeight)

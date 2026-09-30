@@ -95,6 +95,15 @@ final class KeyboardFeedbackController {
 
     // MARK: Lifecycle
 
+    /// Release a hidden keyboard's engine. A later prepare can start a fresh one;
+    /// callbacks from the previous generation cannot modify that replacement.
+    func suspend() {
+        engineGeneration += 1
+        let previous = engine
+        engine = nil
+        previous?.stop(completionHandler: nil)
+    }
+
     /// `hasFullAccess` comes from the input view controller; Core Haptics is
     /// unreachable without it.
     func prepare(hasFullAccess: Bool) {

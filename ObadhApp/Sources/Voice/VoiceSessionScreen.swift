@@ -5,6 +5,7 @@ import UIKit
 /// appears; the words show here as they are recognized; Done (or a pause) releases
 /// the microphone, and ◀ Back hands the text to the keyboard. Standard sheet
 /// anatomy (Cancel and Done up top), large text, and the voice light below.
+/// Once finished, guidance sits directly below the system's back-to-app control.
 struct VoiceSessionScreen: View {
     @ObservedObject var session: VoiceSessionController
     @ObservedObject var models: VoiceModelLibrary
@@ -17,6 +18,8 @@ struct VoiceSessionScreen: View {
                 VoiceFailureView(failure: failure, models: models)
             } else {
                 VoiceTranscriptView(transcript: session.transcript, isFinal: session.hasFinalText)
+                    .accessibilityIdentifier("voice.transcript")
+                    .padding(.bottom, session.hasFinalText ? 24 : 0)
                 footer
             }
         }
@@ -25,30 +28,45 @@ struct VoiceSessionScreen: View {
 
     // MARK: Header: Cancel · Done, like any system sheet
 
-    private var header: some View {
-        HStack {
-            Button("Cancel") {
-                session.cancelDictation()
-                onClose()
+    @ViewBuilder private var header: some View {
+        if session.hasFinalText {
+            HStack(alignment: .top, spacing: 16) {
+                ReturnHint()
+                    .accessibilityIdentifier("voice.returnHint")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                cancelButton
+                    .padding(.top, 4)
             }
-            Spacer()
-            if session.phase == .listening {
-                Button("Done") { session.finishDictation() }
-                    .fontWeight(.semibold)
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 16)
+        } else {
+            HStack {
+                cancelButton
+                Spacer()
+                if session.phase == .listening {
+                    Button("Done") { session.finishDictation() }
+                        .fontWeight(.semibold)
+                        .accessibilityIdentifier("voice.done")
+                }
             }
+            .padding(.horizontal, 20)
+            .frame(height: 52)
         }
-        .padding(.horizontal, 20)
-        .frame(height: 52)
     }
 
-    // MARK: Footer: the light while listening, the way back once done
+    private var cancelButton: some View {
+        Button("Cancel") {
+            session.cancelDictation()
+            onClose()
+        }
+        .accessibilityIdentifier("voice.cancel")
+    }
+
+    // MARK: Footer: the light while listening
 
     @ViewBuilder private var footer: some View {
-        if session.hasFinalText {
-            ReturnHint()
-                .padding(.bottom, 28)
-                .transition(.opacity)
-        } else {
+        if !session.hasFinalText {
             VoiceLens(feed: session.levels, mode: lensMode)
                 .frame(height: 64)
                 .padding(.bottom, 24)
@@ -108,26 +126,27 @@ private struct VoiceTranscriptView: View {
     }
 }
 
-/// Points at the system's ◀ back button, the only way back iOS offers.
+/// Sits at the top safe-area edge, below the system's back-to-app control.
+/// Use an upward arrow: a diagonal arrow elsewhere on screen does not identify
+/// that control. The hint is instructional, not a replacement back button.
 private struct ReturnHint: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var nudge = false
-
     var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "arrow.up.backward")
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: "arrow.up")
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(.tint)
-                .offset(x: nudge ? -3 : 0, y: nudge ? -3 : 0)
-                .animation(reduceMotion ? nil : .easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: nudge)
-            Text("Tap ◀ at the top left to insert")
+                .frame(width: 24)
+                .accessibilityHidden(true)
+            Text("Tap ◀ above to insert")
                 .font(.headline)
+                .fixedSize(horizontal: false, vertical: true)
             Text("The microphone is off.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .task { nudge = true }
         .accessibilityElement(children: .combine)
+        .accessibilityLabel("Dictation ready. Use the system back-to-app button at the top left to return and insert your text. The microphone is off.")
     }
 }
 
