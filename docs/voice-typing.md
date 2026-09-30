@@ -37,6 +37,58 @@ Activity (not something everyday users set up), and private-API auto-return.
 Nothing is written into the host's field while the user speaks, so there is
 nothing to rewrite there.
 
+## Reliability and recovery
+
+* Only the coordinator of the **appeared** keyboard may deliver. Disappearing
+  removes its snapshot observer, and even queued notifications check ownership.
+  A successor re-reads the persisted pending request rather than trusting a cached
+  copy. The request is consumed before proxy callbacks can reenter delivery.
+* Six seconds on return is a progress notice, not a deadline that deletes speech.
+  If the user starts editing before a delayed result arrives, automatic insertion
+  is cancelled; the unacknowledged result remains available in Obadh for Copy.
+* Each recording owns a fresh pipeline and generation. Cancel, replacement,
+  background departure during permission, and completion invalidate old callbacks.
+  Duplicate URLs for the current trip do not restart it or erase its final text.
+* Done allows at most 450 ms of post-roll capture. An interruption/departure clamps
+  the endpoint to existing audio and stops capture immediately, including when
+  already finishing. Finishing has a four-second deadline; model loading has a
+  thirty-second deadline. The background-task expiration path also stops safely.
+* A buffer overrun is an explicit failure, not a jump to newer audio. A long
+  recording can run past the 60-second buffer capacity as long as recognition
+  keeps up. Missing-audio/time-out results are **not** automatically inserted.
+* Failures keep the latest recognized words, mark them incomplete, and offer Copy.
+  A saved final/recovery result survives app restart until acknowledgement,
+  explicit discard, or a new dictation. Foreground entry reads missed
+  acknowledgements and exposes any remaining recovery text. Shared-file write
+  failures are surfaced; if storage cannot be written, the in-memory text must
+  be copied before leaving or process termination.
+* Cancel publishes an empty idle tombstone for its exact trip, so a returning
+  keyboard clears that request without inserting whitespace or waiting forever.
+  Discarding nonempty text requires confirmation. Listening is a separate status
+  capsule; finishing is explicit, and transcript text supports Dynamic Type.
+
+The host's `insertText` API has no transactional receipt: a crash across the
+pending-state/proxy-edit/acknowledgement boundary cannot be made exactly-once
+across processes. We prevent duplicate attempts by live controllers, and keep the
+app's recovery copy until acknowledgement; we do not promise that every host will
+accept arbitrarily long text or that crash-time insertion can be verified.
+
+Regression commands (no microphone or model download required):
+
+```sh
+swift test
+xcodebuild test -scheme ObadhKeyboardLifecycleTests -destination 'platform=iOS Simulator,id=F6869131-DA8E-4E6D-B984-A7CCBB299818'
+xcodebuild test -scheme ObadhVoiceTests -destination 'platform=iOS Simulator,id=F6869131-DA8E-4E6D-B984-A7CCBB299818'
+```
+
+Coverage includes startup/cancel/replacement races, stale recognizer callbacks,
+post-roll interruption, finish deadlines, audio overflow, unavailable/write-failed
+IPC, hidden/successor/reentrant delivery, slow final arrival, cancellation and
+empty results, missed acknowledgements, 10,000-word serialization/insertion,
+100 closed transcript segments, and 20 minutes of simulated ring consumption.
+These deterministic tests complement, not replace, physical-microphone endurance,
+Bluetooth/call interruption, and real-host acceptance tests.
+
 ## Recognition pipeline (app)
 
 ```

@@ -128,7 +128,8 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
     /// still starting, and a warm launch may deliver the URL before this callback.
     func sceneWillEnterForeground(_ scene: UIScene) {
         guard voiceScreen != nil, !voiceScreenIsCurrent,
-              VoiceSessionController.shared.phase == .idle else { return }
+              VoiceSessionController.shared.phase == .idle,
+              VoiceSessionController.shared.transcript.text.isEmpty else { return }
         // Not animated: the app is not on screen yet, and a new voice screen may be
         // presented right after this.
         dismissVoiceScreen(animated: false)
@@ -136,6 +137,16 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func sceneDidEnterBackground(_ scene: UIScene) {
         voiceScreenIsCurrent = false
+    }
+
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        // A failed/undelivered final survives process death. Opening Obadh from
+        // its icon must make that recovery copy reachable, not hide it at home.
+        let session = VoiceSessionController.shared
+        session.refreshAcknowledgement()
+        if session.phase == .idle, !session.transcript.text.isEmpty {
+            presentVoiceScreen()
+        }
     }
 
     private weak var voiceScreen: UIViewController?

@@ -14,6 +14,7 @@
 		04E096A3EB5D3A4947820BB5 /* KeyboardControllerReleaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA25B6E6AA69340048CEEE76 /* KeyboardControllerReleaseTests.swift */; };
 		06E091C5C329FAFEEDB4B67A /* BanglaEmojiSuggestionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FCEAEC18E70D2E206C2073B /* BanglaEmojiSuggestionStore.swift */; };
 		070580B293DAEDFBE7E15FD4 /* BanglaEmojiSuggestionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FCEAEC18E70D2E206C2073B /* BanglaEmojiSuggestionStore.swift */; };
+		078BF21FD2470F3AEDDF0B03 /* VoiceSessionReliabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DE33F91CAB50BC26EF7B1DD /* VoiceSessionReliabilityTests.swift */; };
 		0C0FF76795E363034B31C260 /* VoiceSessionProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 908489CAD992A57FB442C9D5 /* VoiceSessionProtocol.swift */; };
 		0CC75F3FDC04FA7731576A53 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0FC9666CF0AB1E7872412D58 /* PrivacyInfo.xcprivacy */; };
 		1125B19C38C32C498227AC67 /* TypingAccuracyMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7CC2C296D83511C659902E /* TypingAccuracyMetrics.swift */; };
@@ -25,6 +26,7 @@
 		13C2B3E94A3E2863C072684D /* VoiceVisualState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E0A35D1E63A63094ADB4377 /* VoiceVisualState.swift */; };
 		14B443384482487193F34C8C /* KeyboardPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9EA5D130961F58065D10E2D /* KeyboardPreferences.swift */; };
 		14EAD11E2FA823FCDA209C17 /* ObadhBridgeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E6F87259C943124981B64B /* ObadhBridgeClient.swift */; };
+		16C4DAB2EB75EC1D3AB8B87E /* VoiceSessionDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8193E5BBD867C1E997426A8 /* VoiceSessionDependencies.swift */; };
 		16C7798A088DC4BAE6921D2B /* KeyboardFeedbackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86492A9D653BD7ADC7768E20 /* KeyboardFeedbackController.swift */; };
 		17F09C66AABE1DA16B8F7224 /* EmojiRecentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A590DD924D6A20FFDF0681E /* EmojiRecentStore.swift */; };
 		1956E5EE4EE1FF04FD15BBE6 /* SmartPunctuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A08118AF11C65C61B57AA1DA /* SmartPunctuation.swift */; };
@@ -172,12 +174,14 @@
 		C3DC592A91A4B44C15890D22 /* BackspaceDeletionPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35B18AA8869B4393EFF61797 /* BackspaceDeletionPlanner.swift */; };
 		C3FE651BC94B6851E64362BC /* TextCompositionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA357898E8C15A804056128 /* TextCompositionController.swift */; };
 		C45E64AB6CF6B993F04F9984 /* EmojiDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A861B35EEA4DB2BBF06DA7ED /* EmojiDataStore.swift */; };
+		C4A7F4E6B83B47B153293EFD /* VoiceKeyboardDeliveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B49CD0AB962CCDA594B01477 /* VoiceKeyboardDeliveryTests.swift */; };
 		C501C052D4DBCA6F8EB80FD7 /* CursorWordDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4540941392FAC03316773EE5 /* CursorWordDetector.swift */; };
 		C5034F033517E53E2112C079 /* VoiceDraftReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F5BDC6D238260E7A844522 /* VoiceDraftReconciler.swift */; };
 		C57F449707A83A055263714E /* VoiceModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84EC7B58627A9182C9E41655 /* VoiceModelCatalog.swift */; };
 		C61816EF70A87B39976C9211 /* KeyboardDebugChannelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5E96460CF4A9DFDCE73AA9D /* KeyboardDebugChannelTests.swift */; };
 		C657DC2F7CD06EDA82F6CC48 /* KeyboardTouchSurfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A47007187215709D9F7A376C /* KeyboardTouchSurfaceView.swift */; };
 		C71B4530B2F4EF567CB43144 /* KeyboardTouchAccuracyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50D132A246A97881713FA965 /* KeyboardTouchAccuracyTests.swift */; };
+		C7996BB582989EF4E5F970CA /* VoicePipelineReliabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C91563884E109E0F949BF89 /* VoicePipelineReliabilityTests.swift */; };
 		C81FA0BE1D4BB10FA5B42FBA /* ObadhBridgeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E6F87259C943124981B64B /* ObadhBridgeClient.swift */; };
 		C952C82B709CF91A8D09941E /* MemoryProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9190B22D2BF999398F6F6597 /* MemoryProbe.swift */; };
 		CA2CC44F410B4B5AA86BBD7E /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78C9F77251F3803865E9E7A5 /* KeyboardViewController.swift */; };
@@ -255,6 +259,13 @@
 			remoteGlobalIDString = 70FCEEB1278DA7F7EFFA240A;
 			remoteInfo = ObadhAccuracyLab;
 		};
+		83BC0673721AFC5C11F2F705 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 24015D786698A122BB7355F3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FD0E5C81715E672CC7C03AFE;
+			remoteInfo = Obadh;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -300,6 +311,7 @@
 		28313BB7E078DC2B66026212 /* ObadhAccuracyLabUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ObadhAccuracyLabUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		28CCA247769876872466F81E /* ObadhEngineTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ObadhEngineTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2A18D167D48533D235B8E9F2 /* VoiceKeyboardCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceKeyboardCoordinator.swift; sourceTree = "<group>"; };
+		2C91563884E109E0F949BF89 /* VoicePipelineReliabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoicePipelineReliabilityTests.swift; sourceTree = "<group>"; };
 		2DD1FF9151E1C74445AC2D0C /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = wrapper.cfbundle; path = Settings.bundle; sourceTree = "<group>"; };
 		2DE3855A6D08F626A006C8BF /* Obadh.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Obadh.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2F17B39BFA64FEDB13A98224 /* EmojiPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiPanelView.swift; sourceTree = "<group>"; };
@@ -340,6 +352,7 @@
 		6B8712C41282AFA4DCF9DEF0 /* KeyboardMaterialUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardMaterialUITests.swift; sourceTree = "<group>"; };
 		6C197034282DB0D01EF59071 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		6CDAB14409BFF075910B4EC0 /* BanglaTypingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BanglaTypingEngine.swift; sourceTree = "<group>"; };
+		6DE33F91CAB50BC26EF7B1DD /* VoiceSessionReliabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSessionReliabilityTests.swift; sourceTree = "<group>"; };
 		6E1485BB6F35E3728758EB63 /* BackspaceRepeatController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackspaceRepeatController.swift; sourceTree = "<group>"; };
 		6E33258B90523B2B7A711259 /* KeyboardTouchResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTouchResolver.swift; sourceTree = "<group>"; };
 		74F9550BE157C25FEE275F7E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -349,6 +362,7 @@
 		78C9F77251F3803865E9E7A5 /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
 		7C7BF89E4657EF206E10D3A3 /* ObadhKeyboardLifecycleTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ObadhKeyboardLifecycleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E7A08BDE93B4142634C087E /* ObadhApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObadhApp.swift; sourceTree = "<group>"; };
+		7EC2DE27FBDD093EE6E2DB74 /* ObadhVoiceTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ObadhVoiceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8109D1F633534167E8886D3C /* KeyboardInstallState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardInstallState.swift; sourceTree = "<group>"; };
 		81858AF86914EA4942AC51F4 /* KeyboardSpatialSuggestionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardSpatialSuggestionTests.swift; sourceTree = "<group>"; };
 		823506CDCE3CC47B4525E0AC /* KeyboardComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardComposer.swift; sourceTree = "<group>"; };
@@ -375,6 +389,7 @@
 		ACDD5C1AACA44AA367113C3B /* KeyboardDebugChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardDebugChannel.swift; sourceTree = "<group>"; };
 		AE6E31FCBD5AF7A602623C33 /* KeyboardTestViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTestViewController.swift; sourceTree = "<group>"; };
 		B47B4FBE29952F82295D4290 /* KeyboardLayoutGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardLayoutGeometry.swift; sourceTree = "<group>"; };
+		B49CD0AB962CCDA594B01477 /* VoiceKeyboardDeliveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceKeyboardDeliveryTests.swift; sourceTree = "<group>"; };
 		B5E96460CF4A9DFDCE73AA9D /* KeyboardDebugChannelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardDebugChannelTests.swift; sourceTree = "<group>"; };
 		B9F66AD0166AD79842FFFD45 /* SizingLogViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SizingLogViewController.swift; sourceTree = "<group>"; };
 		BE18B8779CB107BCD10B27AA /* SherpaOnnxC.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = SherpaOnnxC.xcframework; path = Frameworks/SherpaOnnxC.xcframework; sourceTree = "<group>"; };
@@ -385,6 +400,7 @@
 		CE02F649AF24D3536F0F37C8 /* VoiceGlowSwiftUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceGlowSwiftUI.swift; sourceTree = "<group>"; };
 		CEA91B62CA47AAEA6ACD7B22 /* VoiceTranscript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceTranscript.swift; sourceTree = "<group>"; };
 		D32B9625D19A384E972278B5 /* KeyboardSoundTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardSoundTests.swift; sourceTree = "<group>"; };
+		D8193E5BBD867C1E997426A8 /* VoiceSessionDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSessionDependencies.swift; sourceTree = "<group>"; };
 		D9ADB202376C34EB2B402A81 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		DF186A27FCD23F8BE66D60EC /* LearnedWordStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearnedWordStore.swift; sourceTree = "<group>"; };
 		E1FF20E2656214A31CEB6A9B /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -533,6 +549,7 @@
 				81858AF86914EA4942AC51F4 /* KeyboardSpatialSuggestionTests.swift */,
 				50D132A246A97881713FA965 /* KeyboardTouchAccuracyTests.swift */,
 				043F3A4E497B9A02D9673725 /* KeyboardTypographyTests.swift */,
+				B49CD0AB962CCDA594B01477 /* VoiceKeyboardDeliveryTests.swift */,
 			);
 			name = ObadhKeyboardLifecycleTests;
 			path = Tests/ObadhKeyboardLifecycleTests;
@@ -574,6 +591,16 @@
 			path = Voice;
 			sourceTree = "<group>";
 		};
+		634FA0E13964BE1645517AC8 /* ObadhVoiceTests */ = {
+			isa = PBXGroup;
+			children = (
+				2C91563884E109E0F949BF89 /* VoicePipelineReliabilityTests.swift */,
+				6DE33F91CAB50BC26EF7B1DD /* VoiceSessionReliabilityTests.swift */,
+			);
+			name = ObadhVoiceTests;
+			path = Tests/ObadhVoiceTests;
+			sourceTree = "<group>";
+		};
 		914CF8A32F6E0649C8415607 /* Voice */ = {
 			isa = PBXGroup;
 			children = (
@@ -582,6 +609,7 @@
 				367724CCB4F768177D98D505 /* VoiceModelLibrary.swift */,
 				784FCA11063B2AAE654D78DC /* VoiceRecognitionPipeline.swift */,
 				59BFB30AF86336A48AD09F09 /* VoiceSessionController.swift */,
+				D8193E5BBD867C1E997426A8 /* VoiceSessionDependencies.swift */,
 				05E3E35A31C79316D854B36C /* VoiceSessionScreen.swift */,
 				30BAE5A9821B8F01A0523824 /* VoiceSettingsView.swift */,
 			);
@@ -692,6 +720,7 @@
 				9BFF57B1CEF3C39D97D6A19D /* ObadhKeyboard.appex */,
 				7C7BF89E4657EF206E10D3A3 /* ObadhKeyboardLifecycleTests.xctest */,
 				6850105FE37B8B0AE1117C4E /* ObadhKeyboardUITests.xctest */,
+				7EC2DE27FBDD093EE6E2DB74 /* ObadhVoiceTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -749,6 +778,7 @@
 				C15CFD943BA0CC58F2CC6B32 /* ObadhEngineTests */,
 				2BBCD05B3D7DEDBCED447403 /* ObadhKeyboardLifecycleTests */,
 				2359FDE8F9709AEFE88C12CA /* ObadhKeyboardUITests */,
+				634FA0E13964BE1645517AC8 /* ObadhVoiceTests */,
 				E4453E948B8E03D6FA53F75F /* Resources */,
 				D4B2E6144F2046C32662452A /* Resources */,
 				99D613CBBA4E66199AE543A5 /* Settings */,
@@ -839,6 +869,24 @@
 			);
 			productName = ObadhKeyboardLifecycleTests;
 			productReference = 7C7BF89E4657EF206E10D3A3 /* ObadhKeyboardLifecycleTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		5862D9A8A81A74B55B8E8655 /* ObadhVoiceTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7C9A89A4A04074CB2DA30023 /* Build configuration list for PBXNativeTarget "ObadhVoiceTests" */;
+			buildPhases = (
+				86DC70FA763442DB0E23D21E /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CBB355E6DA6EB293CCB52DB2 /* PBXTargetDependency */,
+			);
+			name = ObadhVoiceTests;
+			packageProductDependencies = (
+			);
+			productName = ObadhVoiceTests;
+			productReference = 7EC2DE27FBDD093EE6E2DB74 /* ObadhVoiceTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		600DAE229F9A808E9D54B92A /* ObadhEngineTests */ = {
@@ -937,6 +985,9 @@
 					4465CA4E76C91CC66A23436A = {
 						ProvisioningStyle = Automatic;
 					};
+					5862D9A8A81A74B55B8E8655 = {
+						ProvisioningStyle = Automatic;
+					};
 					70FCEEB1278DA7F7EFFA240A = {
 						ProvisioningStyle = Automatic;
 					};
@@ -970,6 +1021,7 @@
 				2D8AFC7EE2266176BF87087E /* ObadhKeyboard */,
 				4465CA4E76C91CC66A23436A /* ObadhKeyboardLifecycleTests */,
 				77D3439D40F0F38114BF48BC /* ObadhKeyboardUITests */,
+				5862D9A8A81A74B55B8E8655 /* ObadhVoiceTests */,
 			);
 		};
 /* End PBXProject section */
@@ -1144,6 +1196,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		86DC70FA763442DB0E23D21E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C7996BB582989EF4E5F970CA /* VoicePipelineReliabilityTests.swift in Sources */,
+				078BF21FD2470F3AEDDF0B03 /* VoiceSessionReliabilityTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AF93F5960144CD8D1F01FC42 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1201,6 +1262,7 @@
 				50AA9EBC12D37AC32B3F7953 /* VoiceAudioRing.swift in Sources */,
 				E90FBE84CCDEB2EE1F48DB55 /* VoiceDraftReconciler.swift in Sources */,
 				CDD27086B3BC3A0FC23A767D /* VoiceKeyboardCoordinator.swift in Sources */,
+				C4A7F4E6B83B47B153293EFD /* VoiceKeyboardDeliveryTests.swift in Sources */,
 				F56512B75FDD904BE289E513 /* VoiceLevelChannel.swift in Sources */,
 				DF0521CFB49D31EEE0A306E1 /* VoiceLevelFeed.swift in Sources */,
 				ACF313C7C8A626A2B1DBE18C /* VoicePhraseArbiter.swift in Sources */,
@@ -1254,6 +1316,7 @@
 				4097355B32BF17E946EC443E /* VoiceRecognitionPipeline.swift in Sources */,
 				441E67B6E9B14AD85919EF0B /* VoiceSelfTest.swift in Sources */,
 				128E104044503850B4C92623 /* VoiceSessionController.swift in Sources */,
+				16C4DAB2EB75EC1D3AB8B87E /* VoiceSessionDependencies.swift in Sources */,
 				BD6F34F5339BF8CC85150EC0 /* VoiceSessionProtocol.swift in Sources */,
 				2474244B2BB4C31931C0F333 /* VoiceSessionScreen.swift in Sources */,
 				9D77B58DEF6533810C2B0902 /* VoiceSettingsView.swift in Sources */,
@@ -1288,6 +1351,11 @@
 			isa = PBXTargetDependency;
 			target = 70FCEEB1278DA7F7EFFA240A /* ObadhAccuracyLab */;
 			targetProxy = 82FC2E3BA710921B0EF70B2D /* PBXContainerItemProxy */;
+		};
+		CBB355E6DA6EB293CCB52DB2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FD0E5C81715E672CC7C03AFE /* Obadh */;
+			targetProxy = 83BC0673721AFC5C11F2F705 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1400,6 +1468,24 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
+		};
+		393C2F4C41B2B50D9CB81CEA /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 6C197034282DB0D01EF59071 /* Signing.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OBADH_APP_BUNDLE_ID).voicetests";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Obadh.app/Obadh";
+			};
+			name = Release;
 		};
 		3F3D7EAFD94F063F5CEED03E /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -1523,6 +1609,24 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "$(OBADH_APP_BUNDLE_ID).accuracylab";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = "Debug-Legacy";
+		};
+		7D2FFC866E775DCDFC90985F /* Debug-Legacy */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 6C197034282DB0D01EF59071 /* Signing.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OBADH_APP_BUNDLE_ID).voicetests";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Obadh.app/Obadh";
 			};
 			name = "Debug-Legacy";
 		};
@@ -1702,6 +1806,24 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
+		};
+		D4F35747B47B30DA21F8EE33 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 6C197034282DB0D01EF59071 /* Signing.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OBADH_APP_BUNDLE_ID).voicetests";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Obadh.app/Obadh";
+			};
+			name = Debug;
 		};
 		D825236964AC7BCF8F1F4594 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -1969,6 +2091,16 @@
 				FB71D0A569B805329175C4E2 /* Debug */,
 				B579153F58065E8770558449 /* Debug-Legacy */,
 				F70CD8B60188C3A9A79C5868 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7C9A89A4A04074CB2DA30023 /* Build configuration list for PBXNativeTarget "ObadhVoiceTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D4F35747B47B30DA21F8EE33 /* Debug */,
+				7D2FFC866E775DCDFC90985F /* Debug-Legacy */,
+				393C2F4C41B2B50D9CB81CEA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

@@ -7,8 +7,9 @@ import Foundation
 /// got to. That decoupling is the point: a dictation's start and end are positions
 /// in this buffer, not moments in a callback, so speech just before the tap (pre-
 /// roll), during model loading, or just after Done (post-roll) is all still here to
-/// recognize. Nothing the microphone hears in a dictation is dropped because some
-/// other part happened to be busy.
+/// recognize. Capacity bounds memory, not dictation length: the consumer must keep
+/// up. An overwritten read reports its actual start; the recognition pipeline
+/// treats a gap as a recoverable failure instead of silently skipping speech.
 final class VoiceAudioRing: @unchecked Sendable {
     let capacity: Int
     private var storage: [Float]

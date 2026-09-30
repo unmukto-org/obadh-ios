@@ -10,20 +10,35 @@ struct VoiceSessionScreen: View {
     @ObservedObject var session: VoiceSessionController
     @ObservedObject var models: VoiceModelLibrary
     var onClose: () -> Void
+    @State private var confirmDiscard = false
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            if let failure = session.failure {
+            if let failure = session.failure, session.transcript.text.isEmpty {
                 VoiceFailureView(failure: failure, models: models)
             } else {
-                VoiceTranscriptView(transcript: session.transcript, isFinal: session.hasFinalText)
+                if session.failure != nil {
+                    Text(session.failure == .deliveryUnavailable
+                         ? "Couldn't send text to the keyboard. Copy your text below before leaving this screen."
+                         : "Dictation stopped before it could finish. Some speech may be missing. Your recognized words are below; copy them before starting again.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 24)
+                        .accessibilityIdentifier("voice.recovery")
+                }
+                VoiceTranscriptView(transcript: session.transcript, isFinal: session.transcript.isFinal,
+                                    prompt: emptyPrompt)
                     .accessibilityIdentifier("voice.transcript")
                     .padding(.bottom, session.hasFinalText ? 24 : 0)
                 footer
             }
         }
         .background(Color(.systemBackground).ignoresSafeArea())
+        .confirmationDialog("Discard this dictation?", isPresented: $confirmDiscard, titleVisibility: .visible) {
+            Button("Discard", role: .destructive) { discard() }
+            Button("Keep dictation", role: .cancel) {}
+        }
     }
 
     // MARK: Header: Cancel · Done, like any system sheet
@@ -34,13 +49,11 @@ struct VoiceSessionScreen: View {
                 ReturnHint()
                     .accessibilityIdentifier("voice.returnHint")
                     .frame(maxWidth: .infinity, alignment: .leading)
-                cancelButton
-                    .padding(.top, 4)
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
             .padding(.bottom, 16)
-        } else {
+        }
             HStack {
                 cancelButton
                 Spacer()
@@ -48,25 +61,48 @@ struct VoiceSessionScreen: View {
                     Button("Done") { session.finishDictation() }
                         .fontWeight(.semibold)
                         .accessibilityIdentifier("voice.done")
+                        .frame(minWidth: 44, minHeight: 44)
+                } else if session.phase == .finishing {
+                    ProgressView("Finishing…")
+                        .accessibilityIdentifier("voice.finishing")
+                } else if session.phase == .idle, !session.transcript.text.isEmpty {
+                    Button("Copy text") { UIPasteboard.general.string = session.transcript.text }
+                        .frame(minWidth: 44, minHeight: 44)
+                        .accessibilityIdentifier("voice.copy")
                 }
             }
             .padding(.horizontal, 20)
-            .frame(height: 52)
-        }
+            .frame(minHeight: 52)
     }
 
     private var cancelButton: some View {
         Button("Cancel") {
-            session.cancelDictation()
-            onClose()
+            if session.transcript.text.isEmpty { discard() }
+            else { confirmDiscard = true }
         }
+        .frame(minWidth: 44, minHeight: 44)
         .accessibilityIdentifier("voice.cancel")
+    }
+
+    private func discard() {
+        session.cancelDictation()
+        onClose()
+    }
+
+    private var emptyPrompt: String {
+        if session.hasFinalText { return "No speech detected" }
+        switch session.phase {
+        case .starting: return "Preparing microphone…"
+        case .finishing: return "Finishing…"
+        case .listening: return "Listening…"
+        default: return "Ready"
+        }
     }
 
     // MARK: Footer: the light while listening
 
     @ViewBuilder private var footer: some View {
-        if !session.hasFinalText {
+        if session.phase == .listening || session.phase == .starting || session.phase == .finishing {
             VoiceLens(feed: session.levels, mode: lensMode)
                 .frame(height: 64)
                 .padding(.bottom, 24)
@@ -91,27 +127,32 @@ struct VoiceSessionScreen: View {
 private struct VoiceTranscriptView: View {
     let transcript: VoiceTranscript
     let isFinal: Bool
+    let prompt: String
 
     var body: some View {
         ScrollView {
             Group {
                 if transcript.text.isEmpty {
-                    Text("বলুন…")
-                        .foregroundStyle(.tertiary)
+                    // A status prompt, not a tentative word in the transcript.
+                    Label(prompt, systemImage: "mic.fill")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .background(Color(.secondarySystemBackground), in: Capsule())
                 } else {
                     Text(attributed)
+                        .font(.title)
+                        .lineSpacing(4)
+                        .textSelection(.enabled)
                 }
             }
-            .font(.system(size: 28))
-            .lineSpacing(4)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 24)
             .padding(.vertical, 12)
-            .textSelection(.enabled)
         }
         .defaultScrollAnchor(.bottom)
-        .scrollIndicators(.hidden)
-        .accessibilityLabel(transcript.text.isEmpty ? "Listening" : transcript.text)
+        .accessibilityLabel(transcript.text.isEmpty ? prompt : transcript.text)
     }
 
     private var attributed: AttributedString {
@@ -181,6 +222,16 @@ private struct VoiceFailureView: View {
                 Text(failure == .interrupted ? "Another App Is Using the Microphone" : "The Microphone Couldn't Start")
                     .font(.title3.weight(.semibold))
                     .multilineTextAlignment(.center)
+            case .audioOverflow, .finishTimedOut:
+                Text("Dictation Couldn't Finish").font(.title3.weight(.semibold))
+                Text("Recognition stopped before all speech could be processed. Please try a new dictation.")
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+            case .deliveryUnavailable:
+                Text("Voice Sharing Unavailable").font(.title3.weight(.semibold))
+                Text("Obadh couldn't save text for the keyboard. Check available storage and Allow Full Access, then try again.")
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
         }

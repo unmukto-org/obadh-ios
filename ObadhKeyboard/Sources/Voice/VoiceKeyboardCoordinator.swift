@@ -29,6 +29,9 @@ protocol VoiceKeyboardHost: AnyObject {
 final class VoiceKeyboardCoordinator {
     private let log = Logger(subsystem: "org.unmukto.obadh.keyboard", category: "voice")
     weak var host: VoiceKeyboardHost?
+    private static weak var presented: VoiceKeyboardCoordinator?
+    private var isPresented = false
+    private var isDelivering = false
 
     /// The dictation this keyboard is waiting for, with where its text will go.
     private var reconciler = VoiceDraftReconciler()
@@ -37,16 +40,31 @@ final class VoiceKeyboardCoordinator {
     private var waitTimeout: DispatchWorkItem?
     private var problemDismissal: DispatchWorkItem?
 
-    private let persistence = UserDefaults.standard
+    private let persistence: UserDefaults
+    private let directoryProvider: () -> URL?
     private static let persistedKey = "voice.keyboard.pendingDictation"
-    /// How long a returning keyboard waits for text before giving up quietly.
-    private static let returnWait: TimeInterval = 6
+    /// A slow result gets a notice, not deletion of the pending dictation.
+    private let returnWait: TimeInterval
 
-    private var directory: URL? { VoiceSessionChannel.directory() }
+    private var directory: URL? { directoryProvider() }
+
+    init(persistence: UserDefaults = .standard, returnWait: TimeInterval = 6,
+         directory: @escaping () -> URL? = { VoiceSessionChannel.directory() }) {
+        self.persistence = persistence
+        self.returnWait = returnWait
+        directoryProvider = directory
+    }
 
     // MARK: Lifecycle, driven by the controller
 
     func hostWillAppear() {
+        restorePending()
+    }
+
+    func hostDidAppear() {
+        Self.presented?.hostDidDisappear()
+        Self.presented = self
+        isPresented = true
         if snapshotObserver == nil {
             snapshotObserver = VoiceDarwinObserver(name: VoiceSessionChannel.snapshotDarwinName) { [weak self] in
                 self?.deliverIfReady()
@@ -57,21 +75,27 @@ final class VoiceKeyboardCoordinator {
         // Back from the voice screen: the text is usually final already; if the user
         // left mid-dictation it arrives within a moment.
         let timeout = DispatchWorkItem { [weak self] in
-            guard let self, self.reconciler.isActive else { return }
-            self.log.notice("OBADH-VOICE no text arrived; giving up")
-            self.clearPending()
+            guard let self, self.isPresented, Self.presented === self else { return }
+            self.restorePending()
+            guard self.reconciler.isActive else { return }
+            self.showProblem("ভয়েস লেখা তৈরি হচ্ছে। অবাধ অ্যাপে ফিরে দেখতে পারেন।")
         }
         waitTimeout?.cancel()
         waitTimeout = timeout
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.returnWait, execute: timeout)
+        DispatchQueue.main.asyncAfter(deadline: .now() + returnWait, execute: timeout)
         deliverIfReady()
     }
 
     func hostDidDisappear() {
+        isPresented = false
+        if Self.presented === self { Self.presented = nil }
+        snapshotObserver = nil
         // Keep a pending dictation: disappearing is usually the trip to the voice
-        // screen. It is cleared once delivered, or if nothing arrives on return.
+        // screen. A slow result remains pending until delivery or explicit editing.
         waitTimeout?.cancel()
         waitTimeout = nil
+        problemDismissal?.cancel()
+        problemDismissal = nil
     }
 
     // MARK: Mic
@@ -83,24 +107,36 @@ final class VoiceKeyboardCoordinator {
             return
         }
         host.voiceWillBeginDictation()
-        let dictationID = String(UUID().uuidString.prefix(8)).lowercased()
+        let dictationID = UUID().uuidString.lowercased()
         reconciler.begin(dictationID: dictationID, contextBefore: host.voiceDocument.contextBeforeInput)
         persistPending()
+        // Disable delivery immediately, even before UIKit's disappearance callback.
+        hostDidDisappear()
         log.notice("OBADH-VOICE opening the voice screen")
         host.voiceOpenContainingApp(VoiceSessionChannel.voiceURL(dictationID: dictationID)) { [weak self] opened in
-            guard let self, !opened else { return }
+            guard let self, !opened, self.pending()?.dictationID == dictationID else { return }
             self.showProblem("অবাধ অ্যাপ খোলা যায়নি")
             self.clearPending()
+            self.hostDidAppear()
         }
     }
 
-    /// Kept for the controller's typing path: with no live dictation in the field,
-    /// typing never competes with it.
-    func finishBeforeTyping() {}
+    /// Once the user starts editing again, a delayed result must not suddenly
+    /// append to a changed field. The app keeps the unacknowledged text for Copy.
+    func finishBeforeTyping() {
+        guard isPresented, Self.presented === self else { return }
+        restorePending()
+        guard reconciler.isActive else { return }
+        clearPending()
+        showProblem("ভয়েস লেখা অবাধ অ্যাপে আছে। সেখান থেকে কপি করুন।")
+    }
 
     // MARK: Delivery
 
-    private func deliverIfReady() {
+    func deliverIfReady() {
+        guard isPresented, Self.presented === self, !isDelivering else { return }
+        // Another controller may already have delivered or begun a newer trip.
+        restorePending()
         guard reconciler.isActive, let host,
               let snapshot = readSnapshot(), snapshot.dictationID == reconciler.dictationID else { return }
         if let failure = snapshot.failure {
@@ -108,7 +144,17 @@ final class VoiceKeyboardCoordinator {
             clearPending()
             return
         }
-        guard snapshot.transcript.isFinal else { return }
+        guard snapshot.transcript.isFinal else {
+            // Cancel publishes an idle, empty tombstone for this exact trip.
+            if snapshot.phase == .idle { clearPending() }
+            return
+        }
+        isDelivering = true
+        defer { isDelivering = false }
+        let id = snapshot.dictationID ?? ""
+        // Consume before proxy callbacks can reenter or a successor can restore it.
+        // The app retains its copy until acknowledgement (including if we crash).
+        persistence.removeObject(forKey: Self.persistedKey)
         if let step = reconciler.step(for: snapshot) {
             host.voicePerformTextUpdate {
                 if VoiceDraftWriter().apply(step, in: host.voiceDocument) == .stale {
@@ -120,15 +166,17 @@ final class VoiceKeyboardCoordinator {
             }
         }
         log.notice("OBADH-VOICE inserted \(snapshot.transcript.text.count, privacy: .public) chars")
-        send(.acknowledge, dictationID: snapshot.dictationID ?? "")
+        send(.acknowledge, dictationID: id)
         clearPending()
     }
 
     private func clearPending() {
         waitTimeout?.cancel()
         waitTimeout = nil
+        if pending()?.dictationID == reconciler.dictationID {
+            persistence.removeObject(forKey: Self.persistedKey)
+        }
         reconciler.end()
-        persistPending()
     }
 
     // MARK: Problems (the only words voice typing puts in the strip)
@@ -147,6 +195,8 @@ final class VoiceKeyboardCoordinator {
         case .noStreamingModel: "অবাধ অ্যাপে ভয়েস মডেল ডাউনলোড করুন"
         case .audioEngineFailed: "মাইক্রোফোন চালু করা যায়নি"
         case .interrupted: "অন্য একটি অ্যাপ মাইক্রোফোন ব্যবহার করছে"
+        case .audioOverflow, .finishTimedOut: "পুরো লেখা তৈরি হয়নি। অবাধ অ্যাপে ফিরে লেখা কপি করুন।"
+        case .deliveryUnavailable: "লেখা পাঠানো যায়নি। অবাধ অ্যাপে ফিরে লেখা কপি করুন।"
         }
     }
 
@@ -186,10 +236,12 @@ final class VoiceKeyboardCoordinator {
     }
 
     private func restorePending() {
-        guard !reconciler.isActive,
-              let data = persistence.data(forKey: Self.persistedKey),
-              let restored = try? JSONDecoder().decode(VoiceDraftReconciler.self, from: data) else { return }
-        reconciler = restored
+        reconciler = pending() ?? VoiceDraftReconciler()
+    }
+
+    private func pending() -> VoiceDraftReconciler? {
+        guard let data = persistence.data(forKey: Self.persistedKey) else { return nil }
+        return try? JSONDecoder().decode(VoiceDraftReconciler.self, from: data)
     }
 
     #if DEBUG

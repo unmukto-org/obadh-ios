@@ -60,6 +60,9 @@ enum VoiceSessionFailure: String, Codable, Sendable {
     case noStreamingModel
     case audioEngineFailed
     case interrupted
+    case audioOverflow
+    case finishTimedOut
+    case deliveryUnavailable
 }
 
 enum VoiceCommandKind: String, Codable, Sendable {

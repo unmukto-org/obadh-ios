@@ -20,6 +20,21 @@ settings:
     # or a project-level value would override the xcconfig.
     GENERATE_INFOPLIST_FILE: NO
 targets:
+  ObadhVoiceTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/ObadhVoiceTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(OBADH_APP_BUNDLE_ID).voicetests
+        GENERATE_INFOPLIST_FILE: YES
+    configFiles:
+      Debug: Config/Signing.xcconfig
+      Debug-Legacy: Config/Signing.xcconfig
+      Release: Config/Signing.xcconfig
+    dependencies:
+      - target: Obadh
   ObadhAccuracyLabUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -217,6 +232,15 @@ targets:
     dependencies:
       - target: Obadh
 schemes:
+  ObadhVoiceTests:
+    build:
+      targets:
+        Obadh: all
+        ObadhVoiceTests: all
+    test:
+      config: Debug
+      targets:
+        - ObadhVoiceTests
   ObadhAccuracyLab:
     build:
       targets:

@@ -31,6 +31,7 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
     var onFinished: (@Sendable (_ dictationID: String) -> Void)?
     /// Called on `queue`, at most four times a second, while the audio holds voice.
     var onVoiceActivity: (@Sendable () -> Void)?
+    var onFailure: (@Sendable (String, VoiceSessionFailure) -> Void)?
 
     /// Audio kept from before the tap: the first syllable often starts with it.
     static let preRollSamples = 16_000 * 35 / 100
@@ -41,7 +42,16 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
 
     private let log = Logger(subsystem: "org.unmukto.obadh", category: "voice")
     private let queue = DispatchQueue(label: "org.unmukto.obadh.voice.recognition", qos: .userInteractive)
-    let ring = VoiceAudioRing(seconds: 60)
+    let ring: VoiceAudioRing
+    private let makeRecognizer: @Sendable (StreamingConfiguration) throws -> any VoiceStreamingRecognizing
+
+    init(ring: VoiceAudioRing = VoiceAudioRing(seconds: 60),
+         makeRecognizer: @escaping @Sendable (StreamingConfiguration) throws -> any VoiceStreamingRecognizing = {
+             try SherpaStreamingRecognizer(paths: $0.paths)
+         }) {
+        self.ring = ring
+        self.makeRecognizer = makeRecognizer
+    }
     /// Coalescing event source: any number of audio arrivals between two runs of the
     /// worker become one wake-up.
     private lazy var wakeup: DispatchSourceUserDataAdd = {
@@ -54,9 +64,10 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
     /// Set the instant a dictation is requested (under `pumpLock`): audio from here
     /// on is never trimmed, even if the queue is still busy loading the model.
     private var armedFrom: Int64?
+    private var cancelled = false
 
     // queue state
-    private var streaming: SherpaStreamingRecognizer?
+    private var streaming: (any VoiceStreamingRecognizing)?
     private var dictationID: String?
     private var cursor: Int64 = 0
     private var stopAt: Int64?
@@ -81,9 +92,11 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
 
     func load(streaming configuration: StreamingConfiguration) {
         queue.async { [self] in
+            guard !pumpLock.withLock({ cancelled }) else { return }
             let start = CFAbsoluteTimeGetCurrent()
             do {
-                streaming = try SherpaStreamingRecognizer(paths: configuration.paths)
+                streaming = try makeRecognizer(configuration)
+                guard !pumpLock.withLock({ cancelled }) else { streaming = nil; return }
                 log.notice("OBADH-VOICE streaming model loaded in \(CFAbsoluteTimeGetCurrent() - start, privacy: .public)s")
                 onStreamingReady?(true)
                 pump()
@@ -127,6 +140,7 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
         armedFrom = start
         pumpLock.unlock()
         queue.async { [self] in
+            guard !pumpLock.withLock({ cancelled }) else { return }
             self.dictationID = dictationID
             cursor = start
             pumpLock.lock()
@@ -148,14 +162,16 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
     func finish(postRoll: Bool = true) {
         let end = ring.writeIndex + (postRoll ? Int64(Self.postRollSamples) : 0)
         queue.async { [self] in
-            guard dictationID != nil, stopAt == nil else { return }
-            stopAt = end
+            guard dictationID != nil else { return }
+            // An interruption can shorten a previously requested post-roll.
+            stopAt = min(stopAt ?? end, end)
             pump()
         }
     }
 
     func cancel() {
         pumpLock.lock()
+        cancelled = true
         armedFrom = nil
         pumpLock.unlock()
         queue.async { [self] in
@@ -183,7 +199,15 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
         guard let streaming else { return }   // still loading: the ring holds the audio
         let limit = min(stopAt ?? .max, ring.writeIndex)
         while cursor < limit {
+            guard !pumpLock.withLock({ cancelled }) else { return }
             let read = ring.read(from: cursor, maxCount: min(1_600, Int(limit - cursor)))
+            guard read.start == cursor else {
+                // Never splice the end of the ring onto an earlier sentence.
+                self.dictationID = nil
+                self.stopAt = nil
+                onFailure?(dictationID, .audioOverflow)
+                return
+            }
             guard !read.samples.isEmpty else { break }
             cursor = read.next
             read.samples.withUnsafeBufferPointer { streaming.accept($0) }
@@ -220,7 +244,7 @@ final class VoiceRecognitionPipeline: @unchecked Sendable {
 
     /// The stream is reset at a pause: the phrase is committed in full, and the fresh
     /// stream is primed with the audio just before, so it does not start cold.
-    private func closePhrase(_ streaming: SherpaStreamingRecognizer) {
+    private func closePhrase(_ streaming: any VoiceStreamingRecognizing) {
         builder.closeOpenPhrase(final: streaming.finishPhrase())
         lastHypothesis = ""
         streaming.reset()

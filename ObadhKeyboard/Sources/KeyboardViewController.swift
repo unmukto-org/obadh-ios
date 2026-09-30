@@ -532,6 +532,7 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        voice.hostDidAppear()
         for controller in Self.loadedControllers.allObjects where controller !== self {
             controller.suspendContentIfInactive()
         }
