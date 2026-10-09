@@ -2744,6 +2744,10 @@ extension KeyboardViewController: KeyboardDebugCommandHandler {
                 handleEmojiSearchKeyPress(.character(String(character)))
             }
             refreshKeyboard()
+        case "modelprobe":
+            if let directory = debugChannel.directoryURL {
+                Task { await ContextualModelProbe.shared.run(directory: directory, mode: argument ?? "cpu") }
+            }
         case "dump":
             lifecycleLog.notice("OBADH-DEBUG state build=\(AppBuildInfo.summary, privacy: .public) mode=\(String(describing: self.keyboardMode), privacy: .public) shifted=\(self.shifted) glass=\(KeyboardGlassStyle.current.rawValue, privacy: .public) appearance=\(self.traitCollection.userInterfaceStyle == .dark ? "dark" : "light", privacy: .public) size=\(NSCoder.string(for: self.view.bounds.size), privacy: .public) emojiPanel=\(self.showsEmojiPanel ? "shown" : "hidden") \(self.emojiPanelView.debugStateSummary, privacy: .public)")
         default:

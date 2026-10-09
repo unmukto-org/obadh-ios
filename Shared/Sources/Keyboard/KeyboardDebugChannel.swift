@@ -58,6 +58,8 @@ final class KeyboardDebugChannel {
         return dir.appendingPathComponent("command", isDirectory: false)
     }
 
+    var directoryURL: URL? { commandURL?.deletingLastPathComponent() }
+
     func start() {
         guard let commandURL, timer == nil else { return }
         // Clear any stale command from a previous session so we don't replay it.

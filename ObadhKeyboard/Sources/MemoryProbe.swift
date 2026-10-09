@@ -6,8 +6,10 @@ import UIKit
 ///
 /// `phys_footprint` is the number jetsam compares with the extension's limit (dirty
 /// and compressed memory; clean mapped files such as the engine's models mostly do
-/// not count), and `os_proc_available_memory` is how far below that limit the process
-/// is. Their sum is the limit itself. Nothing leaves the device: this goes to the
+/// not count), and `os_proc_available_memory` reports available process memory on device.
+/// Their sum is a momentary estimate, not a fixed or guaranteed allocation.
+/// Simulator does not expose an extension memory limit through this API.
+/// Nothing leaves the device: this goes to the
 /// unified log only, read with `idevicesyslog -m OBADH-MEM`.
 final class MemoryProbe {
     private static let log = Logger(subsystem: "org.unmukto.obadh.keyboard", category: "memory")
@@ -46,12 +48,16 @@ final class MemoryProbe {
         let elapsedMS = Double(now - loadedAt) / 1_000_000
         let phaseMS = Double(now - previousTime) / 1_000_000
         let footprint = Self.physicalFootprint()
+        #if targetEnvironment(simulator)
+        let budgetDescription = "headroom=unavailable limit=unavailable environment=simulator"
+        #else
         let available = os_proc_available_memory()
+        let budgetDescription = "headroom=\(Double(available) / 1_048_576) MiB estimatedLimit=\(Double(footprint + UInt64(available)) / 1_048_576) MiB environment=device"
+        #endif
         let megabyte = 1_048_576.0
         let footprintMB = Double(footprint) / megabyte
-        let availableMB = Double(available) / megabyte
         let deltaMB = (Double(footprint) - Double(previousFootprint)) / megabyte
-        Self.log.notice("OBADH-MEM \(moment, privacy: .public): controller=\(controllerAddress, privacy: .public) elapsed=\(elapsedMS, format: .fixed(precision: 2), privacy: .public) ms phase=\(phaseMS, format: .fixed(precision: 2), privacy: .public) ms footprint \(footprintMB, format: .fixed(precision: 2), privacy: .public) MB delta=\(deltaMB, format: .fixed(precision: 2), privacy: .public) MB headroom \(availableMB, format: .fixed(precision: 1), privacy: .public) MB limit \(footprintMB + availableMB, format: .fixed(precision: 1), privacy: .public) MB")
+        Self.log.notice("OBADH-MEM \(moment, privacy: .public): controller=\(controllerAddress, privacy: .public) elapsed=\(elapsedMS, format: .fixed(precision: 2), privacy: .public) ms phase=\(phaseMS, format: .fixed(precision: 2), privacy: .public) ms footprint \(footprintMB, format: .fixed(precision: 2), privacy: .public) MB delta=\(deltaMB, format: .fixed(precision: 2), privacy: .public) MB \(budgetDescription, privacy: .public)")
         previousTime = now
         previousFootprint = footprint
     }
