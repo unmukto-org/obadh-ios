@@ -27,8 +27,13 @@ Current limitations and verification requirements live in [KNOWN-ISSUES.md](KNOW
 - Verification: 195 SwiftPM tests, 99 real-controller UIKit tests and 23
   real-engine tests passed. A final 27-test field suite covers punctuation
   undo, and the real iPhone 11 simulator UI verifies both smile spellings,
-  both suggestion choices, automatic replacement and undo. Device installation
-  is recorded separately after the signed build succeeds.
+  both suggestion choices, automatic replacement and undo.
+- Installed and launched signed Release **1.0.1 (195)**, engine **0.9.5**,
+  source `c96c85d0`, on the owner's iPhone 16 Pro Max / iOS 27.0.1 (24A446).
+  App and keyboard extension have matching version/source metadata; strict
+  signature verification passed and debug tooling is absent. CoreDevice
+  readback confirms the installed build. Simulator success and installation
+  do not establish iPhone 11/A13 hardware acceptance.
 
 ### 2026-10-09 — Input-field context
 

@@ -7,7 +7,7 @@ its acceptance checks pass and record the resolution in the changelog.
 
 **Scope:** v1.0.1 release evidence below remains unchanged except for the dated
 October 9 field-context work on `feature/voice-typing` in KI-005. Current device
-install: Release **1.0.1 (193)** (`94242178`), installed and launched October 9 on
+install: Release **1.0.1 (195)**, engine **0.9.5** (`c96c85d0`), installed and launched October 9 on
 iPhone 16 Pro Max / iOS 27.0.1 (24A446). This is not a hardware acceptance pass
 for the issues below or an iPhone 11/A13 qualification. The previous installation
 was engine 0.9.4 in Release 166 (`6ab7ab68`) on September 25; earlier device
