@@ -52,6 +52,42 @@ final class KeyboardFieldContextUITests: XCTestCase {
         add(attachment)
     }
 
+    func testBothSmileAliasesOfferEmojiAndLiteralBeforeAutomaticReplacement() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--keyboard-field-test"]
+        app.launch()
+        defer { app.terminate() }
+        selectObadh(app)
+        let prose = app.textFields["field-prose"]
+        press("123", app)
+        for key in [":", ")"] { press(key, app) }
+        XCTAssertEqual(prose.value as? String, ":)")
+        XCTAssertTrue(app.buttons["😃"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.buttons[":)"].exists, app.debugDescription)
+        capture("emoticon-smile-before-space", app)
+        press("Space", app)
+        XCTAssertEqual(prose.value as? String, "😃 ")
+        press("Delete", app)
+        XCTAssertEqual(prose.value as? String, ":)")
+        press("Space", app)
+        XCTAssertEqual(prose.value as? String, ":) ")
+        for key in [":", "-", ")"] { press(key, app) }
+        XCTAssertEqual(prose.value as? String, ":) :-)")
+        XCTAssertTrue(app.buttons["😃"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.buttons[":-)"].exists, app.debugDescription)
+        capture("emoticon-nose-before-space", app)
+        // Accept the exact literal through the real suggestion control.
+        app.buttons[":-)"].tap()
+        XCTAssertEqual(prose.value as? String, ":) :-) ")
+        for key in [":", "-", ")"] { press(key, app) }
+        press("Space", app)
+        XCTAssertEqual(prose.value as? String, ":) :-) 😃 ")
+        for key in [":", ")"] { press(key, app) }
+        app.buttons["😃"].tap()
+        XCTAssertEqual(prose.value as? String, ":) :-) 😃 😃 ")
+    }
+
     func testReturnActionOnNativeTextField() {
         continueAfterFailure = false
         let app = XCUIApplication()

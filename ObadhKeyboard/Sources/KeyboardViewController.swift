@@ -27,6 +27,12 @@ class KeyboardViewController: UIInputViewController {
         currentMetrics.suggestionSlotCount
     }
     private let compositionController = TextCompositionController()
+    private struct EmoticonUndo {
+        let literal: String
+        let inserted: String
+        let contextTail: String
+    }
+    private var emoticonUndo: EmoticonUndo?
     private let personalAutosuggestStore = PersonalAutosuggestStore()
     /// Words the user has committed, protected from auto-insert corrections.
     private let learnedWordStore = LearnedWordStore()
@@ -894,6 +900,7 @@ class KeyboardViewController: UIInputViewController {
         let inputChanged = next.layout != fieldPolicy.layout
             || next.usesBanglaComposition != fieldPolicy.usesBanglaComposition
             || next.allowsCorrections != fieldPolicy.allowsCorrections
+            || next.allowsEmoticonReplacement != fieldPolicy.allowsEmoticonReplacement
             || next.traits.content != fieldPolicy.traits.content
             || next.traits.kind != fieldPolicy.traits.kind
             || next.traits.isSecure != fieldPolicy.traits.isSecure
@@ -1391,7 +1398,8 @@ class KeyboardViewController: UIInputViewController {
         let engine = self.engine
         activeCursorWord = nil
 
-        guard fieldPolicy.allowsSuggestions, !isEmojiSearchActive else {
+        guard (fieldPolicy.allowsSuggestions || (fieldPolicy.allowsEmoticonReplacement && composer.isEmoticonInput)),
+              !isEmojiSearchActive else {
             pendingSuggestionWork?.cancel()
             pendingSuggestionWork = nil
             suggestionBar.update(suggestions: [])
@@ -1405,7 +1413,7 @@ class KeyboardViewController: UIInputViewController {
             // thread so the FST traversal never blocks typing.
             deterministicIsOOV = false
             updateCompositionSuggestionBar()
-            guard fieldPolicy.allowsCorrections else {
+            guard fieldPolicy.allowsCorrections, !composer.isEmoticonInput else {
                 pendingSuggestionWork?.cancel()
                 pendingSuggestionWork = nil
                 return
@@ -1576,12 +1584,31 @@ class KeyboardViewController: UIInputViewController {
         }
 
         switch key {
+        case .character, .symbol, .space, .returnKey, .tab:
+            emoticonUndo = nil
+        default: break
+        }
+
+        switch key {
         case let .character(value):
             // The next letter starts a new word, so the previous word's emoji stop
             // being relevant — from here the composing path supplies its own.
             carriedEmojis = []
+            let output = shifted ? value.uppercased() : value
+            prepareComposerInput(for: output)
+            if composer.canAppendEmoticon(output) {
+                composer.append(EmoticonRules.canonicalKeys(output))
+                shifted = capsLocked
+                manualShiftOverride = nil
+                refreshCompositionPreview()
+                break
+            }
+            if composer.hasActiveInput && (composer.isEmoticonInput || composer.isLiteralInput) {
+                // A letter is not a boundary: :Dabc must never become 😄abc.
+                _ = commitActiveInputIfNeeded()
+                prepareComposerInput(for: output)
+            }
             if !fieldPolicy.usesBanglaComposition {
-                let output = shifted ? value.uppercased() : value
                 performTextUpdate { textDocumentProxy.insertText(output) }
                 manualShiftOverride = nil
                 shifted = capsLocked
@@ -1596,6 +1623,14 @@ class KeyboardViewController: UIInputViewController {
             manualShiftOverride = nil
             refreshCompositionPreview()
         case let .symbol(symbol):
+            prepareComposerInput(for: symbol.output)
+            if symbol.role == .literal, composer.canAppendEmoticon(symbol.output) {
+                composer.append(EmoticonRules.canonicalKeys(symbol.output))
+                refreshCompositionPreview()
+                previousKeyWasSpace = false
+                refreshKeyboard()
+                return
+            }
             // A symbol that is part of Bangla's roman orthography joins the word
             // being composed rather than ending it. Today that is only the colon,
             // which is how bisarga is typed: `du` `:` `kho` is দুঃখ.
@@ -1606,7 +1641,7 @@ class KeyboardViewController: UIInputViewController {
             // sequence of keys on this keyboard could produce ঃ.
             if symbol.role == .literal,
                Self.compositionJoiningSymbols.contains(symbol.output),
-               composer.hasActiveInput {
+               composer.hasActiveInput, !composer.isEmoticonInput, !composer.isLiteralInput {
                 composer.append(symbol.output)
                 refreshCompositionPreview()
                 return
@@ -1626,7 +1661,7 @@ class KeyboardViewController: UIInputViewController {
             // Use the public Return input separately from any word replacement.
             // Hosts decide newline/submission behavior; UIKit's single-line
             // divergence on iOS 26.5 is tracked by KI-005 and a real UI test.
-            _ = commitActiveInputIfNeeded()
+            _ = commitActiveInputIfNeeded(replaceEmoticons: true)
             performTextUpdate {
                 textDocumentProxy.insertText("\n")
             }
@@ -1655,7 +1690,7 @@ class KeyboardViewController: UIInputViewController {
             keyboardTouchSurface.cancelTracking()
             advanceToNextInputMode()
         case .tab:
-            _ = commitActiveInputIfNeeded()
+            _ = commitActiveInputIfNeeded(replaceEmoticons: true)
             performTextUpdate { textDocumentProxy.insertText("\t") }
         case .capsLock:
             capsLocked.toggle()
@@ -1854,6 +1889,21 @@ class KeyboardViewController: UIInputViewController {
             }
         }
 
+        if let undo = emoticonUndo {
+            emoticonUndo = nil
+            if unit == .character,
+               let context = textDocumentProxy.documentContextBeforeInput,
+               String(context.suffix(128)) == undo.contextTail,
+               context.hasSuffix(undo.inserted) {
+                performTextUpdate {
+                    compositionController.replaceWordBeforeCursor(undo.inserted, with: undo.literal, in: documentEditor)
+                }
+                previousKeyWasSpace = false
+                refreshSuggestions()
+                return true
+            }
+        }
+
         let contextBeforeInput = textDocumentProxy.documentContextBeforeInput
         guard !requiresTextEvidence || textDocumentProxy.hasText || contextBeforeInput?.isEmpty == false else {
             refreshSuggestions()
@@ -1892,7 +1942,7 @@ class KeyboardViewController: UIInputViewController {
     }
 
     @discardableResult
-    private func commitActiveInputIfNeeded(trailingText: String = "") -> Bool {
+    private func commitActiveInputIfNeeded(trailingText: String = "", replaceEmoticons: Bool = false) -> Bool {
         guard composer.hasActiveInput else { return false }
         pendingSuggestionWork?.cancel()
         pendingSuggestionWork = nil
@@ -1901,11 +1951,24 @@ class KeyboardViewController: UIInputViewController {
         // word just typed and stay on screen after it commits, so a space does not
         // snatch away the one suggestion the user was reaching for.
         carriedEmojis = resolvedEmojiSuggestions()
-        guard let committed = composer.commitActiveInput(allowCorrections: fieldPolicy.allowsCorrections) else { return false }
+        let literal = composer.preview
+        let isEmoticon = composer.isEmoticonInput
+        let isLiteral = composer.isLiteralInput
+        let replacement = replaceEmoticons && fieldPolicy.allowsEmoticonReplacement
+            && composer.emoticonEmoji != nil
+            && compositionController.composedText == literal
+            && textDocumentProxy.documentContextBeforeInput?.hasSuffix(literal) == true
+        guard let committed = composer.commitActiveInput(allowCorrections: fieldPolicy.allowsCorrections,
+                                                         replaceEmoticon: replacement) else { return false }
         performTextUpdate {
             compositionController.commit(finalText: committed, trailingText: trailingText, in: documentEditor)
         }
-        observeCommittedToken(committed)
+        if replacement, let context = textDocumentProxy.documentContextBeforeInput,
+           context.hasSuffix(committed + trailingText) {
+            emoticonUndo = EmoticonUndo(literal: literal, inserted: committed + trailingText,
+                                       contextTail: String(context.suffix(128)))
+        }
+        if !isEmoticon && !isLiteral { observeCommittedToken(committed) }
         observeAutosuggestBoundary(trailingText)
         return true
     }
@@ -1914,7 +1977,7 @@ class KeyboardViewController: UIInputViewController {
     /// and reset the autosuggest session for a new sentence. Handled purely on
     /// the iOS layer — the engine is not consulted.
     private func insertSentenceTerminator(_ output: String) {
-        if !commitActiveInputIfNeeded(trailingText: output) {
+        if !commitActiveInputIfNeeded(trailingText: output, replaceEmoticons: true) {
             performTextUpdate {
                 textDocumentProxy.insertText(output)
             }
@@ -1935,8 +1998,31 @@ class KeyboardViewController: UIInputViewController {
     /// the same key produces ঃ in দুঃখ.
     private static let compositionJoiningSymbols: Set<String> = [":"]
 
+    private func prepareComposerInput(for keys: String) {
+        guard !composer.hasActiveInput else { return }
+        // Most Latin keys and protected fields cannot start a face. Avoid a
+        // synchronous cross-process context query for those ordinary keystrokes.
+        guard fieldPolicy.allowsEmoticonReplacement, keys == EmoticonRules.canonicalKeys(keys),
+              EmoticonRules.isPrefix(keys) else {
+            composer.beginInput(literal: !fieldPolicy.usesBanglaComposition, allowsEmoticons: false)
+            return
+        }
+        let context = textDocumentProxy.documentContextBeforeInput
+        let atBoundary = context.map { $0.isEmpty || $0.last?.isWhitespace == true }
+            ?? !textDocumentProxy.hasText
+        let quote = SmartPunctuation.literalSubstitution(for: "'", contextBefore: context ?? "",
+            smartQuotes: fieldPolicy.allowsSmartQuotes, smartDashes: false, smartEllipsis: false).insertion
+        composer.beginInput(literal: !fieldPolicy.usesBanglaComposition,
+                            allowsEmoticons: fieldPolicy.allowsEmoticonReplacement && atBoundary,
+                            singleQuotePreview: quote)
+    }
+
     private func insertLiteralSymbol(_ output: String) {
-        _ = commitActiveInputIfNeeded()
+        if composer.emoticonEmoji != nil, EmoticonRules.isCommitBoundary(output),
+           commitActiveInputIfNeeded(trailingText: output, replaceEmoticons: true) {
+            return
+        }
+        _ = commitActiveInputIfNeeded(replaceEmoticons: EmoticonRules.isCommitBoundary(output))
         let needsContext = fieldPolicy.allowsSmartQuotes || fieldPolicy.allowsSmartDashes
             || fieldPolicy.allowsDoubleSpacePeriod
         let contextBefore = needsContext ? (textDocumentProxy.documentContextBeforeInput ?? "") : ""
@@ -1956,7 +2042,7 @@ class KeyboardViewController: UIInputViewController {
         let withinDoubleTapWindow = previousKeyWasSpace
             && now - lastSpaceKeyTime <= Self.dariDoubleSpaceWindow
         lastSpaceKeyTime = now
-        if commitActiveInputIfNeeded(trailingText: " ") {
+        if commitActiveInputIfNeeded(trailingText: " ", replaceEmoticons: true) {
             return
         }
         // Double-space → dari ends a sentence: only at the end of the text, and only
@@ -2017,6 +2103,7 @@ class KeyboardViewController: UIInputViewController {
         carriedEmojis = []
         suggestionBar.update(suggestions: [])
         composer.clear()
+        emoticonUndo = nil
         compositionController.resetHostState()
         previousKeyWasSpace = false
     }
@@ -2596,7 +2683,10 @@ extension KeyboardViewController: SuggestionBarViewDelegate {
     }
 
     func suggestionBar(_ suggestionBar: SuggestionBarView, didSelect suggestion: KeyboardSuggestion) {
-        guard !synchronizeHostInputTraits(), fieldPolicy.allowsSuggestions else { refreshKeyboard(); return }
+        guard !synchronizeHostInputTraits(),
+              fieldPolicy.allowsSuggestions || (fieldPolicy.allowsEmoticonReplacement && composer.isEmoticonInput)
+        else { refreshKeyboard(); return }
+        emoticonUndo = nil
         feedbackController.suggestionAccepted()
         if composer.hasActiveInput {
             // Native-style: every shown slot is tappable. Tapping the deterministic
@@ -2604,6 +2694,7 @@ extension KeyboardViewController: SuggestionBarViewDelegate {
             // tapping a correction replaces it. Either commits the tapped text in place
             // and finalizes the word.
             let keepsLiteral = suggestion.source == .deterministic
+            let shouldLearn = !composer.isEmoticonInput && !composer.isLiteralInput
             commitMarkedSuggestion(suggestion.text)
             // Native-style: accepting a candidate finishes the word, so the
             // separator comes with it (quoted "keep my spelling" included).
@@ -2611,7 +2702,7 @@ extension KeyboardViewController: SuggestionBarViewDelegate {
                 performTextUpdate { textDocumentProxy.insertText(" ") }
             }
             composer.clear()
-            observeCommittedToken(suggestion.text, keep: keepsLiteral)
+            if shouldLearn { observeCommittedToken(suggestion.text, keep: keepsLiteral) }
             observeAutosuggestBoundary(" ")
         } else if let cursorWord = activeCursorWord {
             // A correction for the word the cursor sits in: replace that word in place.

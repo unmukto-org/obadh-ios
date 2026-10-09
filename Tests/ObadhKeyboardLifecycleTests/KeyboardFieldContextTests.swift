@@ -29,6 +29,189 @@ final class KeyboardFieldContextTests: XCTestCase {
         controller.handleDebugCommand("tap", argument: text.map(String.init).joined(separator: ","))
     }
 
+    private func typeEmoticon(_ text: String, _ controller: KeyboardViewController) {
+        for key in text {
+            if key.isLetter { type(String(key), controller) }
+            else { controller.handleDebugCommand("sym", argument: String(key)) }
+        }
+    }
+
+    private func backspace(_ controller: KeyboardViewController) {
+        let surface = KeyboardTouchSurfaceView()
+        controller.keyboardTouchSurface(surface, didBegin: .backspace)
+        controller.keyboardTouchSurfaceDidCancel(surface)
+    }
+
+    func testEveryCanonicalFaceReplacesAtSpaceInBanglaAndLatinProse() {
+        let proxy = FieldDocumentProxy()
+        let controller = make(proxy)
+        for kind: UIKeyboardType in [.default, .asciiCapable] {
+            proxy.keyboardType = kind
+            for (alias, emoji) in EmoticonRules.aliases.sorted(by: { $0.key < $1.key }) {
+                controller.textWillChange(nil)
+                proxy.text = ""
+                proxy.cursor = 0
+                proxy.documentIdentifier = UUID()
+                controller.textDidChange(nil)
+                typeEmoticon(alias, controller)
+                XCTAssertEqual(proxy.text, alias, "Keep the typed alias until a boundary: \(alias)")
+                controller.handleDebugCommand("tap", argument: "space")
+                XCTAssertEqual(proxy.text, emoji + " ", "\(kind): \(alias)")
+            }
+        }
+    }
+
+    func testFaceWaitsForLongestAliasAndBackspaceRestoresLiteralWithoutRepeating() {
+        let proxy = FieldDocumentProxy()
+        let controller = make(proxy)
+        typeEmoticon(":-", controller)
+        XCTAssertEqual(proxy.text, ":-")
+        typeEmoticon(")", controller)
+        XCTAssertEqual(proxy.text, ":-)")
+        controller.handleDebugCommand("tap", argument: "space")
+        XCTAssertEqual(proxy.text, "😃 ")
+        backspace(controller)
+        XCTAssertEqual(proxy.text, ":-)")
+        controller.handleDebugCommand("tap", argument: "space")
+        XCTAssertEqual(proxy.text, ":-) ")
+    }
+
+    func testBothSmileSpellingsShowEmojiAndQuotedLiteralBeforeAnyBoundary() throws {
+        for kind: UIKeyboardType in [.default, .asciiCapable] {
+            for alias in [":)", ":-)"] {
+                let proxy = FieldDocumentProxy()
+                proxy.keyboardType = kind
+                let controller = make(proxy)
+                typeEmoticon(alias, controller)
+                XCTAssertEqual(proxy.text, alias)
+                let bar: SuggestionBarView = try stored("suggestionBar", controller)
+                let suggestions: [KeyboardSuggestion] = try stored("suggestions", barController: bar)
+                XCTAssertEqual(suggestions.map(\.text), ["😃", alias])
+                let quote: String = try stored("quotedText", barController: bar)
+                XCTAssertEqual(quote, alias)
+                func descendants(_ view: UIView) -> [UIView] { view.subviews.flatMap { [$0] + descendants($0) } }
+                let controls = descendants(bar).compactMap { $0 as? UIControl }
+                XCTAssertTrue(controls.contains { $0.accessibilityLabel == "😃" })
+                XCTAssertTrue(controls.contains { $0.accessibilityLabel == alias })
+            }
+        }
+    }
+
+    private func stored<T>(_ name: String, barController bar: SuggestionBarView) throws -> T {
+        try XCTUnwrap(Mirror(reflecting: bar).children.first { $0.label == name }?.value as? T)
+    }
+
+    func testFaceReplacesBeforeReturnAndSentencePunctuation() {
+        let proxy = FieldDocumentProxy()
+        let controller = make(proxy)
+        typeEmoticon(":D", controller)
+        controller.handleDebugCommand("tap", argument: "return")
+        XCTAssertEqual(proxy.text, "😄\n")
+        typeEmoticon(":)", controller)
+        controller.handleDebugCommand("sym", argument: "!")
+        XCTAssertEqual(proxy.text, "😄\n😃!")
+        backspace(controller)
+        XCTAssertEqual(proxy.text, "😄\n:)")
+        controller.handleDebugCommand("tap", argument: "space")
+        typeEmoticon(":-)", controller)
+        controller.handleDebugCommand("sym", argument: ".")
+        XCTAssertEqual(proxy.text, "😄\n:) 😃.")
+        backspace(controller)
+        XCTAssertEqual(proxy.text, "😄\n:) :-)")
+    }
+
+    func testFaceDoesNotReplaceInAddressCodeOrUncorrectedFields() {
+        for kind: UIKeyboardType in [.emailAddress, .URL, .asciiCapable] {
+            let proxy = FieldDocumentProxy()
+            proxy.keyboardType = kind
+            if kind == .asciiCapable { proxy.textContentType = .oneTimeCode }
+            let controller = make(proxy)
+            typeEmoticon(":)", controller)
+            controller.handleDebugCommand("tap", argument: "space")
+            XCTAssertEqual(proxy.text, ":) ")
+        }
+        let proxy = FieldDocumentProxy()
+        proxy.autocorrectionType = .no
+        let controller = make(proxy)
+        typeEmoticon(":)", controller)
+        controller.handleDebugCommand("tap", argument: "space")
+        XCTAssertEqual(proxy.text, ":) ")
+    }
+
+    func testFaceNeverMatchesInsideAWordURLOrUnfinishedAlias() {
+        let proxy = FieldDocumentProxy()
+        proxy.keyboardType = .asciiCapable
+        let controller = make(proxy)
+        for input in ["hi:)", "http://a", "://", ":Dabc", ":):)"] {
+            controller.textWillChange(nil)
+            proxy.text = ""
+            proxy.cursor = 0
+            controller.textDidChange(nil)
+            typeEmoticon(input, controller)
+            controller.handleDebugCommand("tap", argument: "space")
+            XCTAssertEqual(proxy.text, input + " ", input)
+        }
+    }
+
+    func testFaceDoesNotDisturbBisargaNumeralsOrSmartOpeningQuote() {
+        let proxy = FieldDocumentProxy()
+        let controller = make(proxy)
+        type("du", controller)
+        controller.handleDebugCommand("sym", argument: ":")
+        type("kho", controller)
+        controller.handleDebugCommand("tap", argument: "space")
+        XCTAssertEqual(proxy.text, "দুঃখ ")
+        for symbol in ["০", ":", "৪", "৫"] { controller.handleDebugCommand("sym", argument: symbol) }
+        XCTAssertEqual(proxy.text, "দুঃখ ০:৪৫")
+        controller.handleDebugCommand("tap", argument: "space")
+        typeEmoticon("<৩", controller)
+        controller.handleDebugCommand("tap", argument: "space")
+        XCTAssertEqual(proxy.text, "দুঃখ ০:৪৫ ❤️ ")
+        controller.handleDebugCommand("sym", argument: "'")
+        XCTAssertEqual(proxy.text, "দুঃখ ০:৪৫ ❤️ ‘")
+        type("ami", controller)
+        controller.handleDebugCommand("tap", argument: "space")
+        XCTAssertEqual(proxy.text, "দুঃখ ০:৪৫ ❤️ ‘আমি ")
+    }
+
+    func testPendingFaceAndUndoAreDiscardedAcrossFieldChangesAndHostEdits() {
+        let proxy = FieldDocumentProxy()
+        let controller = make(proxy)
+        typeEmoticon(":)", controller)
+        let email = FieldDocumentProxy()
+        email.keyboardType = .emailAddress
+        controller.proxy = email
+        controller.textDidChange(nil)
+        controller.handleDebugCommand("tap", argument: "space")
+        XCTAssertEqual(proxy.text, ":)")
+        XCTAssertEqual(email.text, " ")
+        controller.proxy = proxy
+        controller.textDidChange(nil)
+        controller.handleDebugCommand("tap", argument: "space")
+        typeEmoticon(":)", controller)
+        controller.handleDebugCommand("tap", argument: "space")
+        XCTAssertEqual(proxy.text, ":) 😃 ")
+        proxy.text = "host changed this"
+        proxy.cursor = proxy.text.unicodeScalars.count
+        backspace(controller)
+        XCTAssertEqual(proxy.text, "host changed thi", "Never restore a face into unrelated host text")
+    }
+
+    func testQuotedFaceCanBeKeptAndRemovedBeforeCommit() throws {
+        let proxy = FieldDocumentProxy()
+        let controller = make(proxy)
+        typeEmoticon(":)", controller)
+        let composer: KeyboardComposer = try stored("composer", controller)
+        let bar: SuggestionBarView = try stored("suggestionBar", controller)
+        controller.suggestionBar(bar, didSelect: try XCTUnwrap(composer.activeSuggestions.last))
+        XCTAssertEqual(proxy.text, ":) ")
+        typeEmoticon(":D", controller)
+        backspace(controller)
+        XCTAssertEqual(proxy.text, ":) :")
+        controller.handleDebugCommand("tap", argument: "space")
+        XCTAssertEqual(proxy.text, ":) : ")
+    }
+
     func testEmailIsLiteralAcrossLettersDigitsAndPunctuation() throws {
         let proxy = FieldDocumentProxy()
         proxy.keyboardType = .emailAddress

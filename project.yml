@@ -173,6 +173,7 @@ targets:
       - path: Shared/Sources/Engine/ObadhBridgeClient.swift
       - path: Shared/Sources/Engine/BanglaTypingEngine.swift
       - path: Shared/Sources/Engine/AutoInsertGate.swift
+      - path: Shared/Sources/Engine/EmoticonRules.swift
       # The shipped artifacts, so the tests run against real data (folder ref so
       # the ObadhModels/... subpaths resolve like they do in the keyboard).
       - path: Resources/ObadhModels

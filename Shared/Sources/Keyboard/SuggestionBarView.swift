@@ -396,6 +396,12 @@ private final class SuggestionSlotControl: UIControl {
     private let label = UILabel()
     private var isSelectableSuggestion = false
 
+    override func accessibilityActivate() -> Bool {
+        guard isEnabled, isSelectableSuggestion else { return false }
+        sendActions(for: .touchUpInside)
+        return true
+    }
+
     init() {
         super.init(frame: .zero)
         configure()
@@ -422,6 +428,7 @@ private final class SuggestionSlotControl: UIControl {
         // are corrections / next-word picks.
         isSelectableSuggestion = suggestion != nil
         isEnabled = isSelectableSuggestion
+        isAccessibilityElement = isSelectableSuggestion
         accessibilityLabel = suggestion?.text
         accessibilityTraits = isSelectableSuggestion ? .button : .staticText
         applyHighlightedState(animated: false)

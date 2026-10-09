@@ -4,6 +4,18 @@ import XCTest
 
 @MainActor
 final class TextCompositionControllerTests: XCTestCase {
+    func testLiteralFaceRewritesUseExactScalarsAcrossDifferentUTF8Lengths() {
+        for (initial, face) in [("‘", "':)"), ("৮", "8)"), ("ও", "o:)"), ("é", "e\u{301}:)")] {
+            let document = FakeCompositionDocument()
+            let controller = TextCompositionController()
+            controller.setComposition(initial, in: document)
+            controller.setComposition(face, in: document)
+            XCTAssertEqual(Array(document.text.unicodeScalars), Array(face.unicodeScalars))
+            controller.commit(finalText: "😃", trailingText: " ", in: document)
+            XCTAssertEqual(document.text, "😃 ")
+        }
+    }
+
     // MARK: - Diff mechanics (Latin: grapheme == scalar, so ops are exact)
 
     /// Appending re-derives the word but writes only the new suffix — the shared prefix

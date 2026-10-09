@@ -17,6 +17,8 @@ struct DetailedCorrection: Equatable {
         static let romanRepairExact: UInt8 = 8
         static let englishLoanwordExact: UInt8 = 9
         static let englishLoanwordFuzzy: UInt8 = 10
+        /// Exact aliases use a separate client policy, not word-frequency gates.
+        static let emoticonExact: UInt8 = 11
     }
 
     let text: String

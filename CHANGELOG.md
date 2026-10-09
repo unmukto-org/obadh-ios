@@ -6,6 +6,30 @@ Current limitations and verification requirements live in [KNOWN-ISSUES.md](KNOW
 
 ## Unreleased
 
+### 2026-10-09 — Engine 0.9.5 and automatic emoticons
+
+- Updated the Rust engine to 0.9.5, rebuilt all device/simulator bridge slices,
+  and bundled its release-matched loanword dictionary. Integration tests pin
+  the engine version, ABI, dictionary SHA256 and existing model fingerprints.
+- Prose fields now offer an emoji and the quoted exact typed emoticon before
+  committing. Both `:)` and `:-)` map to 😃. Space, Return and sentence
+  punctuation choose the emoji; tapping the literal keeps it. Immediate
+  Backspace after Space/punctuation restores the literal without repeating
+  conversion. All 322 engine aliases have a pinned, reproducible prefix index.
+- Preserve bisarga spelling, ordinary smart quotes and Bangla numeral input.
+  Email, URL, code, private, name, secure, numeric and correction-disabled
+  fields do not convert. Faces bypass personal word learning; Bangla word
+  emoji suggestions remain explicit choices.
+- Corrected a Unicode composition rewrite that reused an index from another
+  string and could crash when a Bangla digit became an ASCII face. Rewrites
+  now compare exact scalar prefixes and use indices belonging to their string.
+  Suggestion controls expose selectable choices to accessibility activation.
+- Verification: 195 SwiftPM tests, 99 real-controller UIKit tests and 23
+  real-engine tests passed. A final 27-test field suite covers punctuation
+  undo, and the real iPhone 11 simulator UI verifies both smile spellings,
+  both suggestion choices, automatic replacement and undo. Device installation
+  is recorded separately after the signed build succeeds.
+
 ### 2026-10-09 — Input-field context
 
 - Integrated shared field policy and a public UIKit traits adapter with the

@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import ObadhBridge
 import os
 import Testing
@@ -7,7 +8,7 @@ import Testing
 /// autosuggest n-gram) can be located the same way the keyboard locates them.
 private final class BundleToken {}
 
-/// Real-engine integration tests (ABI v2 / engine 0.9.4).
+/// Real-engine integration tests (ABI v2 / engine 0.9.5).
 ///
 /// Unlike the pure-logic unit suite (which runs under SwiftPM and cannot see the
 /// xcframework), this target links `ObadhBridge.xcframework` and bundles the real
@@ -59,7 +60,54 @@ struct ObadhEngineIntegrationTests {
             obadh_engine_version($0.baseAddress, $0.count)
         }
         #expect(written == count)
-        #expect(String(bytes: bytes, encoding: .utf8) == "0.9.4")
+        #expect(String(bytes: bytes, encoding: .utf8) == "0.9.5")
+    }
+
+    /// Pin the separately loaded release loanword artifact: the engine's existing
+    /// autocorrect fingerprint covers bn.fst, not this second dictionary.
+    @Test func loanwordArtifactMatchesEngine095Release() throws {
+        let url = try #require(Bundle(for: BundleToken.self).url(
+            forResource: "en_bn_loanwords", withExtension: "fst",
+            subdirectory: "ObadhModels/autocorrect"))
+        let bytes = try Data(contentsOf: url)
+        let hash = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+        #expect(hash == "2d92cda223dfa405ff9f1e8e3f72051cf99be510b94fee5702395f0dfd20bf4a")
+    }
+
+    @Test(arguments: [("ok", "ওকে"), ("okay", "ওকে"), ("amazon", "অ্যামাজন"),
+                      ("widget", "উইজেট"), ("workflow", "ওয়ার্কফ্লো")])
+    func engine095LoanwordExpansionReachesTheSwiftClient(roman: String, expected: String) {
+        let candidates = engine.detailedCorrections(for: roman, limit: 8)
+        #expect(candidates.contains {
+            $0.text == expected && $0.source == DetailedCorrection.Source.englishLoanwordExact
+        })
+    }
+
+    @Test(arguments: [(":)", "😃"), (":-)", "😃"), (":D", "😄")])
+    func engine095EmoticonsAreExplicitAlternatives(roman: String, expected: String) {
+        let candidates = engine.compositionSuggestions(for: roman, limit: 4)
+        #expect(candidates.first == roman)
+        #expect(candidates.contains(expected))
+        let detailed = engine.detailedCorrections(for: roman, limit: 4)
+        #expect(detailed.contains {
+            $0.text == expected && $0.source == DetailedCorrection.Source.emoticonExact
+        })
+        // Exact emoticons have their own client rule, independent of typo confidence.
+        let correction = DetailedCorrection(text: expected, source: DetailedCorrection.Source.emoticonExact,
+            editCost: 0, romanRepairCost: nil, frequency: 1_000_000)
+        #expect(!AutoInsertGate.shouldAutoInsert(baselineFrequency: 0,
+            correction: correction, isProtected: false))
+    }
+
+    @Test func iosEmoticonIndexMatchesEveryEngine095Alias() {
+        #expect(EmoticonRules.aliases.count == 322)
+        for (alias, emoji) in EmoticonRules.aliases {
+            let candidates = engine.detailedCorrections(for: alias, limit: 2)
+            #expect(candidates.contains {
+                $0.text == emoji && $0.source == DetailedCorrection.Source.emoticonExact
+                    && $0.editCost == 0 && $0.frequency == 0
+            }, "Canonical alias \(alias) diverged from engine 0.9.5")
+        }
     }
 
     /// Check scalars as well as appearance: the reph-ya form must use ZWJ,

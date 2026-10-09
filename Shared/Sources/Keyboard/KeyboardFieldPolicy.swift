@@ -121,6 +121,9 @@ struct KeyboardFieldPolicy: Equatable {
         usesBanglaComposition && traits.content == .ordinary
     }
     var allowsEmoji: Bool { isProse }
+    var allowsEmoticonReplacement: Bool {
+        isProse && traits.correction != .disabled && traits.content != .personName
+    }
     var allowsVoice: Bool { usesBanglaComposition }
     var allowsSmartQuotes: Bool { isProse && traits.smartQuotes != .disabled }
     var allowsSmartDashes: Bool { isProse && traits.smartDashes != .disabled }

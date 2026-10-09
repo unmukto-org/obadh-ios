@@ -4,6 +4,43 @@ import XCTest
 
 @MainActor
 final class KeyboardComposerTests: XCTestCase {
+    func testAllExactEmoticonsHaveLiteralPreviewsAndSeparateAutomaticCommits() {
+        let composer = KeyboardComposer(engine: FixtureEngine())
+        XCTAssertEqual(EmoticonRules.aliases.count, 322)
+        for (alias, emoji) in EmoticonRules.aliases {
+            composer.beginInput(literal: false, allowsEmoticons: true)
+            for key in alias {
+                XCTAssertTrue(composer.canAppendEmoticon(String(key)), alias)
+                composer.append(String(key))
+            }
+            XCTAssertEqual(composer.preview, alias)
+            XCTAssertEqual(composer.activeSuggestions.map(\.text), [emoji, alias])
+            XCTAssertEqual(composer.quotedLiteral(isOutOfVocabulary: false), alias)
+            XCTAssertEqual(composer.commitActiveInput(allowCorrections: false), emoji)
+        }
+    }
+
+    func testEmoticonsCanBeKeptLiteralAndIncompletePrefixesNeverGuess() {
+        let composer = KeyboardComposer(engine: FixtureEngine())
+        for alias in [":)", ":D", "<3"] {
+            composer.beginInput(literal: true, allowsEmoticons: true)
+            composer.append(alias)
+            XCTAssertEqual(composer.commitActiveInput(replaceEmoticon: false), alias)
+        }
+        for prefix in [":", ":--", "hi:)", ":):)", "http://a"] {
+            composer.beginInput(literal: true, allowsEmoticons: true)
+            composer.append(prefix)
+            XCTAssertNil(composer.emoticonEmoji)
+            XCTAssertEqual(composer.commitActiveInput(), prefix)
+        }
+        composer.beginInput(literal: false, allowsEmoticons: true)
+        XCTAssertFalse(composer.canAppendEmoticon("৮"))
+        composer.append("<")
+        XCTAssertTrue(composer.canAppendEmoticon("৩"))
+        composer.append(EmoticonRules.canonicalKeys("৩"))
+        XCTAssertEqual(composer.commitActiveInput(), "❤️")
+    }
+
     func testActiveInputRendersAsTextAndCommitsOnce() {
         let composer = KeyboardComposer(engine: FixtureEngine())
         let document = FakeCompositionDocument()
