@@ -6,10 +6,12 @@ research reports. Add dated evidence to the relevant issue; remove the entry whe
 its acceptance checks pass and record the resolution in the changelog.
 
 **Scope:** v1.0.1 release evidence below remains unchanged except for the dated
-October 9 field-context work on `feature/voice-typing` in KI-005. The phone uses engine 0.9.4 in
-Release 166 (`6ab7ab68`),
-installed and launched on 2026-09-25. This installation is not a new hardware
-acceptance pass for the issues below; earlier device observations used Release 112.
+October 9 field-context work on `feature/voice-typing` in KI-005. Current device
+install: Release **1.0.1 (193)** (`94242178`), installed and launched October 9 on
+iPhone 16 Pro Max / iOS 27.0.1 (24A446). This is not a hardware acceptance pass
+for the issues below or an iPhone 11/A13 qualification. The previous installation
+was engine 0.9.4 in Release 166 (`6ab7ab68`) on September 25; earlier device
+observations used Release 112.
 Evidence comes from iPhone 16 Pro Max / iOS 27.0 (24A435) and an iOS 26.5
 simulator; simulator success does not establish a device fix. External sources
 below were reviewed during the September 25 investigation unless a later review

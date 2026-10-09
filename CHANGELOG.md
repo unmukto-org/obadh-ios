@@ -21,13 +21,18 @@ Current limitations and verification requirements live in [KNOWN-ISSUES.md](KNOW
   harness. Single-line Return submission still differs from native on the tested
   iOS 26.5 simulator; its strict expected-failure test and native reference keep
   that acceptance gate visible in [KI-005](KNOWN-ISSUES.md#ki-005). Physical
-  iPhone 11-family qualification remains pending. No device install or release
-  is claimed by this entry.
+  iPhone 11-family qualification remains pending. Device installation is recorded
+  below; no App Store release is claimed by this entry.
 - Verification: 192 SwiftPM and 90 UIKit tests passed. Three real field-service
   UI tests completed with one explicitly expected single-line Return failure;
   email/URL/numeric typing, an unfinished word across focus changes, Latin case,
   correction-disabled Bangla and multiline Return passed. The Release simulator
   build passed and contains neither the field harness nor its debug logging.
+- Installed and launched signed Release **1.0.1 (193)**, source `94242178`, on the
+  owner's iPhone 16 Pro Max running iOS 27.0.1 (24A446). App and keyboard extension
+  report the same version/source; strict signature verification passed, and the
+  field-test harness/logging is absent from the device binaries. Installation
+  does not establish field-behavior acceptance or iPhone 11/A13 performance.
 
 ## v1.0.1 — 2026-09-25 (uploaded for release)
 
