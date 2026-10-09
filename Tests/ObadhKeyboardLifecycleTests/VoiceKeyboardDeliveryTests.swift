@@ -158,12 +158,78 @@ final class VoiceKeyboardDeliveryTests: XCTestCase {
         XCTAssertEqual(ack?.kind, .acknowledge)
         voice.hostDidDisappear()
     }
+
+    func testFieldTraitsPreventStartingDictationInALiteralField() {
+        let host = DeliveryHost()
+        host.voiceInputAllowed = false
+        let voice = coordinator(host)
+        voice.micTapped()
+        XCTAssertEqual(host.id, "")
+        XCTAssertTrue(host.document.insertions.isEmpty)
+        voice.hostDidDisappear()
+    }
+
+    func testReturningToADifferentDocumentLeavesFinalInAppWithoutAcknowledgement() throws {
+        let host = DeliveryHost()
+        host.voiceDocumentIdentifier = UUID()
+        let voice = coordinator(host)
+        voice.micTapped()
+        try publish(host.id)
+        host.voiceDocumentIdentifier = UUID()
+        voice.hostDidAppear()
+        XCTAssertTrue(host.document.insertions.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: VoiceSessionChannel.commandURL(in: directory).path))
+        voice.hostDidDisappear()
+    }
+
+    func testPersistedDestinationSurvivesControllerRecreationAndMatchesTheSameField() throws {
+        let identifier = UUID()
+        let host = DeliveryHost()
+        host.voiceDocumentIdentifier = identifier
+        let first = coordinator(host)
+        first.micTapped()
+        try publish(host.id)
+        let nextHost = DeliveryHost()
+        nextHost.voiceDocumentIdentifier = identifier
+        let next = coordinator(nextHost)
+        XCTAssertEqual(nextHost.document.insertions, ["আমার বাংলা"])
+        next.hostDidDisappear()
+    }
+
+    func testChangedTraitsPreventDeliveryEvenWhenDocumentIdentifierIsUnchanged() throws {
+        let host = DeliveryHost()
+        host.voiceDocumentIdentifier = UUID()
+        let voice = coordinator(host)
+        voice.micTapped()
+        try publish(host.id)
+        host.voiceInputAllowed = false
+        voice.hostDidAppear()
+        XCTAssertTrue(host.document.insertions.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: VoiceSessionChannel.commandURL(in: directory).path))
+        voice.hostDidDisappear()
+    }
+
+    func testDestinationChangeAtTheEditBoundaryCannotAcknowledgeAnUnwrittenFinal() throws {
+        let host = DeliveryHost()
+        host.voiceDocumentIdentifier = UUID()
+        let voice = coordinator(host)
+        voice.micTapped()
+        try publish(host.id)
+        host.onUpdate = { host.voiceDocumentIdentifier = UUID() }
+        voice.hostDidAppear()
+        XCTAssertTrue(host.document.insertions.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: VoiceSessionChannel.commandURL(in: directory).path))
+        host.onUpdate = nil
+        voice.hostDidDisappear()
+    }
 }
 
 @MainActor
 private final class DeliveryHost: VoiceKeyboardHost {
     let document = DeliveryDocument()
     var voiceHasFullAccess = true
+    var voiceInputAllowed = true
+    var voiceDocumentIdentifier: UUID?
     var voiceDocument: TextDocumentEditing { document }
     var id = ""
     var openCompletion: ((Bool) -> Void)?
@@ -171,7 +237,12 @@ private final class DeliveryHost: VoiceKeyboardHost {
     func voiceWillBeginDictation() {}
     func voiceShowIndicator(_ phase: VoicePanelPhase?) {}
     func voiceMicStateDidChange(_ state: SuggestionMicControl.Mode) {}
-    func voicePerformTextUpdate(_ update: () -> Void) { onUpdate?(); update() }
+    func voicePerformTextUpdate(in identifier: UUID?, _ update: () -> Void) -> Bool {
+        onUpdate?()
+        guard voiceInputAllowed, identifier == nil || identifier == voiceDocumentIdentifier else { return false }
+        update()
+        return true
+    }
     func voiceOpenContainingApp(_ url: URL, completion: @escaping (Bool) -> Void) {
         id = URLComponents(url: url, resolvingAgainstBaseURL: false)!.queryItems!.first!.value!
         openCompletion = completion

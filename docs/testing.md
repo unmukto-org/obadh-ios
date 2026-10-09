@@ -44,6 +44,30 @@ The Emoji/accessory test has an explicit expected failure for the system-owned
 passes. See [the September investigation](../KNOWN-ISSUES.md#ki-001) for evidence,
 font audit tooling, and the remaining iOS 27 device checks.
 
+`KeyboardFieldContextTests` supplies the public proxy contract to the production
+controller and engine, including silent focus changes, stale suggestions, held
+Delete, literal syntax, correction opt-outs, case and appearance. Voice delivery
+tests verify destination binding across recreation and late results.
+
+The DEBUG launch argument `--keyboard-field-test` opens actual email, URL,
+numeric/decimal, search, OTP, Latin, uncorrected Bangla and multiline editors.
+`KeyboardFieldContextUITests` types through the touch surface and real keyboard
+service, compares native Return, and verifies text preservation across fields.
+Enable Obadh first through the existing Settings presentation test; use the same
+dedicated simulator for subsequent field tests.
+
+```sh
+xcodebuild test -scheme ObadhKeyboardUITests -destination 'platform=iOS Simulator,id=<UDID>' -only-testing:ObadhKeyboardUITests/KeyboardFieldContextUITests -parallel-testing-enabled NO -jobs 2 CODE_SIGNING_ALLOWED=NO
+```
+
+The custom single-line Return test has a **strict expected failure only on iOS
+26.5**: its public proxy newline becomes a space while native Send invokes the
+host delegate. Other runtimes must satisfy the normal assertion. Do not count
+an expected failure as evidence of native submission parity; see
+[KI-005](../KNOWN-ISSUES.md#ki-005) and the
+[field-context contract](input-field-context.md). A simulator named iPhone 11
+does not qualify A13 latency or physical-device behavior.
+
 ## The parity suite (`scripts/parity/`)
 
 Screenshot-measurement verification that the keyboard is geometrically and

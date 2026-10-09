@@ -1,18 +1,19 @@
 # Known issues
 
-Updated: **2026-09-25**. Only open issues and their relevant research belong here.
+Updated: **2026-10-09**. Only open issues and their relevant research belong here.
 Resolved work belongs in [CHANGELOG.md](CHANGELOG.md). Do not create separate
 research reports. Add dated evidence to the relevant issue; remove the entry when
 its acceptance checks pass and record the resolution in the changelog.
 
-**Scope:** v1.0.1 release source (build 168; App Store publication pending). The phone uses engine 0.9.4 in
+**Scope:** v1.0.1 release evidence below remains unchanged except for the dated
+October 9 field-context work on `feature/voice-typing` in KI-005. The phone uses engine 0.9.4 in
 Release 166 (`6ab7ab68`),
 installed and launched on 2026-09-25. This installation is not a new hardware
 acceptance pass for the issues below; earlier device observations used Release 112.
 Evidence comes from iPhone 16 Pro Max / iOS 27.0 (24A435) and an iOS 26.5
 simulator; simulator success does not establish a device fix. External sources
-below were reviewed during the September 25 investigation, not newly rechecked
-while consolidating this file. Local evidence under `build/` is git-ignored.
+below were reviewed during the September 25 investigation unless a later review
+is explicitly dated. Local evidence under `build/` is git-ignored.
 
 | ID | Open issue | Status |
 | --- | --- | --- |
@@ -20,7 +21,7 @@ while consolidating this file. Local evidence under `build/` is git-ignored.
 | [KI-002](#ki-002) | Foreground input fails to reach host | High priority; controlled device reproduction |
 | [KI-003](#ki-003) | Remaining switching flashes/overlays | Exact cause and frequency not established |
 | [KI-004](#ki-004) | Overlap candidate can delay input/feedback | Hardware acceptance pending |
-| [KI-005](#ki-005) | Host field traits | Behavioral verification needed |
+| [KI-005](#ki-005) | Host field traits | Implemented; single-line Return divergence and hardware acceptance open |
 | [KI-006](#ki-006) | Custom globe long press | Behavioral verification needed |
 | [KI-007](#ki-007) | Native appearance coverage | Incomplete verification |
 | [KI-012](#ki-012) | Human typing accuracy | No demonstrated improvement yet |
@@ -183,20 +184,53 @@ and speed separately. Tests: `KeyboardTouchAccuracyTests.swift`; research basis:
 
 <a id="ki-005"></a>
 
-## KI-005 — Host field traits need behavioral verification
+## KI-005 — Single-line Return and field-context hardware acceptance
 
-**Known:** Source audit found no controller reads of host keyboard type, Return
-style/automatic availability, autocorrection preference or explicit keyboard
-appearance. This is an implementation observation, not proof every such field
-fails; attached view traits might already convey appearance.
+**2026-10-09 implementation:** The controller now consumes public field hints
+through a UIKit adapter and a shared, UIKit-independent policy. Email/URL and
+numeric input are literal; prose retains Bangla composition. Return labels,
+automatic availability, capitalization, appearance, correction/spelling/smart
+punctuation preferences, learning restrictions and safe focus transitions are
+integrated. Dictation is bound to its destination document when an ID is
+available. See the [field-context contract](docs/input-field-context.md).
 
-**Research / next:** [UITextInputTraits](https://developer.apple.com/documentation/uikit/uitextinputtraits)
-and Apple's local extension template expose these capabilities. Build dedicated
-email, URL, number, search and autocorrection-disabled editors, plus explicit
-dark-in-light/light-in-dark keyboard requests. Verify actual layout, Return action,
-empty-field enablement and text before fixing a confirmed divergence. Preserve
-Bangla composition. Supplementary lexicon support is optional, not missing setup;
-its separate height experiment did not resolve KI-001.
+**Confirmed remaining divergence:** On an iOS 26.5 simulator configured as iPhone
+11, typing `bus` and pressing Obadh Send commits `বাস`, then the public
+`textDocumentProxy.insertText("\n")` becomes a space; `textFieldShouldReturn` is
+not called. Native English Send in the identical UITextField does call the
+delegate. Real touch routing confirms Send was activated. Word commitment and
+Return are separate proxy operations. The standard public implementation is
+retained; there is no public host-delegate/action dispatch on
+[UITextDocumentProxy](https://developer.apple.com/documentation/uikit/uitextdocumentproxy).
+This result is specific to the tested runtime/host; it does not establish behavior
+in every app or on physical hardware.
+
+**Verification:** `KeyboardFieldContextTests` exercises the real controller and
+engine against the public proxy contract; `KeyboardFieldContextUITests` crosses
+the genuine service boundary using `--keyboard-field-test`. The Return-action
+UI test has a strict expected failure only on iOS 26.5, alongside a native
+reference. A passing suite must not be reported as resolved submission behavior.
+The native web-search reference also checks that UIKit exposes Go rather than
+the host's assigned Search. October 9: all **192 SwiftPM** and **90 UIKit** tests
+passed; the three field-service UI tests completed with **one expected Return
+failure**. The Release simulator build passed, and the field harness and metadata
+logging were verified absent from app/extension binaries. Final evidence:
+`/tmp/obadh-field-core-verified.log`,
+`/tmp/obadh-field-lifecycle-final-90.xcresult`,
+`/tmp/obadh-field-service-verified.xcresult`, and
+`/tmp/obadh-field-release-final-voice.log`. Repository test source
+provides the reproduction route independently of those transient diagnostics.
+
+**Research / acceptance:** Apple's
+[configuration guidance](https://developer.apple.com/documentation/uikit/configuring-a-custom-keyboard-interface)
+and [UITextInputTraits](https://developer.apple.com/documentation/uikit/uitextinputtraits)
+were reviewed October 9. Check Send/Next/Go/Search/Done and multiline Return on
+physical iPhone 11-family devices and supported OS versions, then Safari/WebKit,
+third-party editors and iPad. Qualify contextual layouts, switching during held
+Delete, disabled Return, dark-in-light/light-in-dark appearance and dictation
+return to a different field. Simulator geometry is not A13 performance evidence.
+Supplementary lexicon support remains optional; its separate experiment did not
+resolve KI-001.
 
 <a id="ki-006"></a>
 

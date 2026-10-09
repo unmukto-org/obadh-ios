@@ -36,6 +36,8 @@ final class KeyboardKeyButton: UIButton {
 
     var glyphAlignment: GlyphAlignment = .centred
     var showsSecondaryLabel = false
+    var secondarySymbol: KeyboardSymbol?
+    private var returnPresentation = KeyboardReturnPresentation()
     /// This key's row height, when the row is shorter than `minimumKeyHeight`.
     /// Only the 13-inch iPad's number row is (45.5pt against 61pt letter rows, 59
     /// against 79 in landscape); zero everywhere else, meaning "no adjustment".
@@ -96,9 +98,13 @@ final class KeyboardKeyButton: UIButton {
         showsSpaceIntro: Bool = false,
         spaceIntroText: String = "বাংলা (অবাধ)",
         spaceCaption: String = "বাংলা",
-        capsLocked: Bool = false
+        capsLocked: Bool = false,
+        returnPresentation: KeyboardReturnPresentation = .init()
     ) {
         currentMetrics = metrics
+        self.returnPresentation = returnPresentation
+        isEnabled = key != .spacer && (key != .returnKey || returnPresentation.isEnabled)
+        alpha = key == .spacer ? 0 : (isEnabled ? 1 : 0.45)
         characterTitleOffset = 0
         let typeScale = rowHeight > 0 && metrics.minimumKeyHeight > 0
             ? rowHeight / metrics.minimumKeyHeight
@@ -116,8 +122,11 @@ final class KeyboardKeyButton: UIButton {
         // Rows style keys before attaching them. A detached key's own traits
         // can still be light even when the controller is already dark.
         applyPressedState(animated: false, traits: traitCollection)
-        setTitleColor(KeyboardTheme.textColor(for: traitCollection), for: .normal)
-        tintColor = KeyboardTheme.textColor(for: traitCollection)
+        let foreground = key == .returnKey && returnPresentation.action.isPrimaryAction && isEnabled
+            ? UIColor.white : KeyboardTheme.textColor(for: traitCollection)
+        setTitleColor(foreground, for: .normal)
+        setTitleColor(KeyboardTheme.secondaryTextColor(for: traitCollection), for: .disabled)
+        tintColor = foreground
         setPreferredSymbolConfiguration(
             UIImage.SymbolConfiguration(pointSize: metrics.commandFontSize, weight: .regular),
             forImageIn: .normal
@@ -148,8 +157,16 @@ final class KeyboardKeyButton: UIButton {
             spaceLanguageLabel.alpha = showsSpaceIntro ? 0 : 1
             keyPreviewText = nil
         case .returnKey:
-            setTitle(nil, for: .normal)
-            setImage(UIImage(systemName: "arrow.turn.down.left"), for: .normal)
+            if let title = returnPresentation.action.title {
+                setTitle(NSLocalizedString(title, comment: "Keyboard return action"), for: .normal)
+                setImage(nil, for: .normal)
+                titleLabel?.font = .systemFont(ofSize: metrics.modeSwitchFontSize, weight: .regular)
+                titleLabel?.adjustsFontSizeToFitWidth = true
+                titleLabel?.minimumScaleFactor = 0.55
+            } else {
+                setTitle(nil, for: .normal)
+                setImage(UIImage(systemName: "arrow.turn.down.left"), for: .normal)
+            }
             keyPreviewText = nil
         case .shift:
             setTitle(nil, for: .normal)
@@ -193,16 +210,21 @@ final class KeyboardKeyButton: UIButton {
             setTitle(nil, for: .normal)
             setImage(UIImage(systemName: "keyboard.chevron.compact.down"), for: .normal)
             keyPreviewText = nil
+        case .spacer:
+            setTitle(nil, for: .normal)
+            setImage(nil, for: .normal)
+            keyPreviewText = nil
         }
 
-        isAccessibilityElement = true
+        isAccessibilityElement = key != .spacer
         accessibilityTraits = [.button, .keyboardKey]
+        if !isEnabled { accessibilityTraits.insert(.notEnabled) }
         accessibilityValue = nil
         switch key {
         case .character, .symbol, .modeSwitch:
             accessibilityLabel = title(for: .normal)
         case .space: accessibilityLabel = "Space"
-        case .returnKey: accessibilityLabel = "Return"
+        case .returnKey: accessibilityLabel = title(for: .normal) ?? "Return"
         case .shift:
             accessibilityLabel = "Shift"
             accessibilityValue = shifted ? "On" : "Off"
@@ -214,6 +236,7 @@ final class KeyboardKeyButton: UIButton {
             accessibilityLabel = "Caps Lock"
             accessibilityValue = capsLocked ? "On" : "Off"
         case .hideKeyboard: accessibilityLabel = "Hide keyboard"
+        case .spacer: accessibilityLabel = nil
         }
 
         updateSecondaryLabel(traitCollection: traitCollection, metrics: metrics, typeScale: typeScale)
@@ -227,7 +250,7 @@ final class KeyboardKeyButton: UIButton {
         metrics: KeyboardMetrics,
         typeScale: CGFloat
     ) {
-        guard showsSecondaryLabel, let secondary = key.padSecondary else {
+        guard showsSecondaryLabel, let secondary = secondarySymbol ?? key.padSecondary else {
             secondaryLabel.isHidden = true
             titleOffsetRatio = 0
             return
@@ -469,6 +492,7 @@ final class KeyboardKeyButton: UIButton {
 
     private func backgroundColor(for traitCollection: UITraitCollection, highlighted: Bool) -> UIColor {
         switch key {
+        case .spacer: .clear
         case .character, .symbol, .space:
             highlighted
                 ? KeyboardTheme.highlightedPrimaryKeyColor(for: traitCollection)
@@ -484,12 +508,14 @@ final class KeyboardKeyButton: UIButton {
     private func applyPressedState(animated: Bool, traits: UITraitCollection? = nil) {
         let appearance = traits ?? traitCollection
         let updates = {
+            let isAction = self.key == .returnKey && self.returnPresentation.action.isPrimaryAction && self.isEnabled
+            let actionColor = UIColor.systemBlue.withAlphaComponent(self.isHighlighted ? 0.8 : 1)
             if #available(iOS 26.0, *), let effectView = self.glassEffectView,
                let effect = effectView.effect as? UIGlassEffect {
                 // Glass path (.regular/.clear): the fill is the glass view; tint
                 // it (brighter when pressed) instead of swapping a solid color.
                 self.backgroundColor = .clear
-                effect.tintColor = KeyboardTheme.glassKeyTint(
+                effect.tintColor = isAction ? actionColor : KeyboardTheme.glassKeyTint(
                     for: appearance,
                     highlighted: self.isHighlighted
                 )
@@ -497,12 +523,12 @@ final class KeyboardKeyButton: UIButton {
             } else if KeyboardGlassStyle.current == .translucent {
                 // Flat translucent fill: native-like "simple transparency" with
                 // no specular rim / raised edge.
-                self.backgroundColor = KeyboardTheme.glassKeyTint(
+                self.backgroundColor = isAction ? actionColor : KeyboardTheme.glassKeyTint(
                     for: appearance,
                     highlighted: self.isHighlighted
                 )
             } else {
-                self.backgroundColor = self.backgroundColor(
+                self.backgroundColor = isAction ? actionColor : self.backgroundColor(
                     for: appearance,
                     highlighted: self.isHighlighted
                 )

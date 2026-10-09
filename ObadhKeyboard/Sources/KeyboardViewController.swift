@@ -1,7 +1,8 @@
 import UIKit
 import os
 
-final class KeyboardViewController: UIInputViewController {
+// Controller tests subclass this to supply the public UITextDocumentProxy contract.
+class KeyboardViewController: UIInputViewController {
     // UIKit's view-service operator can retain loaded children that it never
     // presents. Keep only weak discovery links; a sibling appearance is our
     // timer-free signal to release their expensive render trees.
@@ -105,6 +106,10 @@ final class KeyboardViewController: UIInputViewController {
         isPadIdiom && layoutWidth > min(screenSize.width, screenSize.height) + 1
     }
     private var keyboardMode: KeyboardMode = .letters
+    private var fieldPolicy = KeyboardFieldPolicy()
+    private var hostDocumentIdentifier: UUID?
+    private var hostKeyboardType: UIKeyboardType?
+    private var manualShiftOverride: Bool?
     private var previousKeyWasSpace = false
     /// Native's double-space shortcut is a QUICK double-tap, not "any two spaces":
     /// only a second space inside this window converts to dari; a slower one types a
@@ -220,6 +225,7 @@ final class KeyboardViewController: UIInputViewController {
         configureEmojiPanel()
         memoryProbe.record("emoji panel configured")
         voice.host = self
+        synchronizeHostInputTraits(forceRead: true)
         reloadKeyboardRows()
         memoryProbe.record("key rows built")
         refreshKeyboard()
@@ -519,9 +525,10 @@ final class KeyboardViewController: UIInputViewController {
         // saw it. Any composition we remember is stale; start from whatever the
         // document is now.
         resetCompositionBookkeeping()
+        synchronizeHostInputTraits(forceRead: true)
         // After the bounce through the app this is where a dictation resumes: the
         // panel comes back and the text spoken meanwhile lands.
-        suggestionBar.setMicButton(visible: voicePreferences.micButtonEnabled, state: .idle)
+        suggestionBar.setMicButton(visible: voicePreferences.micButtonEnabled && fieldPolicy.allowsVoice, state: .idle)
         voice.hostWillAppear()
     }
 
@@ -532,6 +539,7 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        synchronizeHostInputTraits(forceRead: true)
         voice.hostDidAppear()
         for controller in Self.loadedControllers.allObjects where controller !== self {
             controller.suspendContentIfInactive()
@@ -868,6 +876,112 @@ final class KeyboardViewController: UIInputViewController {
         refreshKeyboard()
     }
 
+    /// Read hints on appearance, host callbacks, and before user edits. Some hosts
+    /// omit a callback when focus changes; the document ID is the final backstop.
+    /// A transition abandons our ownership without writing to either field.
+    @discardableResult
+    private func synchronizeHostInputTraits(forceRead: Bool = false) -> Bool {
+        let proxy = textDocumentProxy
+        let identifier = KeyboardFieldTraits.documentIdentifier(for: proxy)
+        let keyboardType = proxy.keyboardType ?? .default
+        // Trait snapshots are refreshed by UIKit callbacks and appearances. On
+        // the hot path only read identity/type, rather than making a dozen host
+        // queries twice per letter. A silent focus/type change still invalidates.
+        guard forceRead || hostDocumentIdentifier != identifier || hostKeyboardType != keyboardType else { return false }
+        let next = KeyboardFieldPolicy(traits: KeyboardFieldTraits(proxy: proxy))
+        let documentChanged = hostKeyboardType != nil && hostDocumentIdentifier != identifier
+        hostKeyboardType = keyboardType
+        let inputChanged = next.layout != fieldPolicy.layout
+            || next.usesBanglaComposition != fieldPolicy.usesBanglaComposition
+            || next.allowsCorrections != fieldPolicy.allowsCorrections
+            || next.traits.content != fieldPolicy.traits.content
+            || next.traits.kind != fieldPolicy.traits.kind
+            || next.traits.isSecure != fieldPolicy.traits.isSecure
+        let changed = next != fieldPolicy
+        guard changed || hostDocumentIdentifier != identifier else { return false }
+        #if DEBUG
+        lifecycleLog.debug("OBADH-FIELD traits: \(String(describing: next.traits.kind), privacy: .public), case \(String(describing: next.traits.capitalization), privacy: .public), Return \(String(describing: next.traits.returnAction), privacy: .public)")
+        #endif
+        hostDocumentIdentifier = identifier
+        fieldPolicy = next
+        if documentChanged || inputChanged {
+            keyboardTouchSurface.cancelTracking()
+            backspaceRepeater.end()
+            hideKeyPreview(animated: false)
+            resetCompositionBookkeeping()
+            engineQueue.async { [engine] in engine.clearAutosuggestSession() }
+            if documentChanged { voice.hostInputDidChange() }
+            showsEmojiPanel = false
+            isEmojiSearchActive = false
+            emojiSearchQuery = ""
+            shifted = false
+            capsLocked = false
+            manualShiftOverride = nil
+            keyboardMode = next.initialMode
+        }
+        switch next.traits.appearance {
+        case .automatic: overrideUserInterfaceStyle = .unspecified
+        case .light: overrideUserInterfaceStyle = .light
+        case .dark: overrideUserInterfaceStyle = .dark
+        }
+        suggestionBar.setMicButton(visible: voicePreferences.micButtonEnabled && next.allowsVoice, state: .idle)
+        updateAutomaticCapitalization()
+        if documentChanged || inputChanged {
+            reloadKeyboardRows()
+            keyboardStackHeightConstraint?.constant = keyRowsHeight(for: currentMetrics)
+            view.setNeedsLayout()
+        }
+        lastAppearanceState = nil
+        return documentChanged || inputChanged
+    }
+
+    private var layoutField: KeyboardFieldPolicy {
+        isEmojiSearchActive ? KeyboardFieldPolicy(traits: .init(kind: .ascii)) : fieldPolicy
+    }
+
+    private var returnPresentation: KeyboardReturnPresentation {
+        if isEmojiSearchActive { return .init(action: .search) }
+        return .init(action: fieldPolicy.traits.returnAction,
+                     isEnabled: !fieldPolicy.traits.automaticallyEnablesReturn
+                        || composer.hasActiveInput || textDocumentProxy.hasText)
+    }
+
+    private func updateAutomaticCapitalization() {
+        guard !isEmojiSearchActive else { return }
+        guard !fieldPolicy.usesBanglaComposition else {
+            shifted = capsLocked || (manualShiftOverride ?? false)
+            return
+        }
+        guard !capsLocked, manualShiftOverride == nil, fieldPolicy.needsCapitalizationContext else {
+            shifted = capsLocked || (manualShiftOverride ?? fieldPolicy.shouldCapitalize(contextBefore: nil))
+            return
+        }
+        let proxy = textDocumentProxy
+        // An empty real editor may expose nil rather than an empty context.
+        // Whole-document evidence distinguishes that from withheld nonempty text.
+        let context = proxy.documentContextBeforeInput ?? (proxy.hasText ? nil : "")
+        shifted = capsLocked || (manualShiftOverride
+            ?? fieldPolicy.shouldCapitalize(contextBefore: context))
+    }
+
+    private func keyIsEnabled(_ key: KeyboardKey) -> Bool {
+        if key == .spacer { return false }
+        if isEmojiSearchActive { return true }
+        if key == .returnKey { return returnPresentation.isEnabled }
+        if key == .emoji { return fieldPolicy.allowsEmoji }
+        if fieldPolicy.layout.isNumeric {
+            switch key {
+            case .backspace, .globe, .hideKeyboard: return true
+            case .symbol(let symbol):
+                return (symbol.output.count == 1 && symbol.output.allSatisfy { "0123456789".contains($0) })
+                    || (fieldPolicy.layout == .decimalPad && symbol.output == fieldPolicy.traits.decimalSeparator)
+                    || (fieldPolicy.layout == .phonePad && symbol.output == "+")
+            default: return false
+            }
+        }
+        return true
+    }
+
     override func textWillChange(_ textInput: UITextInput?) {
         super.textWillChange(textInput)
         guard !isUpdatingTextProxy else { return }
@@ -875,6 +989,7 @@ final class KeyboardViewController: UIInputViewController {
         // clearing the field, a paste, another edit). Drop composition bookkeeping;
         // whatever was marked is the host's now.
         resetCompositionBookkeeping()
+        synchronizeHostInputTraits(forceRead: true)
     }
 
     override func textDidChange(_ textInput: UITextInput?) {
@@ -888,13 +1003,16 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func textDidChangeBody() {
+        synchronizeHostInputTraits(forceRead: true)
+        manualShiftOverride = nil
+        updateAutomaticCapitalization()
         if !composer.hasActiveInput,
            (textDocumentProxy.documentContextBeforeInput ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .isEmpty {
             engine.clearAutosuggestSession()
         }
-        refreshSuggestions()
+        refreshKeyboard()
     }
 
     // Moving the insertion point — a tap, an arrow key, a selection — is a *selection*
@@ -909,6 +1027,8 @@ final class KeyboardViewController: UIInputViewController {
         // callbacks synchronously inside performTextUpdate, where the flag is set, so
         // this fires only for genuine external moves.
         guard !isUpdatingTextProxy else { return }
+        keyboardTouchSurface.cancelTracking()
+        backspaceRepeater.end()
         resetCompositionBookkeeping()
     }
 
@@ -925,7 +1045,10 @@ final class KeyboardViewController: UIInputViewController {
     private func selectionDidChangeBody() {
         // Backstop for hosts that deliver only one of the two callbacks; idempotent.
         resetCompositionBookkeeping()
-        refreshSuggestions()
+        synchronizeHostInputTraits(forceRead: true)
+        manualShiftOverride = nil
+        updateAutomaticCapitalization()
+        refreshKeyboard()
     }
 
     private func configureRootView() {
@@ -1008,6 +1131,10 @@ final class KeyboardViewController: UIInputViewController {
         }
 
         keyboardTouchSurface.delegate = self
+        keyboardTouchSurface.prepareForNewContacts = { [weak self] in
+            guard let self else { return }
+            if self.synchronizeHostInputTraits() { self.refreshKeyboard() }
+        }
         view.addSubview(keyboardTouchSurface)
         keyPreviewCallout.alpha = 0
         keyPreviewCallout.isHidden = true
@@ -1113,8 +1240,10 @@ final class KeyboardViewController: UIInputViewController {
             family: padFamily,
             landscape: padIsLandscape,
             margin: Double(metrics.keyboardInsets.left),
-            gap: Double(metrics.keySpacing)
+            gap: Double(metrics.keySpacing),
+            field: layoutField
         )
+        let returnStyle = returnPresentation
         for (rowIndex, row) in rows.enumerated() {
             let rowView = KeyboardRowView()
             rowView.translatesAutoresizingMaskIntoConstraints = false
@@ -1124,6 +1253,7 @@ final class KeyboardViewController: UIInputViewController {
 
             for (keyIndex, key) in row.keys.enumerated() {
                 let button = KeyboardKeyButton(key: key)
+                button.secondarySymbol = KeyboardFieldLayout.secondary(for: key, field: layoutField)
                 button.onAccessibilityActivate = { [weak self] in
                     guard let self else { return }
                     self.keyboardTouchSurface.cancelTracking()
@@ -1151,9 +1281,10 @@ final class KeyboardViewController: UIInputViewController {
                     shifted: shifted,
                     traitCollection: traitCollection,
                     metrics: metrics,
-                    showsSpaceIntro: showsSpaceLanguageIntro && !isEmojiSearchActive,
+                    showsSpaceIntro: showsSpaceLanguageIntro && !isEmojiSearchActive && fieldPolicy.usesBanglaComposition,
                     spaceCaption: spaceCaption,
-                    capsLocked: capsLocked
+                    capsLocked: capsLocked,
+                    returnPresentation: returnStyle
                 )
                 rowButtons.append(button)
                 keyButtons.append(button)
@@ -1174,6 +1305,8 @@ final class KeyboardViewController: UIInputViewController {
 
     private func refreshKeyboard() {
         guard !isContentSuspended else { return }
+        synchronizeHostInputTraits()
+        updateAutomaticCapitalization()
         let metrics = currentMetrics
         updateKeyboardHeightConstraintIfReady()
         view.backgroundColor = .clear
@@ -1198,6 +1331,7 @@ final class KeyboardViewController: UIInputViewController {
         let spaceCaption: String
         let style: UIUserInterfaceStyle
         let minimumKeyHeight: CGFloat
+        let returnPresentation: KeyboardReturnPresentation
     }
 
     private var lastAppearanceState: KeyboardAppearanceState?
@@ -1210,10 +1344,11 @@ final class KeyboardViewController: UIInputViewController {
             shifted: shifted,
             capsLocked: capsLocked,
             mode: keyboardMode,
-            showsSpaceIntro: showsSpaceLanguageIntro && !isEmojiSearchActive,
+            showsSpaceIntro: showsSpaceLanguageIntro && !isEmojiSearchActive && fieldPolicy.usesBanglaComposition,
             spaceCaption: spaceCaption,
             style: traitCollection.userInterfaceStyle,
-            minimumKeyHeight: metrics.minimumKeyHeight
+            minimumKeyHeight: metrics.minimumKeyHeight,
+            returnPresentation: returnPresentation
         )
         guard state != lastAppearanceState else { return }
         lastAppearanceState = state
@@ -1225,7 +1360,8 @@ final class KeyboardViewController: UIInputViewController {
                 metrics: metrics,
                 showsSpaceIntro: state.showsSpaceIntro,
                 spaceCaption: state.spaceCaption,
-                capsLocked: state.capsLocked
+                capsLocked: state.capsLocked,
+                returnPresentation: state.returnPresentation
             )
         }
     }
@@ -1233,7 +1369,7 @@ final class KeyboardViewController: UIInputViewController {
     /// Enqueues a suggestion query, cancelling whichever one it supersedes. Only for
     /// work whose result the next keystroke invalidates — never for learning or
     /// persistence, which must always complete.
-    private func scheduleSuggestionQuery(_ body: @escaping @Sendable () -> Void) {
+    private final func scheduleSuggestionQuery(_ body: @escaping @Sendable () -> Void) {
         pendingSuggestionWork?.cancel()
         let work = DispatchWorkItem(block: body)
         pendingSuggestionWork = work
@@ -1255,6 +1391,13 @@ final class KeyboardViewController: UIInputViewController {
         let engine = self.engine
         activeCursorWord = nil
 
+        guard fieldPolicy.allowsSuggestions, !isEmojiSearchActive else {
+            pendingSuggestionWork?.cancel()
+            pendingSuggestionWork = nil
+            suggestionBar.update(suggestions: [])
+            return
+        }
+
         if composer.hasActiveInput {
             // The deterministic preview is already known synchronously; show it
             // immediately (not yet quoted — its dictionary status is unknown until the
@@ -1262,6 +1405,11 @@ final class KeyboardViewController: UIInputViewController {
             // thread so the FST traversal never blocks typing.
             deterministicIsOOV = false
             updateCompositionSuggestionBar()
+            guard fieldPolicy.allowsCorrections else {
+                pendingSuggestionWork?.cancel()
+                pendingSuggestionWork = nil
+                return
+            }
             let buffer = composer.engineInput
             let composerGeneration = composer.generation
             let limit = composer.autocorrectFetchLimit
@@ -1302,6 +1450,10 @@ final class KeyboardViewController: UIInputViewController {
         // precedes it): offer corrections for that word, not next-word suggestions.
         let contextAfterInput = textDocumentProxy.documentContextAfterInput ?? ""
         if let cursorWord = CursorWordDetector.wordAtCursor(before: contextBeforeInput, after: contextAfterInput) {
+            guard fieldPolicy.allowsCursorCorrections else {
+                suggestionBar.update(suggestions: [], emojis: carriedEmojis)
+                return
+            }
             activeCursorWord = cursorWord
             let slots = suggestionSlotCount
             scheduleSuggestionQuery { [weak self] in
@@ -1372,7 +1524,8 @@ final class KeyboardViewController: UIInputViewController {
                         metrics: self.currentMetrics,
                         showsSpaceIntro: false,
                         spaceCaption: self.spaceCaption,
-                        capsLocked: self.capsLocked
+                        capsLocked: self.capsLocked,
+                        returnPresentation: self.returnPresentation
                     )
                 }
             }
@@ -1382,6 +1535,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func handleKeyTouchDown(_ key: KeyboardKey) {
+        guard keyIsEnabled(key) else { return }
         if isEmojiSearchActive, key == .backspace {
             beginEmojiSearchBackspacePress()
             return
@@ -1405,6 +1559,11 @@ final class KeyboardViewController: UIInputViewController {
         KeystrokeProfile.shared.beginKeystroke()
         defer { KeystrokeProfile.shared.endKeystroke() }
         #endif
+        if synchronizeHostInputTraits() {
+            refreshKeyboard()
+            return // A queued contact belonged to the previous field/layout.
+        }
+        guard keyIsEnabled(key) else { return }
         voice.finishBeforeTyping()
         if isEmojiSearchActive {
             if key == .backspace {
@@ -1421,12 +1580,20 @@ final class KeyboardViewController: UIInputViewController {
             // The next letter starts a new word, so the previous word's emoji stop
             // being relevant — from here the composing path supplies its own.
             carriedEmojis = []
+            if !fieldPolicy.usesBanglaComposition {
+                let output = shifted ? value.uppercased() : value
+                performTextUpdate { textDocumentProxy.insertText(output) }
+                manualShiftOverride = nil
+                shifted = capsLocked
+                break
+            }
             #if DEBUG
             KeystrokeProfile.shared.measureEngine { composer.append(shifted ? value.uppercased() : value) }
             #else
             composer.append(shifted ? value.uppercased() : value)
             #endif
             shifted = capsLocked
+            manualShiftOverride = nil
             refreshCompositionPreview()
         case let .symbol(symbol):
             // A symbol that is part of Bangla's roman orthography joins the word
@@ -1453,16 +1620,22 @@ final class KeyboardViewController: UIInputViewController {
         case .space:
             handleSpaceKey()
         case .returnKey:
-            if !commitActiveInputIfNeeded(trailingText: "\n") {
-                engine.clearAutosuggestSession()
-                performTextUpdate {
-                    textDocumentProxy.insertText("\n")
-                }
+            #if DEBUG
+            lifecycleLog.notice("OBADH-FIELD Return activated: \(String(describing: self.fieldPolicy.traits.returnAction), privacy: .public)")
+            #endif
+            // Use the public Return input separately from any word replacement.
+            // Hosts decide newline/submission behavior; UIKit's single-line
+            // divergence on iOS 26.5 is tracked by KI-005 and a real UI test.
+            _ = commitActiveInputIfNeeded()
+            performTextUpdate {
+                textDocumentProxy.insertText("\n")
             }
+            engineQueue.async { [engine] in engine.clearAutosuggestSession() }
         case .backspace:
             backspaceRepeater.end()
         case .shift:
             shifted.toggle()
+            manualShiftOverride = shifted
         case let .modeSwitch(value):
             switch value {
             case "123", ".?123":
@@ -1474,6 +1647,7 @@ final class KeyboardViewController: UIInputViewController {
             }
             shifted = false
             capsLocked = false
+            manualShiftOverride = nil
             reloadKeyboardRows()
         case .emoji:
             showEmojiPanel()
@@ -1481,13 +1655,17 @@ final class KeyboardViewController: UIInputViewController {
             keyboardTouchSurface.cancelTracking()
             advanceToNextInputMode()
         case .tab:
-            textDocumentProxy.insertText("\t")
+            _ = commitActiveInputIfNeeded()
+            performTextUpdate { textDocumentProxy.insertText("\t") }
         case .capsLock:
             capsLocked.toggle()
             shifted = capsLocked
+            manualShiftOverride = capsLocked ? true : nil
         case .hideKeyboard:
             keyboardTouchSurface.cancelTracking()
             dismissKeyboard()
+        case .spacer:
+            break
         }
         previousKeyWasSpace = key == .space
         refreshKeyboard()
@@ -1516,7 +1694,7 @@ final class KeyboardViewController: UIInputViewController {
         emojiSearchQuery = ""
         emojiPanelView.setSearchQuery("")
         emojiPanelView.setSearchActive(false)
-        keyboardMode = .letters
+        keyboardMode = fieldPolicy.initialMode
         shifted = false
         reloadKeyboardRows()
     }
@@ -1567,7 +1745,7 @@ final class KeyboardViewController: UIInputViewController {
             }
         case .returnKey, .emoji, .globe, .hideKeyboard:
             exitEmojiSearch()
-        case .tab, .capsLock:
+        case .tab, .capsLock, .spacer:
             break
         case .backspace:
             if emojiSearchQuery.isEmpty {
@@ -1655,6 +1833,10 @@ final class KeyboardViewController: UIInputViewController {
         unit: BackspaceDeletionUnit,
         requiresTextEvidence: Bool = true
     ) -> Bool {
+        if synchronizeHostInputTraits() {
+            refreshKeyboard()
+            return false
+        }
         if composer.hasActiveInput {
             switch unit {
             case .character:
@@ -1719,7 +1901,7 @@ final class KeyboardViewController: UIInputViewController {
         // word just typed and stay on screen after it commits, so a space does not
         // snatch away the one suggestion the user was reaching for.
         carriedEmojis = resolvedEmojiSuggestions()
-        guard let committed = composer.commitActiveInput() else { return false }
+        guard let committed = composer.commitActiveInput(allowCorrections: fieldPolicy.allowsCorrections) else { return false }
         performTextUpdate {
             compositionController.commit(finalText: committed, trailingText: trailingText, in: documentEditor)
         }
@@ -1754,11 +1936,16 @@ final class KeyboardViewController: UIInputViewController {
     private static let compositionJoiningSymbols: Set<String> = [":"]
 
     private func insertLiteralSymbol(_ output: String) {
-        if commitActiveInputIfNeeded(trailingText: output) {
-            return
-        }
-        let contextBefore = textDocumentProxy.documentContextBeforeInput ?? ""
-        let substitution = SmartPunctuation.literalSubstitution(for: output, contextBefore: contextBefore)
+        _ = commitActiveInputIfNeeded()
+        let needsContext = fieldPolicy.allowsSmartQuotes || fieldPolicy.allowsSmartDashes
+            || fieldPolicy.allowsDoubleSpacePeriod
+        let contextBefore = needsContext ? (textDocumentProxy.documentContextBeforeInput ?? "") : ""
+        let substitution = SmartPunctuation.literalSubstitution(
+            for: output, contextBefore: contextBefore,
+            smartQuotes: fieldPolicy.allowsSmartQuotes,
+            smartDashes: fieldPolicy.allowsSmartDashes,
+            smartEllipsis: fieldPolicy.allowsDoubleSpacePeriod
+        )
         performTextUpdate {
             applySmartPunctuation(substitution)
         }
@@ -1772,13 +1959,14 @@ final class KeyboardViewController: UIInputViewController {
         if commitActiveInputIfNeeded(trailingText: " ") {
             return
         }
-        let contextBefore = textDocumentProxy.documentContextBeforeInput ?? ""
         // Double-space → dari ends a sentence: only at the end of the text, and only
         // as a quick double-tap, matching the native shortcut. A slow second space,
         // or any space mid-text, types a plain space — always.
-        let cursorAtEnd = (textDocumentProxy.documentContextAfterInput ?? "").isEmpty
-        if cursorAtEnd, withinDoubleTapWindow,
-           let substitution = SmartPunctuation.doubleSpaceSubstitution(contextBefore: contextBefore) {
+        if fieldPolicy.allowsDoubleSpacePeriod, withinDoubleTapWindow,
+           (textDocumentProxy.documentContextAfterInput ?? "").isEmpty,
+           let substitution = SmartPunctuation.doubleSpaceSubstitution(
+            contextBefore: textDocumentProxy.documentContextBeforeInput ?? "",
+            terminator: fieldPolicy.usesBanglaComposition ? "।" : ".") {
             performTextUpdate {
                 applySmartPunctuation(substitution)
             }
@@ -1864,6 +2052,7 @@ final class KeyboardViewController: UIInputViewController {
     /// Learn from a committed word. `keep` marks the strong signal — the user tapped
     /// their quoted spelling to reject a correction — versus an ordinary commit.
     private func observeCommittedToken(_ token: String, keep: Bool = false) {
+        guard fieldPolicy.allowsLearning else { return }
         guard !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }
@@ -2048,16 +2237,17 @@ final class KeyboardViewController: UIInputViewController {
                 shifted: shifted,
                 traitCollection: traitCollection,
                 metrics: metrics,
-                showsSpaceIntro: showsSpaceLanguageIntro && !isEmojiSearchActive,
+                showsSpaceIntro: showsSpaceLanguageIntro && !isEmojiSearchActive && fieldPolicy.usesBanglaComposition,
                 spaceCaption: spaceCaption,
-                capsLocked: capsLocked
+                capsLocked: capsLocked,
+                returnPresentation: returnPresentation
             )
         }
         updateKeyboardTouchRegions()
     }
 
     private var spaceCaption: String {
-        isEmojiSearchActive ? "En" : "বাংলা"
+        isEmojiSearchActive || !fieldPolicy.usesBanglaComposition ? "English" : "বাংলা"
     }
 
     private func keyboardTopConstant(for metrics: KeyboardMetrics) -> CGFloat {
@@ -2117,7 +2307,8 @@ final class KeyboardViewController: UIInputViewController {
             family: padFamily,
             landscape: padIsLandscape,
             margin: Double(metrics.keyboardInsets.left),
-            gap: Double(metrics.keySpacing)
+            gap: Double(metrics.keySpacing),
+            field: layoutField
         ).count
         guard count > 0 else { return 0 }
         let keys = (0..<count).reduce(CGFloat(0)) { $0 + rowHeight(atIndex: $1, metrics: metrics) }
@@ -2355,7 +2546,7 @@ extension KeyboardViewController: KeyboardTouchSurfaceViewDelegate {
         // A flick on a key that has a secondary inserts the secondary instead of
         // the primary. Keys without one fall through to the normal tap so a
         // slightly downward press never becomes a dead touch.
-        if flickedDown, let key, let secondary = key.padSecondary {
+        if flickedDown, let key, let secondary = KeyboardFieldLayout.secondary(for: key, field: layoutField) {
             keyButtons.first { $0.key == key }?.snapFlickToRest()
             endTouch(on: .symbol(secondary))
             return
@@ -2370,11 +2561,13 @@ extension KeyboardViewController: KeyboardTouchSurfaceViewDelegate {
 
 extension KeyboardViewController: SuggestionBarViewDelegate {
     func suggestionBarDidTapMic(_ suggestionBar: SuggestionBarView) {
+        guard !synchronizeHostInputTraits(), fieldPolicy.allowsVoice else { refreshKeyboard(); return }
         feedbackController.suggestionAccepted()
         voice.micTapped()
     }
 
     func suggestionBar(_ suggestionBar: SuggestionBarView, didSelectEmoji emoji: String) {
+        guard !synchronizeHostInputTraits(), fieldPolicy.allowsEmoji else { refreshKeyboard(); return }
         feedbackController.suggestionAccepted()
         acceptEmojiSuggestion(emoji)
     }
@@ -2387,6 +2580,7 @@ extension KeyboardViewController: SuggestionBarViewDelegate {
     }
 
     func suggestionBar(_ suggestionBar: SuggestionBarView, didPickEmojiVariant emoji: String, base: String) {
+        guard !synchronizeHostInputTraits(), fieldPolicy.allowsEmoji else { refreshKeyboard(); return }
         feedbackController.suggestionAccepted()
         emojiVariantPreferenceStore.record(baseEmoji: base, selectedEmoji: emoji)
         acceptEmojiSuggestion(emoji)
@@ -2402,6 +2596,7 @@ extension KeyboardViewController: SuggestionBarViewDelegate {
     }
 
     func suggestionBar(_ suggestionBar: SuggestionBarView, didSelect suggestion: KeyboardSuggestion) {
+        guard !synchronizeHostInputTraits(), fieldPolicy.allowsSuggestions else { refreshKeyboard(); return }
         feedbackController.suggestionAccepted()
         if composer.hasActiveInput {
             // Native-style: every shown slot is tappable. Tapping the deterministic
@@ -2412,8 +2607,8 @@ extension KeyboardViewController: SuggestionBarViewDelegate {
             commitMarkedSuggestion(suggestion.text)
             // Native-style: accepting a candidate finishes the word, so the
             // separator comes with it (quoted "keep my spelling" included).
-            performTextUpdate {
-                textDocumentProxy.insertText(" ")
+            if fieldPolicy.allowsSmartSpacing {
+                performTextUpdate { textDocumentProxy.insertText(" ") }
             }
             composer.clear()
             observeCommittedToken(suggestion.text, keep: keepsLiteral)
@@ -2424,7 +2619,8 @@ extension KeyboardViewController: SuggestionBarViewDelegate {
             observeCommittedToken(suggestion.text)
         } else {
             performTextUpdate {
-                compositionController.commitNextWordSuggestion(suggestion.text, in: documentEditor)
+                compositionController.commitNextWordSuggestion(suggestion.text,
+                    insertingSpaces: fieldPolicy.allowsSmartSpacing, in: documentEditor)
             }
             observeCommittedToken(suggestion.text)
             observeAutosuggestBoundary(" ")
@@ -2469,6 +2665,7 @@ extension KeyboardViewController: SuggestionBarViewDelegate {
 
 extension KeyboardViewController: EmojiPanelViewDelegate {
     func emojiPanelView(_ view: EmojiPanelView, didSelect item: EmojiItem) {
+        guard !synchronizeHostInputTraits(), fieldPolicy.allowsEmoji else { refreshKeyboard(); return }
         feedbackController.suggestionAccepted()
         performTextUpdate {
             textDocumentProxy.insertText(item.emoji)
@@ -2513,6 +2710,8 @@ extension KeyboardViewController: EmojiPanelViewDelegate {
 
 extension KeyboardViewController: VoiceKeyboardHost {
     var voiceHasFullAccess: Bool { hasFullAccess }
+    var voiceInputAllowed: Bool { KeyboardFieldPolicy(traits: .init(proxy: textDocumentProxy)).allowsVoice }
+    var voiceDocumentIdentifier: UUID? { KeyboardFieldTraits.documentIdentifier(for: textDocumentProxy) }
 
     var voiceDocument: TextDocumentEditing { documentEditor }
 
@@ -2521,12 +2720,20 @@ extension KeyboardViewController: VoiceKeyboardHost {
         resetCompositionBookkeeping()
     }
 
-    func voicePerformTextUpdate(_ update: () -> Void) {
+    func voicePerformTextUpdate(in documentIdentifier: UUID?, _ update: () -> Void) -> Bool {
+        let transitioned = synchronizeHostInputTraits(forceRead: true)
+        guard !transitioned, fieldPolicy.allowsVoice,
+              documentIdentifier == nil || documentIdentifier == hostDocumentIdentifier else {
+            refreshKeyboard()
+            return false
+        }
         performTextUpdate(update)
+        refreshKeyboard()
+        return true
     }
 
     func voiceMicStateDidChange(_ state: SuggestionMicControl.Mode) {
-        suggestionBar.setMicButton(visible: voicePreferences.micButtonEnabled, state: state)
+        suggestionBar.setMicButton(visible: voicePreferences.micButtonEnabled && fieldPolicy.allowsVoice, state: state)
     }
 
     /// Voice typing lives in the suggestion strip: the candidates give way to the

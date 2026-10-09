@@ -33,7 +33,11 @@ and `baqq` → **বাঁ**.
 - **Emoji, the way you actually say it.** Inline emoji suggestions for the
   word being typed (ভালোবাসা → ❤️), and a full emoji panel with English and
   Bangla search. ([the pipeline](docs/emoji.md))
-- **Bangla numerals and punctuation** on the iOS layer: ০–৯ on the number pad,
+- **Input-field context:** email and URL syntax keys, literal ASCII input,
+  numeric/decimal pads, host Return labels, capitalization, appearance and
+  correction preferences. Focus changes preserve text and cancel stale edits.
+  ([behavior and qualification limits](docs/input-field-context.md))
+- **Bangla numerals and punctuation** on the iOS layer: ০–৯ on prose's numbers page,
   `৳` and `।` (dari) on the punctuation pages, quick double-space for dari,
   Apple-style smart punctuation.
 - **Measured against the native keyboard.** Geometry and color are
@@ -70,6 +74,7 @@ records, nothing else.
 |---|---|
 | [architecture.md](docs/architecture.md) | Targets, the engine boundary, the composer boundary, state and storage |
 | [text-composition.md](docs/text-composition.md) | Why not marked text, touch routing, the ribbon, space and dari, backspace |
+| [input-field-context.md](docs/input-field-context.md) | Host hints, syntax/numeric layouts, opt-outs, focus and dictation safety, Return limits |
 | [KNOWN-ISSUES.md](KNOWN-ISSUES.md) | Open issues, evidence, attempted fixes and remaining verification |
 | [CHANGELOG.md](CHANGELOG.md) | Unreleased work and release versions, dates, tags and commits |
 | [autocorrect.md](docs/autocorrect.md) | The engine/client policy split and the auto-insert confidence gate |

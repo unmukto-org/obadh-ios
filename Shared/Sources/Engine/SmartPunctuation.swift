@@ -27,15 +27,17 @@ enum SmartPunctuation {
     /// Substitution for a literal symbol keystroke, given the text before the
     /// caret. Handles `--`→em dash, `...`→ellipsis, and straight→curly quotes.
     /// Any other symbol is inserted verbatim.
-    static func literalSubstitution(for raw: String, contextBefore: String) -> SmartPunctuationResult {
+    static func literalSubstitution(for raw: String, contextBefore: String,
+                                    smartQuotes: Bool = true, smartDashes: Bool = true,
+                                    smartEllipsis: Bool = true) -> SmartPunctuationResult {
         switch raw {
-        case "-" where contextBefore.hasSuffix("-") && !contextBefore.hasSuffix(emDash):
+        case "-" where smartDashes && contextBefore.hasSuffix("-") && !contextBefore.hasSuffix(emDash):
             return SmartPunctuationResult(deleteBefore: 1, insertion: emDash)
-        case "." where endsWithTwoLiteralDots(contextBefore):
+        case "." where smartEllipsis && endsWithTwoLiteralDots(contextBefore):
             return SmartPunctuationResult(deleteBefore: 2, insertion: ellipsis)
-        case "\"":
+        case "\"" where smartQuotes:
             return .insert(isOpeningContext(contextBefore) ? leftDoubleQuote : rightDoubleQuote)
-        case "'":
+        case "'" where smartQuotes:
             return .insert(isOpeningContext(contextBefore) ? leftSingleQuote : rightSingleQuote)
         default:
             return .insert(raw)
@@ -45,11 +47,11 @@ enum SmartPunctuation {
     /// The Bangla equivalent of iOS's "double-space inserts a period" shortcut:
     /// after a word, a second space becomes `। ` (dari + space). Returns nil
     /// when the shortcut should not fire (caller also gates on recency).
-    static func doubleSpaceSubstitution(contextBefore: String) -> SmartPunctuationResult? {
+    static func doubleSpaceSubstitution(contextBefore: String, terminator: String = dari) -> SmartPunctuationResult? {
         guard contextBefore.hasSuffix(" ") else { return nil }
         let beforeSpace = contextBefore.dropLast()
         guard let last = beforeSpace.last, isWordCharacter(last) else { return nil }
-        return SmartPunctuationResult(deleteBefore: 1, insertion: dari + " ")
+        return SmartPunctuationResult(deleteBefore: 1, insertion: terminator + " ")
     }
 
     private static func endsWithTwoLiteralDots(_ context: String) -> Bool {

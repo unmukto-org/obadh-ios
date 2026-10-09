@@ -27,6 +27,8 @@ enum KeyboardKey: Equatable {
     case tab
     case capsLock
     case hideKeyboard
+    /// An inert cell preserves pad geometry or an unavailable command's slot.
+    case spacer
 
     var weight: Double {
         switch self {
@@ -38,7 +40,7 @@ enum KeyboardKey: Equatable {
             1.25
         case .shift, .backspace, .tab, .capsLock:
             1.35
-        case .character, .symbol:
+        case .character, .symbol, .spacer:
             1
         }
     }
@@ -117,9 +119,8 @@ enum KeyboardLayoutProvider {
     // visual shape exactly, and substitute content only where a Bangla keyboard
     // makes a strictly better choice than the US-English original:
     //
-    //   * The digit row becomes ১২৩৪৫৬৭৮৯০ rather than 1234567890. Obadh has no
-    //     Latin digits anywhere (the numbers page is Bangla-only), so this adds
-    //     reach for the digits users actually want and removes nothing.
+    //   * Prose uses ১২৩৪৫৬৭৮৯০ rather than 1234567890. The field adapter
+    //     restores ASCII digits for addresses, codes, and literal Latin input.
     //   * `d` carries ৳ where native carries $. The taka sign is the one Bangla
     //     symbol worth promoting out of the numbers page, and a dollar sign is
     //     dead weight here.
@@ -142,6 +143,7 @@ enum KeyboardLayoutProvider {
     static let padSecondaryBySymbolOutput: [String: String] = [
         ",": "!",
         "\u{0964}": "?",   // দাঁড়ি → ?
+        ".": "?",         // The literal Latin field adapter's period.
         "/": "\\",
         "`": "~",
         "-": "_",
@@ -159,7 +161,10 @@ enum KeyboardLayoutProvider {
         // Latin — and this is the only place they can sit without displacing
         // anything. Nothing native offers is lost; it just moved one row.
         "১": "1", "২": "2", "৩": "3", "৪": "4", "৫": "5",
-        "৬": "6", "৭": "7", "৮": "8", "৯": "9", "০": "0"
+        "৬": "6", "৭": "7", "৮": "8", "৯": "9", "০": "0",
+        // Literal fields restore native shifted pairs on the extended digit row.
+        "1": "!", "2": "@", "3": "#", "4": "$", "5": "%",
+        "6": "^", "7": "&", "8": "*", "9": "(", "0": ")"
     ]
 
     private enum NativeGeometry {
@@ -660,10 +665,16 @@ enum KeyboardLayoutProvider {
         family: PadFamily = .standard,
         landscape: Bool = false,
         margin: Double = 0,
-        gap: Double = 0
+        gap: Double = 0,
+        field: KeyboardFieldPolicy = .init()
     ) -> [KeyboardRow] {
+        if field.layout.isNumeric {
+            return KeyboardFieldLayout.numericRows(field: field, includesGlobeKey: includesGlobeKey,
+                                                   isPad: isPad, family: family)
+        }
+        let rows: [KeyboardRow]
         if isPad, width > 0 {
-            return padRows(
+            rows = padRows(
                 for: mode,
                 width: width,
                 family: family,
@@ -672,8 +683,11 @@ enum KeyboardLayoutProvider {
                 landscape: landscape,
                 includesGlobeKey: includesGlobeKey
             )
+        } else {
+            rows = phoneRows(for: mode, includesGlobeKey: includesGlobeKey)
         }
-        return phoneRows(for: mode, includesGlobeKey: includesGlobeKey)
+        return KeyboardFieldLayout.adapt(rows, mode: mode, field: field, isPad: isPad,
+                                         includesGlobeKey: includesGlobeKey)
     }
 
     private static func phoneRows(for mode: KeyboardMode, includesGlobeKey: Bool) -> [KeyboardRow] {

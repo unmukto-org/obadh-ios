@@ -6,7 +6,28 @@ Current limitations and verification requirements live in [KNOWN-ISSUES.md](KNOW
 
 ## Unreleased
 
-No changes after the v1.0.1 release preparation yet.
+### 2026-10-09 — Input-field context
+
+- Integrated shared field policy and a public UIKit traits adapter with the
+  production keyboard. Added email/URL/search/social shortcuts, literal Latin
+  input and numeric/decimal pads while retaining Bangla prose composition.
+- Honor host correction, spelling, smart punctuation, spacing, capitalization,
+  Return availability and appearance hints. Credentials, identifiers and names
+  have explicit assistance/learning restrictions.
+- Focus changes preserve existing text and cancel stale touches, held Delete,
+  suggestion work and composition ownership. Dictation records its destination
+  document so a delayed result cannot enter a different identified field.
+- Added pure policy/layout tests, real-controller tests and a real field-service
+  harness. Single-line Return submission still differs from native on the tested
+  iOS 26.5 simulator; its strict expected-failure test and native reference keep
+  that acceptance gate visible in [KI-005](KNOWN-ISSUES.md#ki-005). Physical
+  iPhone 11-family qualification remains pending. No device install or release
+  is claimed by this entry.
+- Verification: 192 SwiftPM and 90 UIKit tests passed. Three real field-service
+  UI tests completed with one explicitly expected single-line Return failure;
+  email/URL/numeric typing, an unfinished word across focus changes, Latin case,
+  correction-disabled Bangla and multiline Return passed. The Release simulator
+  build passed and contains neither the field harness nor its debug logging.
 
 ## v1.0.1 — 2026-09-25 (uploaded for release)
 

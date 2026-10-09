@@ -10,7 +10,9 @@ final class VoiceLongDictationTests: XCTestCase {
         let text = Array(repeating: "বাংলাদেশ স্বাধীনতার কথা শুনি আজ", count: 2_000)
             .joined(separator: " ")
         let snapshot = VoiceSessionSnapshot(
-            seq: 1, phase: .idle, heartbeat: Date(), dictationID: "long",
+            // JSON's milliseconds representation need not round-trip an arbitrary
+            // submillisecond Double exactly. This test qualifies text transport.
+            seq: 1, phase: .idle, heartbeat: Date(timeIntervalSince1970: 1_700_000_000), dictationID: "long",
             transcript: VoiceTranscript(text: text, stableLength: text.count, isFinal: true),
             failure: nil)
         let encoded = try VoiceMessageFile.encode(snapshot)

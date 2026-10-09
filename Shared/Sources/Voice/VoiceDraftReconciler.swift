@@ -26,6 +26,8 @@ struct VoiceDraftReconciler: Equatable, Codable {
     }
 
     private(set) var dictationID: String?
+    /// Optional for compatibility with pending trips saved before field binding.
+    private(set) var documentIdentifier: UUID?
     /// Separator before the first word, decided at `begin` from what precedes the
     /// cursor.
     private(set) var leadingSeparator = ""
@@ -37,9 +39,10 @@ struct VoiceDraftReconciler: Equatable, Codable {
 
     var isActive: Bool { dictationID != nil }
 
-    mutating func begin(dictationID: String, contextBefore: String?) {
+    mutating func begin(dictationID: String, contextBefore: String?, documentIdentifier: UUID? = nil) {
         self = VoiceDraftReconciler()
         self.dictationID = dictationID
+        self.documentIdentifier = documentIdentifier
         leadingSeparator = Self.separator(after: contextBefore ?? "")
     }
 

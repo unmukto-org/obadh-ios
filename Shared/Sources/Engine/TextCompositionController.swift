@@ -118,13 +118,13 @@ final class TextCompositionController {
         composedText = ""
     }
 
-    func commitNextWordSuggestion(_ text: String, in document: TextDocumentEditing) {
+    func commitNextWordSuggestion(_ text: String, insertingSpaces: Bool = true, in document: TextDocumentEditing) {
         guard !text.isEmpty else { return }
-        if let previous = document.contextBeforeInput?.last, !previous.isWhitespace {
+        if insertingSpaces, let previous = document.contextBeforeInput?.last, !previous.isWhitespace {
             document.insertText(" ")
         }
         document.insertText(text)
-        document.insertText(" ")
+        if insertingSpaces { document.insertText(" ") }
     }
 
     /// Insert a literal space. The space key is explicit user intent: native inserts

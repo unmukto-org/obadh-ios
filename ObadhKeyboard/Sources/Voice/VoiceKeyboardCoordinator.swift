@@ -7,6 +7,8 @@ import os
 protocol VoiceKeyboardHost: AnyObject {
     var voiceHasFullAccess: Bool { get }
     var voiceDocument: TextDocumentEditing { get }
+    var voiceInputAllowed: Bool { get }
+    var voiceDocumentIdentifier: UUID? { get }
     /// Commit whatever word is being typed, so dictated text lands after it.
     func voiceWillBeginDictation()
     /// A short message in the suggestion strip, for something the user must act on;
@@ -14,8 +16,15 @@ protocol VoiceKeyboardHost: AnyObject {
     func voiceShowIndicator(_ phase: VoicePanelPhase?)
     func voiceMicStateDidChange(_ state: SuggestionMicControl.Mode)
     /// Run proxy edits with the controller's own text-change callbacks suppressed.
-    func voicePerformTextUpdate(_ update: () -> Void)
+    /// Recheck destination immediately before editing. A refused edit must leave
+    /// the app's final unacknowledged, so its Copy route remains available.
+    func voicePerformTextUpdate(in documentIdentifier: UUID?, _ update: () -> Void) -> Bool
     func voiceOpenContainingApp(_ url: URL, completion: @escaping (Bool) -> Void)
+}
+
+extension VoiceKeyboardHost {
+    var voiceInputAllowed: Bool { true }
+    var voiceDocumentIdentifier: UUID? { nil }
 }
 
 /// Keyboard side of voice typing, one dictation at a time.
@@ -101,14 +110,15 @@ final class VoiceKeyboardCoordinator {
     // MARK: Mic
 
     func micTapped() {
-        guard let host else { return }
+        guard let host, host.voiceInputAllowed else { return }
         guard host.voiceHasFullAccess, directory != nil else {
             showProblem("ভয়েস টাইপিংয়ের জন্য সেটিংসে Allow Full Access চালু করুন")
             return
         }
         host.voiceWillBeginDictation()
         let dictationID = UUID().uuidString.lowercased()
-        reconciler.begin(dictationID: dictationID, contextBefore: host.voiceDocument.contextBeforeInput)
+        reconciler.begin(dictationID: dictationID, contextBefore: host.voiceDocument.contextBeforeInput,
+                         documentIdentifier: host.voiceDocumentIdentifier)
         persistPending()
         // Disable delivery immediately, even before UIKit's disappearance callback.
         hostDidDisappear()
@@ -131,13 +141,26 @@ final class VoiceKeyboardCoordinator {
         showProblem("ভয়েস লেখা অবাধ অ্যাপে আছে। সেখান থেকে কপি করুন।")
     }
 
+    /// A focus change while presented is explicit abandonment of the destination.
+    /// Preserve the app's copy; never insert a late result into another field.
+    func hostInputDidChange() {
+        finishBeforeTyping()
+    }
+
     // MARK: Delivery
 
     func deliverIfReady() {
         guard isPresented, Self.presented === self, !isDelivering else { return }
         // Another controller may already have delivered or begun a newer trip.
         restorePending()
-        guard reconciler.isActive, let host,
+        guard reconciler.isActive, let host else { return }
+        guard host.voiceInputAllowed,
+              reconciler.documentIdentifier == nil || reconciler.documentIdentifier == host.voiceDocumentIdentifier else {
+            clearPending()
+            showProblem("ভয়েস লেখা অবাধ অ্যাপে আছে। সেখান থেকে কপি করুন।")
+            return
+        }
+        guard
               let snapshot = readSnapshot(), snapshot.dictationID == reconciler.dictationID else { return }
         if let failure = snapshot.failure {
             showProblem(Self.message(for: failure))
@@ -156,13 +179,18 @@ final class VoiceKeyboardCoordinator {
         // The app retains its copy until acknowledgement (including if we crash).
         persistence.removeObject(forKey: Self.persistedKey)
         if let step = reconciler.step(for: snapshot) {
-            host.voicePerformTextUpdate {
+            let applied = host.voicePerformTextUpdate(in: reconciler.documentIdentifier) {
                 if VoiceDraftWriter().apply(step, in: host.voiceDocument) == .stale {
                     // Nothing of ours is at the cursor to verify against; append the
                     // text where the cursor is.
                     let insertion = reconciler.fallbackInsertion(for: step)
                     if !insertion.isEmpty { host.voiceDocument.insertText(insertion) }
                 }
+            }
+            guard applied else {
+                clearPending()
+                showProblem("ভয়েস লেখা অবাধ অ্যাপে আছে। সেখান থেকে কপি করুন।")
+                return
             }
         }
         log.notice("OBADH-VOICE inserted \(snapshot.transcript.text.count, privacy: .public) chars")

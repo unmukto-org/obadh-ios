@@ -190,6 +190,9 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
             return KeyboardGeometryProbeViewController()
         }
 
+        if arguments.contains("--keyboard-field-test") {
+            return OrientationPinningNavigationController(rootViewController: KeyboardFieldTestViewController())
+        }
         if arguments.contains("--keyboard-test") {
             return OrientationPinningNavigationController(rootViewController: KeyboardTestViewController())
         }

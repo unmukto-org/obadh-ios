@@ -194,12 +194,12 @@ final class KeyboardComposer {
         return true
     }
 
-    func commitActiveInput() -> String? {
+    func commitActiveInput(allowCorrections: Bool = true) -> String? {
         guard hasActiveInput else { return nil }
         // A rapid delimiter can beat the asynchronous ribbon query. Resolve once
         // at that boundary so exact loanwords do not depend on typing speed. This
         // never puts a full correction query on each letter's preview path.
-        if !correctionsResolved {
+        if allowCorrections && !correctionsResolved {
             resolveAutocorrectTarget(
                 autoInsertEnabled: false,
                 baselineFrequency: 0,
@@ -207,7 +207,7 @@ final class KeyboardComposer {
                 isProtectedWord: { _ in false }
             )
         }
-        let committed = commitText
+        let committed = allowCorrections ? commitText : preview
         romanBuffer.removeAll(keepingCapacity: true)
         compositionSuggestions.removeAll(keepingCapacity: true)
         emojiSuggestions.removeAll(keepingCapacity: true)
