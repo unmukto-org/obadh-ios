@@ -6,15 +6,16 @@
 correction reference is v5 mined step 6000. Later v9 filtering and v10 Gemma
 reranking completed but failed nonregression admission. No neural model is
 approved for production. See the engine research branch’s
-[model handoff](https://github.com/nsssayom/obadh_engine/blob/feature/contextual-typing/tools/autosuggest/MODEL_HANDOFF.md)
+[model handoff](https://github.com/unmukto-org/obadh_engine/blob/feature/contextual-typing/tools/autosuggest/MODEL_HANDOFF.md)
 for exact metrics, checkpoint hashes, known gaps and recovery.
 
-All model-run data is being preserved in the
-[private archive](https://github.com/nsssayom/obadh-model-runs). Its
-`manifest.json` must report `status: complete` before local originals can be
-removed. The owner requests local payload removal after the complete archive
-is successfully uploaded. Full remote read-back and restore tests are not required. Clone with `GIT_LFS_SKIP_SMUDGE=1` and use
-the archive’s `restore.py --fetch` to recover data with bounded staging space.
+All locally present model-run data is preserved in the
+[private Git LFS archive](https://github.com/nsssayom/obadh-model-runs),
+complete at revision `33eaf1f3a7896b6d20bef8393418c2b08a909ecb`. Source checksums and successful LFS uploads
+are recorded in its manifest and preservation receipt. Local payloads were removed
+at the owner’s request after publication. Full read-back and restore downloads
+were not required. Clone with `GIT_LFS_SKIP_SMUDGE=1` and use
+`restore.py --fetch` when the data is needed again.
 Earlier completion results below remain diagnostic; the latest correction
 reference restores 704/985 synthetic examples and preserves 434/460 clean
 inputs, with 87/171 contextual repairs and 166/171 clean-context preservation.
