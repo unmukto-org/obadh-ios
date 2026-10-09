@@ -12,8 +12,8 @@ for exact metrics, checkpoint hashes, known gaps and recovery.
 All model-run data is being preserved in the
 [private archive](https://github.com/nsssayom/obadh-model-runs). Its
 `manifest.json` must report `status: complete` before local originals can be
-removed. The owner requests local payload removal after remote verification
-and an independent restore check. Clone with `GIT_LFS_SKIP_SMUDGE=1` and use
+removed. The owner requests local payload removal after the complete archive
+is successfully uploaded. Full remote read-back and restore tests are not required. Clone with `GIT_LFS_SKIP_SMUDGE=1` and use
 the archive’s `restore.py --fetch` to recover data with bounded staging space.
 Earlier completion results below remain diagnostic; the latest correction
 reference restores 704/985 synthetic examples and preserves 434/460 clean
