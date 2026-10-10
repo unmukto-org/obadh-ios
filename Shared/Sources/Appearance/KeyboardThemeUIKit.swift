@@ -12,6 +12,9 @@
     private let gradient = CAGradientLayer()
     private let artwork = CALayer()
     private let scrim = CALayer()
+    private let materialBlendMask = CAGradientLayer()
+    private var nativeSuggestionBandHeight: CGFloat = 0
+    private var revealHeight: CGFloat = 1
     override init(frame: CGRect) {
       super.init(frame: frame)
       isUserInteractionEnabled = false
@@ -24,6 +27,14 @@
       artwork.masksToBounds = true
       artwork.minificationFilter = .linear
       artwork.magnificationFilter = .linear
+      materialBlendMask.startPoint = CGPoint(x: 0.5, y: 0)
+      materialBlendMask.endPoint = CGPoint(x: 0.5, y: 1)
+      materialBlendMask.colors = [
+        UIColor.clear.cgColor,
+        UIColor.clear.cgColor,
+        UIColor.black.cgColor,
+        UIColor.black.cgColor,
+      ]
     }
     required init?(coder: NSCoder) { fatalError("Unused") }
     override func layoutSubviews() {
@@ -31,7 +42,25 @@
       CATransaction.begin()
       CATransaction.setDisableActions(true)
       for item in [gradient, artwork, scrim] { item.frame = bounds }
+      updateMaterialBlendMask()
       CATransaction.commit()
+    }
+    /// Leave the suggestion strip on the same native material as the iOS-owned
+    /// band above it. Reveal artwork only in the gap before the first key row.
+    func alignWithNativeSuggestionBand(height: CGFloat, revealHeight: CGFloat) {
+      nativeSuggestionBandHeight = max(0, height)
+      self.revealHeight = max(1, revealHeight)
+      layer.mask = materialBlendMask
+      updateMaterialBlendMask()
+    }
+    private func updateMaterialBlendMask() {
+      materialBlendMask.frame = bounds
+      guard bounds.height > 0 else { return }
+      let start = min(bounds.height, nativeSuggestionBandHeight)
+      let end = min(bounds.height, start + revealHeight)
+      materialBlendMask.locations = [0,
+        NSNumber(value: start / bounds.height),
+        NSNumber(value: end / bounds.height), 1]
     }
     func display(preset: KeyboardThemePreset?, photo: CGImage?, palette: KeyboardThemePalette?,
       editingCrop: ThemePhotoCrop? = nil, editingBrightness: Double = 1) {

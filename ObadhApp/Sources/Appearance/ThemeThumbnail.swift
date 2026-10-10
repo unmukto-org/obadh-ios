@@ -25,6 +25,9 @@ final class ThemeThumbnailView: UIView {
     isUserInteractionEnabled = false
     accessibilityElementsHidden = true
     clipsToBounds = true
+    backgroundColor = UIColor { traits in
+      traits.userInterfaceStyle == .dark ? .systemGray6 : .systemGray4
+    }
     addSubview(backdrop)
     addSubview(keys)
     registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) {
@@ -44,8 +47,8 @@ final class ThemeThumbnailView: UIView {
     let preset = KeyboardThemeCatalog.preset(appearance.themeID)
     let palette = preset.map(KeyboardThemePalette.init)
       ?? (appearance.photoID != nil ? .photo : nil)
-    overrideUserInterfaceStyle = palette.map { $0.prefersDark ? .dark : .light }
-      ?? (appearance.mode == .light ? .light : appearance.mode == .dark ? .dark : .unspecified)
+    overrideUserInterfaceStyle = appearance.mode == .light ? .light
+      : appearance.mode == .dark ? .dark : .unspecified
     backdrop.display(preset: preset, photo: photo, palette: palette)
     keys.display(palette: palette, outlines: appearance.keyOutlines)
   }
@@ -53,6 +56,17 @@ final class ThemeThumbnailView: UIView {
     super.layoutSubviews()
     backdrop.frame = bounds
     keys.frame = bounds
+    let metrics = KeyboardTheme.metrics(for: CGSize(width: 414, height: 280),
+      traitCollection: traitCollection.modifyingTraits {
+        $0.userInterfaceIdiom = .phone
+        $0.verticalSizeClass = .regular
+        $0.horizontalSizeClass = .compact
+      })
+    let scale = min(bounds.width / 414, bounds.height / 280)
+    let topPadding = (bounds.height - 280 * scale) / 2
+    backdrop.alignWithNativeSuggestionBand(
+      height: topPadding + max(0, metrics.suggestionHeight - 5) * scale,
+      revealHeight: (5 + metrics.keyboardInsets.top) * scale)
   }
 }
 
@@ -105,7 +119,8 @@ private final class ThemeThumbnailKeysView: UIView {
       ?? UIColor.white.withAlphaComponent(0.65)
     ("আমি                  বাংলা                  লিখি" as NSString).draw(
       in: CGRect(x: 8, y: 8, width: width - 16, height: metrics.suggestionHeight - 8),
-      withAttributes: [.font: UIFont.systemFont(ofSize: 17), .foregroundColor: ink,
+      withAttributes: [.font: UIFont.systemFont(ofSize: 17),
+        .foregroundColor: KeyboardTheme.suggestionTextColor(for: traitCollection),
         .paragraphStyle: paragraph])
     for (rowIndex, row) in rows.enumerated() {
       let frames = KeyboardLayoutGeometry.keyFrames(for: row,

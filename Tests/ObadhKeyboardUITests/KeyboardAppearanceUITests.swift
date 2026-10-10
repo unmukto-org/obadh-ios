@@ -82,11 +82,41 @@ final class KeyboardAppearanceUITests: XCTestCase {
     key.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     app.buttons["b"].firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     XCTAssertNotEqual(app.textViews.firstMatch.value as? String, before)
-    capture("live-keyboard-" + name, app: app)
+    let screenshot = app.screenshot()
+    let attachment = XCTAttachment(screenshot: screenshot)
+    attachment.name = "live-keyboard-" + name
+    attachment.lifetime = .keepAlways
+    add(attachment)
+    // The keys alone prove the extension loaded; verify that the selected
+    // artwork actually reached its background. A stale System appearance
+    // previously let this UI flow pass while its screenshots were gray.
+    if name == "blue" || name == "dark_gradient_28" {
+      let color = keyFieldColor(in: screenshot)
+      if name == "blue" {
+        XCTAssertGreaterThan(color.blue, color.red + 0.1)
+        XCTAssertGreaterThan(color.blue, color.green + 0.08)
+      } else {
+        XCTAssertGreaterThan(color.red, color.blue + 0.04)
+        XCTAssertGreaterThan(color.red, color.green + 0.04)
+      }
+    }
     app.terminate()
     app.launchArguments = ["--screen=settings"]
     app.launch()
     app.buttons["appearance-settings"].tap()
+  }
+
+  private func keyFieldColor(in screenshot: XCUIScreenshot) ->
+    (red: CGFloat, green: CGFloat, blue: CGFloat) {
+    let image = screenshot.image.cgImage!
+    let sample = image.cropping(to: CGRect(x: 4, y: Int(CGFloat(image.height) * 0.8),
+      width: 1, height: 1))!
+    var pixel = [UInt8](repeating: 0, count: 4)
+    let context = CGContext(data: &pixel, width: 1, height: 1, bitsPerComponent: 8,
+      bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    context.draw(sample, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+    return (CGFloat(pixel[0]) / 255, CGFloat(pixel[1]) / 255, CGFloat(pixel[2]) / 255)
   }
 
   func testThumbnailFidelityForSolidGradientAndMesh() throws {

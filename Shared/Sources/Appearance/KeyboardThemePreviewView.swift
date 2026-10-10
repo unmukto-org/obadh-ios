@@ -64,13 +64,19 @@
       let preset = KeyboardThemeCatalog.preset(appearance.themeID)
       let palette =
         preset.map(KeyboardThemePalette.init) ?? (appearance.photoID != nil ? .photo : nil)
-      overrideUserInterfaceStyle =
-        palette.map { $0.prefersDark ? .dark : .light }
-        ?? (appearance.mode == .light ? .light : appearance.mode == .dark ? .dark : .unspecified)
+      // Native material follows the preview host, even when the custom keys
+      // use a dark palette. This mirrors the live extension's suggestion band.
+      overrideUserInterfaceStyle = appearance.mode == .light ? .light
+        : appearance.mode == .dark ? .dark : .unspecified
+      // Keep the key glass in the palette's preferred appearance while the
+      // surrounding material and suggestion strip follow the host preview.
+      let keyStyle: UIUserInterfaceStyle = palette.map { $0.prefersDark ? .dark : .light }
+        ?? .unspecified
+      (group.superview as? UIVisualEffectView)?.overrideUserInterfaceStyle = keyStyle
+      group.overrideUserInterfaceStyle = keyStyle
       backdrop.display(preset: preset, photo: photo, palette: palette,
         editingCrop: editingCrop, editingBrightness: editingBrightness)
-      suggestions.textColor =
-        palette?.ink.uiColor ?? KeyboardTheme.suggestionTextColor(for: traitCollection)
+      suggestions.textColor = KeyboardTheme.suggestionTextColor(for: traitCollection)
       if rebuildKeys {
         rows.flatMap { $0 }.forEach { $0.removeFromSuperview() }
         rows = KeyboardLayoutProvider.rows(for: .letters).map { row in
@@ -86,13 +92,7 @@
     }
     override func layoutSubviews() {
       super.layoutSubviews()
-      if let selection {
-        let preset = KeyboardThemeCatalog.preset(selection.themeID)
-        let palette =
-          preset.map(KeyboardThemePalette.init) ?? (selection.photoID != nil ? .photo : nil)
-        suggestions.textColor =
-          palette?.ink.uiColor ?? KeyboardTheme.suggestionTextColor(for: traitCollection)
-      }
+      suggestions.textColor = KeyboardTheme.suggestionTextColor(for: traitCollection)
       let width: CGFloat = 414
       let metrics = KeyboardTheme.metrics(
         for: CGSize(width: width, height: 280),
@@ -108,6 +108,9 @@
       board.transform = CGAffineTransform(scaleX: scale, y: scale)
       nativeBackground.frame = board.bounds
       backdrop.frame = board.bounds
+      backdrop.alignWithNativeSuggestionBand(
+        height: max(0, metrics.suggestionHeight - 5),
+        revealHeight: 5 + metrics.keyboardInsets.top)
       (group.superview as? UIVisualEffectView)?.frame = board.bounds
       group.frame = board.bounds
       suggestions.frame = CGRect(x: 0, y: 0, width: width, height: metrics.suggestionHeight)
@@ -124,7 +127,7 @@
                 * (metrics.minimumKeyHeight + metrics.rowSpacing)),
             width: frame.width, height: Double(metrics.minimumKeyHeight))
           button.updateAppearance(
-            shifted: false, traitCollection: traitCollection, metrics: metrics,
+            shifted: false, traitCollection: button.traitCollection, metrics: metrics,
             showsSpaceIntro: true)
         }
       }

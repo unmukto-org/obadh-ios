@@ -410,7 +410,9 @@ class KeyboardViewController: UIInputViewController {
         }
         applyThemeInterfaceStyle()
         themeBackdrop.display(preset: preset, photo: themePhoto, palette: themePalette)
-        suggestionBar.themePalette = themePalette
+        // Suggestions remain on native glass, continuous with the system-owned
+        // band above the extension. Theme colors start at the key field.
+        suggestionBar.themePalette = nil
         if rebuild { reloadKeyboardRows() }
         refreshKeyboard()
     }
@@ -1182,21 +1184,19 @@ class KeyboardViewController: UIInputViewController {
             keyboardBackgroundView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             keyboardBackgroundView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
-        // iOS owns the narrow material band above the extension and the dock
-        // below it. Treat artwork as a contained surface within that material,
-        // rather than drawing a square-edged sheet up to both host-owned seams.
-        // The system appearance keeps its original full-size native backdrop.
-        let themeInset: CGFloat = 4
-        themeBackdrop.layer.cornerRadius = 18
-        themeBackdrop.layer.cornerCurve = .continuous
-        themeBackdrop.clipsToBounds = true
+        // iOS owns the material band above our view. Continue that material
+        // through the suggestion strip, then reveal artwork before the keys.
+        let metrics = currentMetrics
+        themeBackdrop.alignWithNativeSuggestionBand(
+            height: max(0, metrics.suggestionHeight - 5),
+            revealHeight: 5 + metrics.keyboardInsets.top)
         themeBackdrop.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(themeBackdrop)
         NSLayoutConstraint.activate([
-            themeBackdrop.topAnchor.constraint(equalTo: view.topAnchor, constant: themeInset),
-            themeBackdrop.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: themeInset),
-            themeBackdrop.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -themeInset),
-            themeBackdrop.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -themeInset)
+            themeBackdrop.topAnchor.constraint(equalTo: view.topAnchor),
+            themeBackdrop.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            themeBackdrop.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            themeBackdrop.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
         themeBackdrop.display(preset: nil, photo: nil, palette: nil)
     }
@@ -1422,6 +1422,26 @@ class KeyboardViewController: UIInputViewController {
         let metrics = currentMetrics
         updateKeyboardHeightConstraintIfReady()
         view.backgroundColor = .clear
+        // Theme ink belongs to the keys. The strip and underlying material
+        // must follow the host's actual appearance, which can differ from a
+        // preset's preferred light/dark style.
+        let materialStyle: UIUserInterfaceStyle
+        if themePalette == nil {
+            materialStyle = .unspecified
+        } else {
+            switch fieldPolicy.traits.appearance {
+            case .light: materialStyle = .light
+            case .dark: materialStyle = .dark
+            case .automatic:
+                materialStyle = view.window?.traitCollection.userInterfaceStyle ?? .light
+            }
+        }
+        if suggestionBar.overrideUserInterfaceStyle != materialStyle {
+            suggestionBar.overrideUserInterfaceStyle = materialStyle
+        }
+        if keyboardBackgroundView.overrideUserInterfaceStyle != materialStyle {
+            keyboardBackgroundView.overrideUserInterfaceStyle = materialStyle
+        }
         suggestionBar.isHidden = showsEmojiPanel
         themeBackdrop.isHidden = showsEmojiPanel || themePalette == nil
         keyboardStack.isHidden = showsEmojiPanel && !isEmojiSearchActive
@@ -2390,6 +2410,9 @@ class KeyboardViewController: UIInputViewController {
 
         let metrics = currentMetrics
         let insets = metrics.keyboardInsets
+        themeBackdrop.alignWithNativeSuggestionBand(
+            height: max(0, metrics.suggestionHeight - 5),
+            revealHeight: 5 + insets.top)
         updateKeyboardHeightConstraintIfReady()
         keyboardStack.spacing = metrics.rowSpacing
         keyboardStackLeadingConstraint?.constant = 0
