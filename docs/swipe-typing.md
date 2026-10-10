@@ -101,3 +101,37 @@ The real 66,494-row Android-generated artifact loads in 32 ms on this Mac in
 an optimized Rust test. Ideal CTC emissions for `ami`, `tumi` and `bhalo`
 decode to the intended Bengali words in 1.0–1.3 ms each. These figures exclude
 touch collection and neural inference and do **not** predict iPhone 11 latency.
+
+An isolated local probe then ran FUTO's published encoder through ExecuTorch
+without adding its weights or runtime to the app. For idealized trails, the
+encoder plus Obadh's own CTC search ranked `ami`, `tumi`, `bhalo`, `valo` and
+`kemon` first; raw greedy decoding missed `bhalo` and `valo`. In a separate
+human-trace probe, 1,000 test rows were read from the MIT-licensed FUTO swipe
+corpus; 335 English target words also occurred as Roman paths in the Bangla
+vocabulary. On **that filtered English subset**, Roman-path top-1 was 92.5%
+and top-3 was 97.6%; optimized Mac decoder p95 was 3.48 ms. This is not a
+Bangla human-gesture score, a representative English score, or end-to-end iOS
+latency. It is evidence that a shared CTC decoder can turn a portable spatial
+encoder's emissions into Obadh's verified Bengali candidates. The published
+model was used only for a temporary local probe and is not in the repository
+or app; the probe's downloaded weights and packages were removed afterward.
+
+## Collecting human Bangla trails
+
+The existing, separate `ObadhAccuracyLab` app now offers **Collect swipe
+gestures** on its opening screen (or launch with `-swipe-study`). This study
+uses `KeyboardLayoutProvider`, `KeyboardRowView` and the actual key metrics;
+there is no approximation of the Obadh key positions. It prompts 11 verified
+Roman/Bengali word pairs three times each, records timestamped normalized
+touch points and all 26 actual letter centers, and saves a versioned JSON
+session with source revision and FST provenance in its own protected Documents
+directory. The file can be exported after the first completed gesture. It
+contains no free text, editor content or network upload. Rotation/interruption
+discards an unfinished stroke. The shipping Obadh app and extension are not
+linked to this collector.
+
+Build the study app with `scripts/build-accuracy-lab.sh`. It has its own bundle
+ID (`org.unmukto.obadh.accuracylab`), so installing it does not replace the
+keyboard. The simulator UI tests exercise both the older typing study and the
+new swipe recording path; their prompted touch fixture is not a human accuracy
+result.

@@ -17,8 +17,10 @@
 		070580B293DAEDFBE7E15FD4 /* BanglaEmojiSuggestionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FCEAEC18E70D2E206C2073B /* BanglaEmojiSuggestionStore.swift */; };
 		0768A501134F61AFF1F3E7E7 /* KeyboardAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 516107FDC4DA5C3147A60CB7 /* KeyboardAppearance.swift */; };
 		078BF21FD2470F3AEDDF0B03 /* VoiceSessionReliabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DE33F91CAB50BC26EF7B1DD /* VoiceSessionReliabilityTests.swift */; };
+		0A552490153FC3BD5311EFA8 /* VoiceSessionProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 908489CAD992A57FB442C9D5 /* VoiceSessionProtocol.swift */; };
 		0C0FF76795E363034B31C260 /* VoiceSessionProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 908489CAD992A57FB442C9D5 /* VoiceSessionProtocol.swift */; };
 		0CC75F3FDC04FA7731576A53 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0FC9666CF0AB1E7872412D58 /* PrivacyInfo.xcprivacy */; };
+		0EDA723313029D0F74F8A9B4 /* VoiceTranscript.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA91B62CA47AAEA6ACD7B22 /* VoiceTranscript.swift */; };
 		1125B19C38C32C498227AC67 /* TypingAccuracyMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7CC2C296D83511C659902E /* TypingAccuracyMetrics.swift */; };
 		114E86D1B6F3EEDEBC73B2F0 /* ObadhBridge.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A140FAB27D1F3192798424FA /* ObadhBridge.xcframework */; };
 		1211B381465DA94D85B78236 /* ObadhEngineIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59039DE8C56C0B58461FC9C /* ObadhEngineIntegrationTests.swift */; };
@@ -93,6 +95,7 @@
 		4D1233218307DF3CA79F70A2 /* LearnedWordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF186A27FCD23F8BE66D60EC /* LearnedWordStore.swift */; };
 		4DFAA32AC12C80F82CE9685F /* KeyboardRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D0BBF67DE16D8B78659884D /* KeyboardRowView.swift */; };
 		4E05DA997BA4A95995A4EC69 /* KeyboardFeedbackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86492A9D653BD7ADC7768E20 /* KeyboardFeedbackController.swift */; };
+		4E5BE4E24BF865EFD4EC134D /* VoiceLevelFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E21BC9228695D10D003243C /* VoiceLevelFeed.swift */; };
 		4E738FFD5303B413000562DA /* LearnedWordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF186A27FCD23F8BE66D60EC /* LearnedWordStore.swift */; };
 		4F65984C21604C7C16DB0884 /* LexiconKeepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A89772E8E7EF78DA65F08EB0 /* LexiconKeepTests.swift */; };
 		50AA9EBC12D37AC32B3F7953 /* VoiceAudioRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A051D334F966296FB7C3668 /* VoiceAudioRing.swift */; };
@@ -141,6 +144,7 @@
 		7FF5AAE45C7EC0DADDE56ABB /* EmojiVariantPreferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 256744416FB780EEC1BCE05B /* EmojiVariantPreferenceStore.swift */; };
 		8026033F77CA1ED0C5F7C01C /* EmojiPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F17B39BFA64FEDB13A98224 /* EmojiPanelView.swift */; };
 		80EAC5A491CFC2CBF093E9E3 /* KeyboardKeyAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97D481F4E6A82EE36C8B539B /* KeyboardKeyAppearanceTests.swift */; };
+		820A1BB36236F21186251AD6 /* VoiceLevelChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07673C6572F5EA9C2D61536A /* VoiceLevelChannel.swift */; };
 		82B24D2169B92E97FB63BF21 /* KeystrokeProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C69984AC573FFF5A2CC2467 /* KeystrokeProfile.swift */; };
 		82E2B295081B60F1369104A3 /* BanglaTypingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CDAB14409BFF075910B4EC0 /* BanglaTypingEngine.swift */; };
 		8431FF85CDAC265A57822A13 /* AppSetupState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58131B6EC338178D54A4EEBB /* AppSetupState.swift */; };
@@ -162,12 +166,14 @@
 		91F85E48F930B1A89DC1AA60 /* KeyboardSpatialSuggestionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81858AF86914EA4942AC51F4 /* KeyboardSpatialSuggestionTests.swift */; };
 		91FED4D335090B87BDCABC53 /* BackspaceRepeatController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E1485BB6F35E3728758EB63 /* BackspaceRepeatController.swift */; };
 		9249FCD6DDEBECFECE0D6F6F /* ObadhModels in Resources */ = {isa = PBXBuildFile; fileRef = 62363696E04B4D208F1866B8 /* ObadhModels */; };
+		936D727760DD2DCF5F5080F0 /* VoiceVisualState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E0A35D1E63A63094ADB4377 /* VoiceVisualState.swift */; };
 		93C485648F8F22F6787162CB /* KeyboardAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 516107FDC4DA5C3147A60CB7 /* KeyboardAppearance.swift */; };
 		93C9FC08E3B748306599367A /* KeyboardTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63A0E44B2BF4ECEBD1F200FA /* KeyboardTheme.swift */; };
 		941817F68AB83BC7F7D3916A /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78C9F77251F3803865E9E7A5 /* KeyboardViewController.swift */; };
 		94B7870802F5ED16699EBA00 /* EmojiPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F17B39BFA64FEDB13A98224 /* EmojiPanelView.swift */; };
 		9549B4CA9D78A51B8E5FDCBF /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1FF20E2656214A31CEB6A9B /* RootView.swift */; };
 		9634DBB4043CE304AF279075 /* AppBuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E75F5DA9835F870053E7D8 /* AppBuildInfo.swift */; };
+		97886D696F22576AD1874CA0 /* VoicePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5776134AFF34A8CF7FDB7D8 /* VoicePreferences.swift */; };
 		982727F3FD10846AEC43D114 /* ThemePhotoProcessingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C981F478F4742648FD165C0F /* ThemePhotoProcessingTests.swift */; };
 		9D68BE88462EC80851EFFC61 /* KeyboardThemeCatalog+Presets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF91C42D01561C1D892A0AC /* KeyboardThemeCatalog+Presets.swift */; };
 		9D77B58DEF6533810C2B0902 /* VoiceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30BAE5A9821B8F01A0523824 /* VoiceSettingsView.swift */; };
@@ -240,20 +246,24 @@
 		D7C03F1B6EDE2B3B09D9529E /* VoiceModelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FE88EB2DB89652F8F11BEC4 /* VoiceModelStore.swift */; };
 		D7CD3CE952E9D131EAACBAAD /* KeyboardRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D0BBF67DE16D8B78659884D /* KeyboardRowView.swift */; };
 		D860BD2B5831772819AA47F3 /* ObadhBridgeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E6F87259C943124981B64B /* ObadhBridgeClient.swift */; };
+		D8C59EEFF5411617E86AB4C6 /* VoicePhraseArbiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0DC7B9415143828336D824D /* VoicePhraseArbiter.swift */; };
 		D9898295627BD68B1CEE24AD /* EngineContentionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A52704B5167E0CA0199DD32 /* EngineContentionTests.swift */; };
 		DA9D6D96EFAEA0A75C0C69E3 /* KeyboardTouchResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E33258B90523B2B7A711259 /* KeyboardTouchResolver.swift */; };
 		DB93D0B37B7F02015A566993 /* KeystrokeProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C69984AC573FFF5A2CC2467 /* KeystrokeProfile.swift */; };
 		DB96CE66B57DF0EB328E050C /* KeyboardFieldLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AD67E712C743C6236F263A3 /* KeyboardFieldLayout.swift */; };
+		DD64EBF22B40C94F43F9FB2A /* SwipeStudyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7950ED9B5F079C97D2390138 /* SwipeStudyController.swift */; };
 		DD9DE2910DB60E12C42B5ADD /* KeyboardKeyButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61724397185A8DA236054BCD /* KeyboardKeyButton.swift */; };
 		DF0521CFB49D31EEE0A306E1 /* VoiceLevelFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E21BC9228695D10D003243C /* VoiceLevelFeed.swift */; };
 		DF2E935C29845AD7243A2DCC /* ThemeThumbnail.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEB48BC910F2A00117F25E08 /* ThemeThumbnail.swift */; };
 		DF6B8FF6D9DCC88189D37FF2 /* VoiceLevelChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07673C6572F5EA9C2D61536A /* VoiceLevelChannel.swift */; };
 		E069CEACDC6107371D84AEA2 /* KeyboardDebugChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDD5C1AACA44AA367113C3B /* KeyboardDebugChannel.swift */; };
 		E134E54F61512CC0742EF6C7 /* KeyboardSoundSettingsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 751E8F02EB9DD71E6D181695 /* KeyboardSoundSettingsUITests.swift */; };
+		E299303FE2714F74698D88B9 /* VoiceDraftReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F5BDC6D238260E7A844522 /* VoiceDraftReconciler.swift */; };
 		E2DC90DCBC201ABC66A8D218 /* CursorWordDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4540941392FAC03316773EE5 /* CursorWordDetector.swift */; };
 		E2E9319DA55976BE2ADF0596 /* KeyboardComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 823506CDCE3CC47B4525E0AC /* KeyboardComposer.swift */; };
 		E358243732DE2F9483384AC4 /* KeyboardTouchResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E33258B90523B2B7A711259 /* KeyboardTouchResolver.swift */; };
 		E380E3699952D43E81215621 /* VoicePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5776134AFF34A8CF7FDB7D8 /* VoicePreferences.swift */; };
+		E40901A3D07CA1BBB6A32EB6 /* VoiceAudioRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A051D334F966296FB7C3668 /* VoiceAudioRing.swift */; };
 		E41C36FA6E6EE57C608AAEE7 /* TextCompositionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA357898E8C15A804056128 /* TextCompositionController.swift */; };
 		E4D3E0ADAB464DEC3DEF786C /* EmoticonRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 847C634A2A6F8307FF01AEDD /* EmoticonRules.swift */; };
 		E70E4A5D38EECE366DE25618 /* KeyboardSizingLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A54E6808E9AB6949BF32A08 /* KeyboardSizingLog.swift */; };
@@ -421,6 +431,7 @@
 		75AF0050088171853CB3E184 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		784FCA11063B2AAE654D78DC /* VoiceRecognitionPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceRecognitionPipeline.swift; sourceTree = "<group>"; };
 		78C9F77251F3803865E9E7A5 /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
+		7950ED9B5F079C97D2390138 /* SwipeStudyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeStudyController.swift; sourceTree = "<group>"; };
 		7C7BF89E4657EF206E10D3A3 /* ObadhKeyboardLifecycleTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ObadhKeyboardLifecycleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E7A08BDE93B4142634C087E /* ObadhApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObadhApp.swift; sourceTree = "<group>"; };
 		7EC2DE27FBDD093EE6E2DB74 /* ObadhVoiceTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ObadhVoiceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -916,6 +927,7 @@
 			children = (
 				0D177589C40D8E8234A4CCE8 /* AccuracyLabApp.swift */,
 				0847EA255A501801590C42CF /* BaselineKeyboardTouchSurfaceView.swift */,
+				7950ED9B5F079C97D2390138 /* SwipeStudyController.swift */,
 			);
 			name = App;
 			path = Tools/TypingAccuracy/App;
@@ -1226,9 +1238,19 @@
 				EFCA43011A9CCDF6E2677957 /* PersonalAutosuggestStore.swift in Sources */,
 				1956E5EE4EE1FF04FD15BBE6 /* SmartPunctuation.swift in Sources */,
 				435030C9AC5AC2ADDC3B5194 /* SuggestionBarView.swift in Sources */,
+				DD64EBF22B40C94F43F9FB2A /* SwipeStudyController.swift in Sources */,
 				E41C36FA6E6EE57C608AAEE7 /* TextCompositionController.swift in Sources */,
 				1125B19C38C32C498227AC67 /* TypingAccuracyMetrics.swift in Sources */,
+				E40901A3D07CA1BBB6A32EB6 /* VoiceAudioRing.swift in Sources */,
+				E299303FE2714F74698D88B9 /* VoiceDraftReconciler.swift in Sources */,
+				820A1BB36236F21186251AD6 /* VoiceLevelChannel.swift in Sources */,
+				4E5BE4E24BF865EFD4EC134D /* VoiceLevelFeed.swift in Sources */,
+				D8C59EEFF5411617E86AB4C6 /* VoicePhraseArbiter.swift in Sources */,
+				97886D696F22576AD1874CA0 /* VoicePreferences.swift in Sources */,
+				0A552490153FC3BD5311EFA8 /* VoiceSessionProtocol.swift in Sources */,
 				413C8980B75164C6BC9EFD4D /* VoiceStripIndicatorView.swift in Sources */,
+				0EDA723313029D0F74F8A9B4 /* VoiceTranscript.swift in Sources */,
+				936D727760DD2DCF5F5080F0 /* VoiceVisualState.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

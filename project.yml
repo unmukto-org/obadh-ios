@@ -62,6 +62,7 @@ targets:
       - path: Shared/Sources/Keyboard
       - path: Shared/Sources/Engine
       - path: Shared/Sources/Settings
+      - path: Shared/Sources/Voice
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(OBADH_APP_BUNDLE_ID).accuracylab

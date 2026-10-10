@@ -6,7 +6,8 @@ final class AccuracyLabApp: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         let window = UIWindow(frame: UIScreen.main.bounds)
-        window.rootViewController = AccuracyLabController()
+        window.rootViewController = ProcessInfo.processInfo.arguments.contains("-swipe-study")
+            ? SwipeStudyController() : AccuracyLabController()
         window.makeKeyAndVisible()
         self.window = window
         return true
@@ -48,6 +49,7 @@ final class AccuracyLabController: UIViewController, KeyboardTouchSurfaceViewDel
     private let promptLabel = UILabel()
     private let enteredLabel = UILabel()
     private let nextButton = UIButton(type: .system)
+    private let swipeStudyButton = UIButton(type: .system)
     private let exportButton = UIButton(type: .system)
     private let keyboard = UIView()
     private var rows: [KeyboardRowView] = []
@@ -83,10 +85,12 @@ final class AccuracyLabController: UIViewController, KeyboardTouchSurfaceViewDel
         instructions.text = "Copy the Roman text at your normal pace and correct mistakes normally. Each round specifies one thumb or two thumbs. Only these practice touches and text are saved locally. This measures finger input; Bangla prediction is a separate test."
         nextButton.setTitle("Begin", for: .normal)
         nextButton.addTarget(self, action: #selector(nextRound), for: .touchUpInside)
+        swipeStudyButton.setTitle("Collect swipe gestures", for: .normal)
+        swipeStudyButton.addTarget(self, action: #selector(openSwipeStudy), for: .touchUpInside)
         exportButton.setTitle("Export results", for: .normal)
         exportButton.addTarget(self, action: #selector(exportResults), for: .touchUpInside)
         exportButton.isHidden = true
-        let stack = UIStackView(arrangedSubviews: [titleLabel, instructions, promptLabel, enteredLabel, nextButton, exportButton])
+        let stack = UIStackView(arrangedSubviews: [titleLabel, instructions, promptLabel, enteredLabel, nextButton, swipeStudyButton, exportButton])
         stack.axis = .vertical
         stack.spacing = 16
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -183,6 +187,7 @@ final class AccuracyLabController: UIViewController, KeyboardTouchSurfaceViewDel
     }
 
     @objc private func nextRound() {
+        swipeStudyButton.isHidden = true
         candidate.cancelTracking()
         baseline.cancelTracking()
         if round >= 0 && round < plan.count {
@@ -219,6 +224,10 @@ final class AccuracyLabController: UIViewController, KeyboardTouchSurfaceViewDel
         updateAppearance()
     }
 
+    @objc private func openSwipeStudy() {
+        view.window?.rootViewController = SwipeStudyController()
+    }
+
     private func record(_ phase: String, _ touches: Set<UITouch>, in surface: UIView?) {
         guard round >= 0, round < plan.count, let surface else { return }
         for touch in touches.sorted(by: { $0.timestamp < $1.timestamp }) {
@@ -253,6 +262,7 @@ final class AccuracyLabController: UIViewController, KeyboardTouchSurfaceViewDel
         case .tab: return "tab"
         case .capsLock: return "capsLock"
         case .hideKeyboard: return "hideKeyboard"
+        case .spacer: return "spacer"
         }
     }
 
