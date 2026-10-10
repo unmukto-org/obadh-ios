@@ -7,10 +7,10 @@ its acceptance checks pass and record the resolution in the changelog.
 
 **Scope:** v1.0.1 release evidence below remains unchanged except for the dated
 October 9 field-context work on `feature/voice-typing` in KI-005. Current device
-install: Release **1.0.1 (198)**, engine **0.9.5** (`80c44d06`), installed October 9 on
+install: Release **1.0.1 (200)**, engine **0.9.5** (`cac090ca`), installed and launched October 9 on
 iPhone 16 Pro Max / iOS 27.0.1 (24A446). This is not a hardware acceptance pass
 for the issues below or an iPhone 11/A13 qualification. Device readback confirms
-build 198; automatic launch was blocked because the phone was locked.
+build 200.
 The September 25 installation was engine 0.9.4 in Release 166 (`6ab7ab68`); earlier device
 observations used Release 112.
 Evidence comes from iPhone 16 Pro Max / iOS 27.0 (24A435) and an iOS 26.5

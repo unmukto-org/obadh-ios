@@ -16,6 +16,9 @@ Current limitations and verification requirements live in [KNOWN-ISSUES.md](KNOW
   title could truncate longer names.
 - Verified 201 iOS core tests, two iPhone 11 simulator picker/preview flows,
   catalog regeneration, and Android `:keyboard:compileDebugKotlin`.
+- Installed and launched signed Release **1.0.1 (200)**, engine **0.9.5**,
+  source `cac090ca`, on iPhone 16 Pro Max / iOS 27.0.1. Device readback
+  confirms build 200 and both signed bundles have matching source stamps.
 
 ### 2026-10-09 — Native keyboard themes
 
