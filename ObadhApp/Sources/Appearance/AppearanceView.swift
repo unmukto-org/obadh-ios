@@ -13,10 +13,26 @@ struct AppearanceView: View {
   @State private var importProgress: Progress?
   @State private var importGeneration = UUID()
   @State private var error: String?
-  private let columns = [GridItem(.adaptive(minimum: 145, maximum: 220), spacing: 16)]
+  @State private var collection: ThemeCollection = .colors
+  @State private var searchText = ""
+  private let columns = [GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 14)]
+  private var visiblePresets: [KeyboardThemePreset] {
+    let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    if query.isEmpty {
+      let presets = KeyboardThemeCatalog.presets.filter { $0.group == collection.group }
+      let spotlight = collection.spotlightIDs
+      return spotlight.compactMap(KeyboardThemeCatalog.preset)
+        + presets.filter { !spotlight.contains($0.id) }
+    }
+    return KeyboardThemeCatalog.presets.filter {
+      $0.name.localizedStandardContains(query)
+        || $0.id.replacingOccurrences(of: "_", with: " ").localizedStandardContains(query)
+        || $0.group.localizedStandardContains(query)
+    }
+  }
   var body: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 28) {
+      VStack(alignment: .leading, spacing: 24) {
         Button {
           selection = ThemeSelection(id: "system")
         } label: {
@@ -32,15 +48,31 @@ struct AppearanceView: View {
             } else {
               Image(systemName: "chevron.forward").foregroundStyle(.tertiary)
             }
-          }.padding(16).background(.background, in: RoundedRectangle(cornerRadius: 20))
+          }.padding(16).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(
+              appearance.isSystem ? Color.accentColor : Color(.separator).opacity(0.16),
+              lineWidth: appearance.isSystem ? 2 : 1))
         }.buttonStyle(.plain).accessibilityIdentifier("theme-system")
           .accessibilityAddTraits(appearance.isSystem ? .isSelected : [])
         VStack(alignment: .leading, spacing: 12) {
-          Text("My Photos").font(.title3.bold())
           PhotosPicker(selection: $pickerItem, matching: .images, preferredItemEncoding: .current) {
-            Label("Add Photo Theme", systemImage: "photo.badge.plus").frame(
-              maxWidth: .infinity, minHeight: 44)
-          }.buttonStyle(.bordered).accessibilityIdentifier("add-photo-theme").disabled(importing)
+            HStack(spacing: 14) {
+              Image(systemName: "photo.badge.plus").font(.title2)
+                .frame(width: 44, height: 44)
+              VStack(alignment: .leading, spacing: 3) {
+                Text("Create from a Photo").font(.headline)
+                Text("Your photo, your keyboard")
+                  .font(.subheadline).foregroundStyle(.secondary)
+              }
+              Spacer()
+              Image(systemName: "chevron.forward").foregroundStyle(.tertiary)
+            }
+            .padding(16).background(.regularMaterial,
+              in: RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20)
+              .strokeBorder(Color(.separator).opacity(0.16)))
+          }.buttonStyle(.plain).accessibilityIdentifier("add-photo-theme")
+            .disabled(importing)
           if importing {
             HStack {
               ProgressView("Loading Photo…")
@@ -49,6 +81,7 @@ struct AppearanceView: View {
             }
           }
           if !photos.isEmpty {
+            Text("Your Photos").font(.headline)
             LazyVGrid(columns: columns, spacing: 16) {
               ForEach(photos) { photo in
                 PhotoThemeCard(photo: photo, appearance: appearance,
@@ -58,37 +91,40 @@ struct AppearanceView: View {
               }
             }
           }
-          Text(
-            "Only the photo you select is shared with Obadh. It’s used locally for your keyboard."
-          )
-          .font(.footnote).foregroundStyle(.secondary)
         }
-        ForEach(KeyboardThemeCatalog.groups, id: \.self) { group in
-          VStack(alignment: .leading, spacing: 12) {
-            Text(
-              group == "Light gradient"
-                ? "Light Gradients" : group == "Dark gradient" ? "Dark Gradients" : group
-            ).font(.title3.bold())
-            LazyVGrid(columns: columns, spacing: 16) {
-              ForEach(KeyboardThemeCatalog.presets.filter { $0.group == group }) { preset in
-                Button {
-                  selection = ThemeSelection(id: preset.id)
-                } label: {
-                  ThemeCard(name: preset.name, selected: appearance.themeID == preset.id) {
-                    ThemeThumbnail(appearance: .init(
-                      themeID: preset.id, mode: appearance.mode,
-                      keyOutlines: appearance.keyOutlines))
-                  }
-                }.buttonStyle(.plain).accessibilityIdentifier("theme-" + preset.id)
-                  .accessibilityAddTraits(appearance.themeID == preset.id ? .isSelected : [])
+        VStack(alignment: .leading, spacing: 16) {
+          Text(searchText.isEmpty ? "Collections" : "Search Results").font(.title2.bold())
+          if searchText.isEmpty {
+            Picker("Collection", selection: $collection) {
+              ForEach(ThemeCollection.allCases) { item in
+                Text(item.title).tag(item)
               }
+            }.pickerStyle(.segmented).accessibilityIdentifier("theme-collection")
+          }
+          LazyVGrid(columns: columns, spacing: 14) {
+            ForEach(visiblePresets) { preset in
+              Button {
+                selection = ThemeSelection(id: preset.id)
+              } label: {
+                ThemeCard(name: preset.name, selected: appearance.themeID == preset.id) {
+                  ThemeThumbnail(appearance: .init(
+                    themeID: preset.id, mode: appearance.mode,
+                    keyOutlines: appearance.keyOutlines))
+                }
+              }.buttonStyle(.plain).accessibilityIdentifier("theme-" + preset.id)
+                .accessibilityAddTraits(appearance.themeID == preset.id ? .isSelected : [])
             }
           }
+          if visiblePresets.isEmpty {
+            ContentUnavailableView.search(text: searchText)
+          }
         }
-      }.padding(20).frame(maxWidth: 680).frame(maxWidth: .infinity)
+      }.padding(.horizontal, 20).padding(.vertical, 14)
+        .frame(maxWidth: 680).frame(maxWidth: .infinity)
     }
     .background(Color(.systemGroupedBackground))
-    .navigationTitle("Appearance").navigationBarTitleDisplayMode(.inline)
+    .navigationTitle("Themes").navigationBarTitleDisplayMode(.large)
+    .searchable(text: $searchText, prompt: "Search Themes")
     .sheet(
       item: $selection,
       onDismiss: {
@@ -123,6 +159,10 @@ struct AppearanceView: View {
     .task {
       await reloadPhotos()
       await ThemePhotoLibrary.shared.collect()
+      if let group = KeyboardThemeCatalog.preset(appearance.themeID)?.group,
+        let selected = ThemeCollection.allCases.first(where: { $0.group == group }) {
+        collection = selected
+      }
     }
     .onChange(of: pickerItem) { _, item in if let item { importPhoto(item) } }
     .onDisappear { cancelImport() }
@@ -197,23 +237,64 @@ struct AppearanceView: View {
   }
 }
 
+private enum ThemeCollection: String, CaseIterable, Identifiable {
+  case colors, light, dark
+  var id: Self { self }
+  var title: String {
+    switch self {
+    case .colors: "Colors"
+    case .light: "Daylight"
+    case .dark: "After Dark"
+    }
+  }
+  var group: String {
+    switch self {
+    case .colors: "Colors"
+    case .light: "Light gradient"
+    case .dark: "Dark gradient"
+    }
+  }
+  /// Lead with the palettes that show each collection's range at a glance;
+  /// persistent IDs and the shared catalog order are unchanged.
+  var spotlightIDs: [String] {
+    switch self {
+    case .colors: ["light_pink", "blue", "teal", "sand", "deep_purple", "cyan"]
+    case .light: ["light_gradient_7", "light_gradient_8", "light_gradient_24",
+      "light_gradient_6", "light_gradient_14", "light_gradient_11"]
+    case .dark: ["dark_gradient_1", "dark_gradient_28", "dark_gradient_24",
+      "dark_gradient_21", "dark_gradient_25", "dark_gradient_16"]
+    }
+  }
+}
+
 private struct ThemeCard<Artwork: View>: View {
   let name: String
   let selected: Bool
   @ViewBuilder let artwork: () -> Artwork
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
+    VStack(alignment: .leading, spacing: 0) {
       artwork().aspectRatio(414.0 / 280.0, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(alignment: .topTrailing) {
+          if selected {
+            Image(systemName: "checkmark.circle.fill")
+              .symbolRenderingMode(.palette)
+              .foregroundStyle(.white, Color.accentColor)
+              .font(.title3).padding(10)
+          }
+        }
         .allowsHitTesting(false).accessibilityHidden(true)
-      HStack(alignment: .firstTextBaseline) {
-        Text(name).font(.subheadline.weight(.medium)).foregroundStyle(.primary)
-          .multilineTextAlignment(.leading)
-        Spacer(minLength: 4)
-        if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(.tint) }
-      }
-    }.contentShape(Rectangle())
-      .accessibilityElement(children: .ignore).accessibilityLabel(name)
+      Text(name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+        .lineLimit(2).frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
+        .padding(.horizontal, 12)
+    }
+    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 17))
+    .clipShape(RoundedRectangle(cornerRadius: 17))
+    .overlay(RoundedRectangle(cornerRadius: 17).strokeBorder(
+      selected ? Color.accentColor : Color(.separator).opacity(0.12),
+      lineWidth: selected ? 2 : 1))
+    .contentShape(RoundedRectangle(cornerRadius: 17))
+    .accessibilityElement(children: .ignore).accessibilityLabel(name)
+    .accessibilityHint("Preview this keyboard theme")
   }
 }
 

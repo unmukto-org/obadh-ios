@@ -13,6 +13,8 @@
     private let suggestions = UILabel()
     private var selection: KeyboardAppearance?
     private var photo: CGImage?
+    private var editingCrop: ThemePhotoCrop?
+    private var editingBrightness: Double = 1
 
     override init(frame: CGRect) {
       super.init(frame: frame)
@@ -48,18 +50,25 @@
       board.addSubview(suggestions)
     }
     required init?(coder: NSCoder) { fatalError("Unused") }
-    func display(_ appearance: KeyboardAppearance, photo: CGImage?) {
-      guard selection != appearance || self.photo !== photo else { return }
+    func display(_ appearance: KeyboardAppearance, photo: CGImage?,
+      editingCrop: ThemePhotoCrop? = nil, editingBrightness: Double = 1) {
+      guard selection != appearance || self.photo !== photo
+        || self.editingCrop != editingCrop || self.editingBrightness != editingBrightness else {
+        return
+      }
       let rebuildKeys = selection != appearance
       selection = appearance
       self.photo = photo
+      self.editingCrop = editingCrop
+      self.editingBrightness = editingBrightness
       let preset = KeyboardThemeCatalog.preset(appearance.themeID)
       let palette =
         preset.map(KeyboardThemePalette.init) ?? (appearance.photoID != nil ? .photo : nil)
       overrideUserInterfaceStyle =
         palette.map { $0.prefersDark ? .dark : .light }
         ?? (appearance.mode == .light ? .light : appearance.mode == .dark ? .dark : .unspecified)
-      backdrop.display(preset: preset, photo: photo, palette: palette)
+      backdrop.display(preset: preset, photo: photo, palette: palette,
+        editingCrop: editingCrop, editingBrightness: editingBrightness)
       suggestions.textColor =
         palette?.ink.uiColor ?? KeyboardTheme.suggestionTextColor(for: traitCollection)
       if rebuildKeys {
@@ -73,7 +82,7 @@
           }
         }
       }
-      setNeedsLayout()
+      if rebuildKeys { setNeedsLayout() }
     }
     override func layoutSubviews() {
       super.layoutSubviews()

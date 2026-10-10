@@ -1,6 +1,6 @@
 # Keyboard appearance
 
-The iOS Appearance feature uses native SwiftUI navigation, Forms and sheets.
+The iOS Appearance feature uses native SwiftUI navigation, materials and sheets.
 System is the untouched original keyboard: the optional palette is nil, the
 artwork is hidden, and its existing material, geometry and key colors remain in
 use. Automatic continues to follow the host's keyboard appearance hint. Light,
@@ -40,20 +40,22 @@ keystroke. Appearance changes update visuals without clearing composition; Syste
 background-only updates avoid unnecessary row rebuilds. Production notification
 subscriptions are weak and cancelled with their controller.
 Each view owns its palette; previews cannot change the running keyboard's colors.
-Catalog thumbnails and the full preview share the production key renderer and
-layout at the same 414:280 aspect ratio, including Bangla legends, utility keys,
-native glass, outlines and accessibility fallback. On-screen thumbnails capture
-the composited preview with UIKit's snapshot API and release its live effects;
-drawHierarchy/layer rendering can alter Liquid Glass. A memory-pressure-evictable
-snapshot cache with a 12 MiB estimated pixel-cost limit includes dimensions, display scale, appearance traits,
-Reduce Transparency, outlines and photo revision; off-screen cards release their
-snapshots. No thumbnail or full preview loads the typing engine. The app
+The gallery separates the System and photo actions from a searchable, segmented
+catalog. It initially opens the collection containing the active preset and
+leads each collection with a short, intentionally varied palette selection. Cards
+use the production backdrop, palette and key geometry at the same 414:280 aspect
+ratio; one Core Graphics pass draws the legends and key silhouettes. These are
+lightweight illustrations of the final keyboard, while the detail sheet alone
+creates live native glass keys. Scrolling never instantiates a full keyboard per
+card, waits for glass compositing, or captures/cache-clones view hierarchies.
+Photo thumbnail decoding remains bounded and off the main actor. No thumbnail
+or full preview loads the typing engine. The app
 preview uses a semantic gray underlay because host-owned keyboard chrome is only
 available in the actual keyboard; the extension keeps that native chrome.
 
 ## Photos and permission
 
-Only **Add Photo Theme** opens Apple's Photos picker. There is no broad Photos
+Only **Create from a Photo** opens Apple's Photos picker. There is no broad Photos
 permission request, permission probe, asset enumeration, upload or network code
 in this feature. The system picker handles access restrictions and explicitly
 shares the selected item. Editing a saved theme uses Obadh's local copy.
@@ -66,9 +68,14 @@ A file-based Transferable downscales the selected image before retaining bytes:
 render and 240-pixel thumbnail. EXIF orientation is applied and JPEG reencoding
 removes source EXIF/GPS metadata; the encoder may add color-space and pixel
 dimension tags. The editor offers drag/pinch, accessible positioning,
-zoom and brightness sliders, reset, naming and a real keyboard preview. Preview
-rendering is cancellable and debounced; decode/render work stays off the main
-actor. Import cancellation cancels Photos' Progress, and generation checks reject
+zoom and brightness sliders, reset, naming and a real keyboard preview. The
+photo/keyboard switch keeps one preview visible above a scrolling adjustment
+panel; it collapses while the user names the theme so the text field stays
+usable above the keyboard. Crop and brightness
+changes update the on-screen Core Animation layer immediately; there is no
+debounce, repeated image encoding or native-key relayout while dragging. Final full-resolution JPEG
+rendering happens off the main actor at save time. Import cancellation cancels
+Photos' Progress, and generation checks reject
 late results. iCloud, invalid format, failed decode and save errors leave the
 active selection intact.
 
@@ -92,8 +99,8 @@ Run `swift test` for catalog, contrast, crop, preference and atomic-store tests.
 opaque accessibility fallback, artwork release and live changes during typing.
 `ObadhVoiceTests/ThemePhotoProcessingTests` checks bounded JPEG processing and
 metadata removal (the app-hosted test target also owns these app-only utilities).
-`ObadhVoiceTests/ThemeThumbnailTests` checks edited photo revisions, loading
-placeholders, independent reuse of cached snapshots and release of live effects.
+`ObadhVoiceTests/ThemeThumbnailTests` checks edited photo revisions, that cards
+allocate no live glass keys, and immediate crop/brightness updates in the editor.
 `ObadhKeyboardUITests/KeyboardAppearanceUITests` exercises preview/cancel/apply,
 persistence, restoring System, native picker cancellation and photo editing.
 Its thumbnail fidelity flow captures solid, gradient and mesh cards beside

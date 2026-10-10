@@ -3,9 +3,12 @@ import SwiftUI
 struct ThemePreview: UIViewRepresentable {
   let appearance: KeyboardAppearance
   var photo: CGImage? = nil
+  var editingCrop: ThemePhotoCrop? = nil
+  var editingBrightness: Double = 1
   func makeUIView(context: Context) -> KeyboardThemePreviewView { KeyboardThemePreviewView() }
   func updateUIView(_ view: KeyboardThemePreviewView, context: Context) {
-    view.display(appearance, photo: photo)
+    view.display(appearance, photo: photo, editingCrop: editingCrop,
+      editingBrightness: editingBrightness)
   }
 }
 
@@ -54,58 +57,72 @@ struct ThemeDetailView: View {
   }
   var body: some View {
     NavigationStack {
-      Form {
-        Section {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 22) {
+          Text(selection.name).font(.title2.bold())
           ThemePreview(appearance: proposed, photo: image)
-            .aspectRatio(414.0 / 280.0, contentMode: .fit).listRowInsets(EdgeInsets())
+            .aspectRatio(414.0 / 280.0, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18)
+              .strokeBorder(Color(.separator).opacity(0.18)))
             .accessibilityLabel("Keyboard preview")
-        } header: {
-          if selection.id != "system" {
-            Text(selection.name).font(.title3.weight(.semibold))
-              .textCase(nil).foregroundStyle(.primary)
-          }
-        }
-        if photoLoadFailed {
-          Section {
+          if photoLoadFailed {
             Text(
               "This saved photo couldn’t be loaded. Edit it to rebuild the theme, or choose another theme."
-            ).foregroundStyle(.secondary)
+            ).font(.footnote).foregroundStyle(.secondary)
           }
-        }
-        if selection.id == "system" {
-          Section {
+          if selection.id == "system" {
+            VStack(alignment: .leading, spacing: 10) {
+              Text("Appearance").font(.headline)
             Picker("Appearance", selection: $mode) {
               Text("Automatic").tag(KeyboardAppearance.Mode.automatic)
               Text("Light").tag(KeyboardAppearance.Mode.light)
               Text("Dark").tag(KeyboardAppearance.Mode.dark)
-            }
-            .pickerStyle(.segmented)
-          } footer: {
-            Text("Automatic follows the appearance requested by the app you’re typing in.")
-          }
-        }
-        Section { Toggle("Key Outlines", isOn: $outlines) }
-        if selection.photo != nil {
-          Section {
-            Button("Edit Photo", systemImage: "slider.horizontal.3", action: edit)
-            Button("Delete Theme", systemImage: "trash", role: .destructive) {
-              deleteConfirmation = true
+              }.pickerStyle(.segmented)
+              Text("Automatic follows the appearance requested by the app you’re typing in.")
+                .font(.footnote).foregroundStyle(.secondary)
             }
           }
+          Toggle("Key Outlines", isOn: $outlines)
+            .padding(16).background(.regularMaterial,
+              in: RoundedRectangle(cornerRadius: 18))
+          if selection.photo != nil {
+            VStack(spacing: 0) {
+              Button(action: edit) {
+                Label("Edit Photo", systemImage: "slider.horizontal.3")
+                  .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+              }
+              Divider()
+              Button(role: .destructive) { deleteConfirmation = true } label: {
+                Label("Delete Theme", systemImage: "trash")
+                  .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+              }
+            }
+            .padding(.horizontal, 16).background(.regularMaterial,
+              in: RoundedRectangle(cornerRadius: 18))
+          }
         }
+        .padding(.horizontal, 20).padding(.vertical, 22)
+        .frame(maxWidth: 680).frame(maxWidth: .infinity)
       }
-      .navigationTitle(selection.id == "system" ? "System" : "Theme Preview")
+      .background(Color(.systemGroupedBackground))
+      .safeAreaInset(edge: .bottom, spacing: 0) {
+        Button {
+          apply(proposed)
+          dismiss()
+        } label: {
+          Text("Use Theme").frame(maxWidth: .infinity, minHeight: 44)
+        }
+        .buttonStyle(.borderedProminent)
+        .accessibilityIdentifier("use-theme")
+        .disabled(selection.photo != nil && image == nil)
+        .padding(.horizontal, 20).padding(.vertical, 10)
+        .background(.bar)
+      }
+      .navigationTitle("Preview")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Use Theme") {
-            apply(proposed)
-            dismiss()
-          }
-          .accessibilityIdentifier("use-theme")
-          .disabled(selection.photo != nil && image == nil)
-        }
       }
       .alert(
         "Photo Theme Unavailable",

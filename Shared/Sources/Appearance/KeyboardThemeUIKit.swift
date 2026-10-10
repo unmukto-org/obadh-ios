@@ -33,18 +33,30 @@
       for item in [gradient, artwork, scrim] { item.frame = bounds }
       CATransaction.commit()
     }
-    func display(preset: KeyboardThemePreset?, photo: CGImage?, palette: KeyboardThemePalette?) {
+    func display(preset: KeyboardThemePreset?, photo: CGImage?, palette: KeyboardThemePalette?,
+      editingCrop: ThemePhotoCrop? = nil, editingBrightness: Double = 1) {
       CATransaction.begin()
       CATransaction.setDisableActions(true)
       defer { CATransaction.commit() }
       isHidden = palette == nil
-      backgroundColor = preset.map { ThemeColor($0.palette[0]).uiColor } ?? .clear
+      backgroundColor = editingCrop != nil ? .black
+        : (preset.map { ThemeColor($0.palette[0]).uiColor } ?? .clear)
       gradient.isHidden = preset?.gradient.isEmpty != false || preset?.mesh.isEmpty == false
       gradient.colors = preset?.gradient.map { ThemeColor($0).uiColor.cgColor }
       gradient.locations = preset?.positions.map { NSNumber(value: $0) }
       artwork.contents = photo
-      artwork.contentsRect = CGRect(x: 0, y: 0, width: 1, height: 1)
-      artwork.contentsGravity = .resizeAspectFill
+      if let editingCrop, let photo {
+        let rect = editingCrop.rectangle(imageWidth: Double(photo.width),
+          imageHeight: Double(photo.height))
+        artwork.contentsRect = CGRect(x: rect.x, y: rect.y, width: rect.width,
+          height: rect.height)
+        artwork.contentsGravity = .resize
+        artwork.opacity = Float(min(1, max(0, editingBrightness)))
+      } else {
+        artwork.contentsRect = CGRect(x: 0, y: 0, width: 1, height: 1)
+        artwork.contentsGravity = .resizeAspectFill
+        artwork.opacity = 1
+      }
       if let mesh = preset?.mesh, !mesh.isEmpty {
         let side = Int(Double(mesh.count).squareRoot())
         var bytes = mesh.flatMap { color -> [UInt8] in

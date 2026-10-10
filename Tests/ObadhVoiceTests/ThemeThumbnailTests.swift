@@ -5,38 +5,56 @@ import XCTest
 
 @MainActor
 final class ThemeThumbnailTests: XCTestCase {
-  func testPhotoRevisionInvalidatesSnapshotAndInactiveCardsReleaseLiveRendering() async throws {
-    let previousWindow = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-      .flatMap(\.windows).first { $0.isKeyWindow }
-    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 414, height: 896))
-    window.windowScene = previousWindow?.windowScene
-    let host = UIViewController()
-    window.rootViewController = host
-    window.makeKeyAndVisible()
-    defer {
-      window.isHidden = true
-      previousWindow?.makeKeyAndVisible()
+  func testPhotoEditorPreviewUpdatesCropAndBrightnessSynchronously() throws {
+    let image = try XCTUnwrap(UIGraphicsImageRenderer(size: CGSize(width: 600, height: 400))
+      .image { context in
+        UIColor.red.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 600, height: 400))
+      }.cgImage)
+    let view = KeyboardThemePreviewView(frame: CGRect(x: 0, y: 0, width: 414, height: 280))
+    let appearance = KeyboardAppearance(themeID: "photo." + UUID().uuidString)
+    view.display(appearance, photo: image, editingCrop: .init(), editingBrightness: 0.8)
+    func backdrop(in root: UIView) -> KeyboardThemeBackdropView? {
+      if let result = root as? KeyboardThemeBackdropView { return result }
+      return root.subviews.lazy.compactMap(backdrop).first
     }
-    let thumbnail = ThemeThumbnailView(frame: CGRect(x: 20, y: 100, width: 207, height: 140))
-    host.view.addSubview(thumbnail)
+    let layer = try XCTUnwrap(backdrop(in: view)?.layer.sublayers?[1])
+    func keys(in root: UIView) -> [KeyboardKeyButton] {
+      (root as? KeyboardKeyButton).map { [$0] } ?? root.subviews.flatMap(keys)
+    }
+    let firstKeys = keys(in: view)
+    XCTAssertFalse(firstKeys.isEmpty)
+    XCTAssertEqual(layer.opacity, 0.8, accuracy: 0.001)
+    let first = layer.contentsRect
+    var cropped = ThemePhotoCrop()
+    cropped.zoom = 2
+    cropped.centerX = 0.7
+    view.display(appearance, photo: image, editingCrop: cropped, editingBrightness: 0.35)
+    XCTAssertEqual(layer.opacity, 0.35, accuracy: 0.001)
+    XCTAssertNotEqual(layer.contentsRect, first)
+    let updatedKeys = keys(in: view)
+    XCTAssertEqual(updatedKeys.count, firstKeys.count)
+    XCTAssertTrue(zip(firstKeys, updatedKeys).allSatisfy { $0 === $1 },
+      "Dragging a slider must not recreate native glass keys")
+  }
+
+  func testPhotoRevisionUpdatesArtworkWithoutAllocatingNativeGlassKeys() throws {
+    let thumbnail = ThemeThumbnailView(frame: CGRect(x: 0, y: 0, width: 207, height: 140))
     func photo(_ color: UIColor) throws -> CGImage {
       try XCTUnwrap(UIGraphicsImageRenderer(size: CGSize(width: 240, height: 160)).image { context in
         color.setFill()
         context.fill(CGRect(x: 0, y: 0, width: 240, height: 160))
       }.cgImage)
     }
-    func snapshot(_ view: UIView) throws -> UIImage {
-      XCTAssertFalse(view.subviews.isEmpty)
-      return UIGraphicsImageRenderer(size: view.bounds.size).image { _ in
-        XCTAssertTrue(view.drawHierarchy(in: view.bounds, afterScreenUpdates: true))
+    func topPixel() throws -> [UInt8] {
+      thumbnail.layoutIfNeeded()
+      let image = UIGraphicsImageRenderer(size: thumbnail.bounds.size).image { context in
+        thumbnail.layer.render(in: context.cgContext)
       }
-    }
-    func rgb(_ image: UIImage) throws -> [UInt8] {
       let source = try XCTUnwrap(image.cgImage)
-      var pixel: [UInt8] = [0, 0, 0, 0]
-      // The top center is the uncovered photo, away from suggestion glyphs.
       let sample = try XCTUnwrap(source.cropping(to: CGRect(
         x: source.width / 2, y: source.height / 50, width: 1, height: 1)))
+      var pixel: [UInt8] = [0, 0, 0, 0]
       try pixel.withUnsafeMutableBytes { bytes in
         let context = try XCTUnwrap(CGContext(data: bytes.baseAddress, width: 1, height: 1,
           bitsPerComponent: 8, bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(),
@@ -45,35 +63,16 @@ final class ThemeThumbnailTests: XCTestCase {
       }
       return pixel
     }
-    var appearance = KeyboardAppearance(themeID: "photo." + UUID().uuidString, revision: UUID())
-    thumbnail.display(appearance, photo: try photo(.red), active: true)
-    thumbnail.layoutIfNeeded()
-    try await Task.sleep(for: .milliseconds(600))
-    let red = try rgb(snapshot(thumbnail))
+    var appearance = KeyboardAppearance(themeID: "photo." + UUID().uuidString,
+      revision: UUID())
+    thumbnail.display(appearance, photo: try photo(.red))
+    let red = try topPixel()
     XCTAssertGreaterThan(Int(red[0]), Int(red[2]) + 30)
-    XCTAssertFalse(thumbnail.subviews.contains { $0 is KeyboardThemePreviewView },
-      "A completed card must release its live native effects")
-
     appearance.revision = UUID()
-    thumbnail.display(appearance, photo: nil, active: true)
-    thumbnail.layoutIfNeeded()
-    try await Task.sleep(for: .milliseconds(350))
-    thumbnail.display(appearance, photo: try photo(.blue), active: true)
-    thumbnail.layoutIfNeeded()
-    try await Task.sleep(for: .milliseconds(600))
-    let blue = try rgb(snapshot(thumbnail))
-    XCTAssertGreaterThan(Int(blue[2]), Int(blue[0]) + 30, "Editing a photo cannot reuse its old snapshot")
-    let duplicate = ThemeThumbnailView(frame: thumbnail.frame.offsetBy(dx: 0, dy: 160))
-    host.view.addSubview(duplicate)
-    duplicate.display(appearance, photo: try photo(.blue), active: true)
-    duplicate.layoutIfNeeded()
-    XCTAssertFalse(duplicate.subviews.contains { $0 is KeyboardThemePreviewView },
-      "Another card must reuse the snapshot without stealing the first card's view")
-    XCTAssertEqual(try rgb(snapshot(duplicate)), blue)
-    XCTAssertFalse(thumbnail.subviews.isEmpty)
-    duplicate.stopDisplaying()
-    thumbnail.stopDisplaying()
-    XCTAssertTrue(thumbnail.subviews.isEmpty)
+    thumbnail.display(appearance, photo: try photo(.blue))
+    let blue = try topPixel()
+    XCTAssertGreaterThan(Int(blue[2]), Int(blue[0]) + 30)
     XCTAssertFalse(thumbnail.subviews.contains { $0 is KeyboardThemePreviewView })
+    XCTAssertEqual(thumbnail.subviews.count, 2, "A card has only a backdrop and one drawing view")
   }
 }

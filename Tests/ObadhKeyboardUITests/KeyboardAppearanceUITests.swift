@@ -20,6 +20,12 @@ final class KeyboardAppearanceUITests: XCTestCase {
     }
     XCTFail("Theme card never became fully visible: " + card.identifier, file: #filePath, line: #line)
   }
+  private func selectCollection(_ name: String, app: XCUIApplication) {
+    let segment = app.segmentedControls.buttons[name]
+    for _ in 0..<12 where !segment.isHittable { app.scrollViews.firstMatch.swipeDown() }
+    XCTAssertTrue(segment.isHittable, app.debugDescription)
+    segment.tap()
+  }
   func testThemePreviewApplyPersistenceSystemAndPhotoPickerCancellation() throws {
     continueAfterFailure = false
     let app = XCUIApplication()
@@ -29,9 +35,9 @@ final class KeyboardAppearanceUITests: XCTestCase {
     XCTAssertTrue(appearanceLink.waitForExistence(timeout: 10))
     appearanceLink.tap()
     XCTAssertTrue(app.buttons["theme-system"].waitForExistence(timeout: 5))
+    selectCollection("Colors", app: app)
     capture("appearance-catalog", app: app)
     let blue = app.buttons["theme-blue"]
-    app.scrollViews.firstMatch.swipeUp()
     reveal(blue, app: app)
     XCTAssertTrue(blue.isHittable)
     blue.tap()
@@ -44,7 +50,6 @@ final class KeyboardAppearanceUITests: XCTestCase {
     app.terminate()
     app.launch()
     appearanceLink.tap()
-    app.scrollViews.firstMatch.swipeUp()
     reveal(blue, app: app)
     XCTAssertTrue(blue.isSelected)
     for _ in 0..<10 where !app.buttons["theme-system"].isHittable { app.swipeDown() }
@@ -91,7 +96,10 @@ final class KeyboardAppearanceUITests: XCTestCase {
     app.launch()
     XCTAssertTrue(app.buttons["appearance-settings"].waitForExistence(timeout: 10))
     app.buttons["appearance-settings"].tap()
+    selectCollection("Colors", app: app)
     for id in ["blue", "light_gradient_8", "dark_gradient_28"] {
+      if id == "light_gradient_8" { selectCollection("Daylight", app: app) }
+      if id == "dark_gradient_28" { selectCollection("After Dark", app: app) }
       let card = app.buttons["theme-" + id]
       reveal(card, app: app)
       let thumbnail = XCTAttachment(screenshot: card.screenshot())
@@ -113,9 +121,10 @@ final class KeyboardAppearanceUITests: XCTestCase {
     let link = app.buttons["appearance-settings"]
     XCTAssertTrue(link.waitForExistence(timeout: 10))
     link.tap()
+    selectCollection("Colors", app: app)
     for id in ["blue", "dark_gradient_28"] {
+      if id == "dark_gradient_28" { selectCollection("After Dark", app: app) }
       let card = app.buttons["theme-" + id]
-      app.scrollViews.firstMatch.swipeUp()
       reveal(card, app: app)
       XCTAssertTrue(card.isHittable, app.debugDescription)
       let thumbnail = XCTAttachment(screenshot: card.screenshot())
@@ -150,11 +159,14 @@ final class KeyboardAppearanceUITests: XCTestCase {
       predicate: NSPredicate(format: "enabled == true"), object: save)
     XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 10), .completed)
     capture("native-photo-editor", app: app)
+    app.segmentedControls.buttons["Keyboard"].tap()
+    capture("native-photo-keyboard-live-preview", app: app)
     let zoom = app.sliders["Zoom"]
-    for _ in 0..<5 where !zoom.isHittable { app.swipeUp() }
+    for _ in 0..<5 where !zoom.isHittable { app.scrollViews.firstMatch.swipeUp() }
     zoom.adjust(toNormalizedSliderPosition: 0.35)
-    let brightness = app.sliders["Brightness"]
-    for _ in 0..<4 where !brightness.isHittable { app.swipeUp() }
+    capture("native-photo-keyboard-after-zoom", app: app)
+    let brightness = app.sliders["Photo Brightness"]
+    for _ in 0..<4 where !brightness.isHittable { app.scrollViews.firstMatch.swipeUp() }
     brightness.adjust(toNormalizedSliderPosition: 0.5)
     save.tap()
     let photo = app.buttons["My Photo"].firstMatch

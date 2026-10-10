@@ -8,7 +8,6 @@ struct ThemePhotoEditor: View {
   @State private var crop: ThemePhotoCrop
   @State private var brightness: Double
   @State private var original: CGImage?
-  @State private var preview: CGImage?
   @State private var dragStart: ThemePhotoCrop?
   @State private var zoomStart: Double?
   @State private var saving = false
@@ -16,6 +15,9 @@ struct ThemePhotoEditor: View {
   private let outlines = KeyboardPreferences().appearance.keyOutlines
   @State private var error: String?
   @State private var saveTask: Task<Void, Never>?
+  @State private var showKeyboardPreview = false
+  @State private var previewWidth: CGFloat = 414
+  @FocusState private var nameFocused: Bool
   private var trimmedName: String {
     String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
   }
@@ -28,47 +30,115 @@ struct ThemePhotoEditor: View {
   }
   var body: some View {
     NavigationStack {
-      Form {
-        Section {
-          if let original {
-            cropView(original).aspectRatio(ThemePhotoCrop.aspectRatio, contentMode: .fit)
-              .listRowInsets(EdgeInsets())
-          } else if decodeFailed {
-            Text("This photo couldn’t be opened.").foregroundStyle(.secondary)
-          } else {
-            ProgressView("Preparing Photo…")
+      VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 14) {
+          VStack(alignment: .leading, spacing: 5) {
+            Text(draft.existing == nil ? "Frame your photo" : "Refine your photo")
+              .font(.title2.bold())
+            Text("See each adjustment on the keyboard as you work.")
+              .font(.subheadline).foregroundStyle(.secondary)
           }
-        } footer: {
-          Text("Drag to reposition. Pinch to zoom, or use the controls below.")
-        }
-        Section("Keyboard Preview") {
-          ThemePreview(
-            appearance: .init(
-              themeID: "photo." + (draft.existing?.id ?? draft.id).uuidString, keyOutlines: outlines
-            ), photo: preview
-          )
-          .aspectRatio(414.0 / 280.0, contentMode: .fit).listRowInsets(EdgeInsets())
-        }
-        Section {
-          TextField("Theme Name", text: $name).accessibilityIdentifier("photo-theme-name")
-            .onChange(of: name) { _, value in
-              if value.count > 80 { name = String(value.prefix(80)) }
+          if !nameFocused {
+            VStack(alignment: .leading, spacing: 12) {
+              Picker("Preview", selection: $showKeyboardPreview) {
+                Text("Photo").tag(false)
+                Text("Keyboard").tag(true)
+              }.pickerStyle(.segmented)
+              GeometryReader { geometry in
+                Group {
+                  if showKeyboardPreview {
+                    ThemePreview(appearance: .init(
+                      themeID: "photo." + (draft.existing?.id ?? draft.id).uuidString,
+                      keyOutlines: outlines), photo: original, editingCrop: crop,
+                      editingBrightness: brightness)
+                  } else if let original {
+                    cropView(original)
+                  } else if decodeFailed {
+                    ContentUnavailableView("Photo unavailable",
+                      systemImage: "photo.badge.exclamationmark",
+                      description: Text("Choose another photo to create a theme."))
+                  } else {
+                    ProgressView("Preparing Photo…")
+                  }
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .onAppear { previewWidth = geometry.size.width }
+                .onChange(of: geometry.size.width) { _, width in previewWidth = width }
+              }
+              .frame(height: previewWidth * 280.0 / 414.0)
+              .clipShape(RoundedRectangle(cornerRadius: 18))
+              .overlay(RoundedRectangle(cornerRadius: 18)
+                .strokeBorder(Color(.separator).opacity(0.18)))
+              Text(showKeyboardPreview
+                ? "Live preview · Photo stays on device"
+                : "Drag to move · Pinch to zoom")
+                .font(.footnote).foregroundStyle(.secondary)
             }
+          }
         }
-        Section("Framing") {
-          control("Zoom", value: $crop.zoom, range: 1...4)
-          control("Horizontal Position", value: $crop.centerX, range: 0...1)
-          control("Vertical Position", value: $crop.centerY, range: 0...1)
-          Button("Reset Crop") { crop = .init() }
-        }
-        Section {
-          control("Brightness", value: $brightness, range: 0.2...1)
-        } footer: {
-          Text("A protective tint keeps the keys and suggestions readable over your photo.")
+        .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 16)
+        .frame(maxWidth: 680).frame(maxWidth: .infinity)
+        Divider()
+        ScrollView {
+          VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 10) {
+              Text("Name").font(.headline)
+              TextField("Theme Name", text: $name)
+                .textInputAutocapitalization(.words)
+                .focused($nameFocused)
+                .accessibilityIdentifier("photo-theme-name")
+                .padding(14)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                .onChange(of: name) { _, value in
+                  if value.count > 80 { name = String(value.prefix(80)) }
+                }
+            }
+            VStack(alignment: .leading, spacing: 14) {
+              HStack {
+                Text("Framing").font(.headline)
+                Spacer()
+                Button("Reset") { crop = .init() }
+                  .font(.subheadline).disabled(crop == .init())
+                  .accessibilityIdentifier("reset-photo-crop")
+              }
+              VStack(spacing: 16) {
+                control("Zoom", value: $crop.zoom, range: 1...4)
+                control("Move Left or Right", value: $crop.centerX, range: 0...1)
+                control("Move Up or Down", value: $crop.centerY, range: 0...1)
+              }.padding(16).background(.regularMaterial,
+                in: RoundedRectangle(cornerRadius: 18))
+            }
+            VStack(alignment: .leading, spacing: 12) {
+              Text("Readability").font(.headline)
+              VStack(alignment: .leading, spacing: 12) {
+                control("Photo Brightness", value: $brightness, range: 0.2...1)
+                Text("A subtle tint keeps the keys and suggestions easy to read.")
+                  .font(.footnote).foregroundStyle(.secondary)
+              }.padding(16).background(.regularMaterial,
+                in: RoundedRectangle(cornerRadius: 18))
+            }
+          }
+          .padding(.horizontal, 20).padding(.vertical, 12)
+          .frame(maxWidth: 680).frame(maxWidth: .infinity)
         }
       }
+      .background(Color(.systemGroupedBackground))
       .disabled(saving)
-      .navigationTitle(draft.existing == nil ? "Photo Theme" : "Edit Photo")
+      .safeAreaInset(edge: .bottom, spacing: 0) {
+        Button(action: save) {
+          HStack(spacing: 8) {
+            if saving { ProgressView().tint(.white) }
+            Text(saving ? "Saving…" : draft.existing == nil ? "Use Photo Theme" : "Save Changes")
+              .frame(maxWidth: .infinity)
+          }.frame(minHeight: 44)
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(original == nil || saving || trimmedName.isEmpty)
+        .accessibilityIdentifier("save-photo-theme")
+        .padding(.horizontal, 20).padding(.vertical, 10)
+        .background(.bar)
+      }
+      .navigationTitle(draft.existing == nil ? "Photo Theme" : "Edit Photo Theme")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
@@ -76,11 +146,6 @@ struct ThemePhotoEditor: View {
             saveTask?.cancel()
             dismiss()
           }.disabled(saving)
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button(saving ? "Saving…" : draft.existing == nil ? "Use Photo" : "Save", action: save)
-            .disabled(original == nil || saving || trimmedName.isEmpty)
-            .accessibilityIdentifier("save-photo-theme")
         }
       }
       .interactiveDismissDisabled(saving)
@@ -101,26 +166,7 @@ struct ThemePhotoEditor: View {
             "This photo couldn’t be decoded. Cancel and choose another photo. Your current theme hasn’t changed."
         }
       }
-      .task(id: PreviewRequest(crop: crop, brightness: brightness, ready: original != nil)) {
-        guard let original else { return }
-        do {
-          try await Task.sleep(for: .milliseconds(120))
-          let requestCrop = crop
-          let requestBrightness = brightness
-          let rendered = try await Task.detached {
-            try ThemePhotoCodec.render(
-              original, crop: requestCrop, brightness: requestBrightness, width: 640)
-          }.value
-          try Task.checkCancellation()
-          preview = rendered
-        } catch { /* Cancellation preserves the last complete preview. */  }
-      }
     }
-  }
-  private struct PreviewRequest: Equatable {
-    let crop: ThemePhotoCrop
-    let brightness: Double
-    let ready: Bool
   }
   private func control(_ title: String, value: Binding<Double>, range: ClosedRange<Double>)
     -> some View

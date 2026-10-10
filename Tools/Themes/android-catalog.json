@@ -1,6 +1,6 @@
 {
-  "sourceRevision": "feaffe61710d6409ed8541bcb7df8b315d819d7d",
-  "sourceSHA256": "7e1bdb8ee9b5ff0fcd24671f1b1c4077dcbd790f89d7b892733ea3c8c7eb0802",
+  "sourceRevision": "0d22ff41a136ff5560e6c07ad539f91b59d89fc2",
+  "sourceSHA256": "12f842eaadd67a03207ddffa29c0ae01a3b7f524de2f9e6e4abed15ffe0c2bc3",
   "themes": [
     {
       "id": "material_light",
@@ -19,7 +19,7 @@
     },
     {
       "id": "material_dark",
-      "name": "Deep Slate",
+      "name": "Slate Reverie",
       "group": "Colors",
       "palette": [
         4280693304,
@@ -244,7 +244,7 @@
     },
     {
       "id": "holo_blue",
-      "name": "Electric Holo",
+      "name": "Midnight Circuit",
       "group": "Colors",
       "palette": [
         4279637526,
@@ -259,7 +259,7 @@
     },
     {
       "id": "holo_white",
-      "name": "Monochrome Holo",
+      "name": "Silver Circuit",
       "group": "Colors",
       "palette": [
         4279637526,
@@ -1685,7 +1685,7 @@
     },
     {
       "id": "light_gradient_18",
-      "name": "Sage Afternoon",
+      "name": "Sage Lantern",
       "group": "Light gradient",
       "palette": [
         4284712075,
@@ -2017,7 +2017,7 @@
     },
     {
       "id": "light_gradient_22",
-      "name": "Dusty Rose",
+      "name": "Rose Quartz",
       "group": "Light gradient",
       "palette": [
         4290877857,
@@ -2847,7 +2847,7 @@
     },
     {
       "id": "dark_gradient_7",
-      "name": "Storm Signal",
+      "name": "Rainlit Navy",
       "group": "Dark gradient",
       "palette": [
         4281688202,
@@ -3511,7 +3511,7 @@
     },
     {
       "id": "dark_gradient_15",
-      "name": "Midnight Harbor",
+      "name": "Midnight Tide",
       "group": "Dark gradient",
       "palette": [
         4278281623,
@@ -5004,7 +5004,7 @@
     },
     {
       "id": "dark_gradient_26",
-      "name": "Verdant Orbit",
+      "name": "Cerulean Meridian",
       "group": "Dark gradient",
       "palette": [
         4279451753,
@@ -5377,7 +5377,7 @@
     },
     {
       "id": "dark_gradient_27",
-      "name": "Fuchsia Galaxy",
+      "name": "Velvet Cosmos",
       "group": "Dark gradient",
       "palette": [
         4282265199,
