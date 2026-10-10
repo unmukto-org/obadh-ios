@@ -18,11 +18,33 @@ struct KeyboardPreferences {
     private static let emojiSearchLanguageKey = "keyboard.emojiSearchLanguage"
     private static let fullAccessConfirmedAtKey = "keyboard.fullAccessConfirmedAt"
     private static let autoInsertTopCorrectionKey = "keyboard.autoInsertTopCorrection"
+    private static let appearanceKey = "keyboard.appearance.v1"
+    static let appearanceChangedNotification = "org.unmukto.obadh.keyboard.appearance"
 
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = KeyboardPreferences.sharedDefaults) {
         self.defaults = defaults
+    }
+
+    var appearance: KeyboardAppearance {
+        get {
+            guard let data = defaults.data(forKey: Self.appearanceKey), data.count < 4096,
+                  let value = try? JSONDecoder().decode(KeyboardAppearance.self, from: data),
+                  value.isRecognized else { return KeyboardAppearance() }
+            return value
+        }
+        nonmutating set {
+            guard newValue.isRecognized else { return }
+            var value = newValue
+            value.revision = UUID()
+            guard let data = try? JSONEncoder().encode(value) else { return }
+            // One preference blob is one cross-process snapshot: no intermediate
+            // mix of a new background, old text color and old photo identifier.
+            defaults.set(data, forKey: Self.appearanceKey)
+            CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
+                CFNotificationName(Self.appearanceChangedNotification as CFString), nil, nil, true)
+        }
     }
 
     /// App preference; UIKit still applies Silent Mode and the system keyboard sound setting.
@@ -64,8 +86,8 @@ struct KeyboardPreferences {
 
     /// Stamped by the keyboard extension every time it launches with Full Access.
     ///
-    /// A keyboard without Full Access cannot reach the shared App Group container at
-    /// all, so a value here is proof that access was granted. Its *absence* proves
+    /// A keyboard without Full Access can read the shared container, but cannot
+    /// write this stamp, so a value here confirms a past grant. Its *absence* proves
     /// nothing — the keyboard may simply never have run. Revoking access likewise
     /// leaves the last stamp behind, since the extension can no longer write to clear
     /// it. Treat this as "confirmed" versus "unconfirmed", never as on versus off.

@@ -80,7 +80,12 @@ final class KeyboardKeyButton: UIButton {
     /// visual (`isInteractive = false`).
     private var glassEffectView: UIVisualEffectView?
 
-    init(key: KeyboardKey) {
+    private let themePalette: KeyboardThemePalette?
+    private let keyOutlines: Bool
+
+    init(key: KeyboardKey, themePalette: KeyboardThemePalette? = nil, keyOutlines: Bool = false) {
+        self.themePalette = themePalette
+        self.keyOutlines = keyOutlines
         self.key = key
         super.init(frame: .zero)
         configure()
@@ -123,15 +128,15 @@ final class KeyboardKeyButton: UIButton {
         // can still be light even when the controller is already dark.
         applyPressedState(animated: false, traits: traitCollection)
         let foreground = key == .returnKey && returnPresentation.action.isPrimaryAction && isEnabled
-            ? UIColor.white : KeyboardTheme.textColor(for: traitCollection)
+            ? (themePalette?.actionInk.uiColor ?? UIColor.white) : (themePalette?.ink.uiColor ?? KeyboardTheme.textColor(for: traitCollection))
         setTitleColor(foreground, for: .normal)
-        setTitleColor(KeyboardTheme.secondaryTextColor(for: traitCollection), for: .disabled)
+        setTitleColor((themePalette?.ink.uiColor.withAlphaComponent(0.78) ?? KeyboardTheme.secondaryTextColor(for: traitCollection)), for: .disabled)
         tintColor = foreground
         setPreferredSymbolConfiguration(
             UIImage.SymbolConfiguration(pointSize: metrics.commandFontSize, weight: .regular),
             forImageIn: .normal
         )
-        spaceLanguageLabel.textColor = KeyboardTheme.secondaryTextColor(for: traitCollection)
+        spaceLanguageLabel.textColor = (themePalette?.ink.uiColor.withAlphaComponent(0.78) ?? KeyboardTheme.secondaryTextColor(for: traitCollection))
 
         switch key {
         case let .character(value):
@@ -265,8 +270,8 @@ final class KeyboardKeyButton: UIButton {
         let fullFont = metrics.characterFontSize * typeScale
         secondaryRestScale = fullFont > 0 ? restFont / fullFont : 1
         secondaryLabel.font = .systemFont(ofSize: fullFont, weight: .regular)
-        restingSecondaryColor = KeyboardTheme.padSecondaryTextColor(for: traitCollection)
-        restingTitleColor = KeyboardTheme.textColor(for: traitCollection)
+        restingSecondaryColor = themePalette?.ink.uiColor.withAlphaComponent(0.78) ?? KeyboardTheme.padSecondaryTextColor(for: traitCollection)
+        restingTitleColor = themePalette?.ink.uiColor ?? KeyboardTheme.textColor(for: traitCollection)
         secondaryLabel.textColor = restingSecondaryColor
         secondaryTopConstraint?.constant = metrics.padSecondaryTopInset * typeScale
             + UIFont.systemFont(ofSize: restFont).lineHeight / 2
@@ -419,7 +424,7 @@ final class KeyboardKeyButton: UIButton {
         // (a clipped effect view can't cast an outer shadow).
         if #available(iOS 26.0, *) {
             let glassStyle: UIGlassEffect.Style?
-            switch KeyboardGlassStyle.current {
+            switch themePalette == nil ? KeyboardGlassStyle.current : .regular {
             case .regular: glassStyle = .regular
             case .clear: glassStyle = .clear
             case .translucent, .solid: glassStyle = nil
@@ -509,8 +514,20 @@ final class KeyboardKeyButton: UIButton {
         let appearance = traits ?? traitCollection
         let updates = {
             let isAction = self.key == .returnKey && self.returnPresentation.action.isPrimaryAction && self.isEnabled
-            let actionColor = UIColor.systemBlue.withAlphaComponent(self.isHighlighted ? 0.8 : 1)
-            if #available(iOS 26.0, *), let effectView = self.glassEffectView,
+            let actionColor = (self.themePalette?.accent.uiColor ?? UIColor.systemBlue).withAlphaComponent(self.isHighlighted ? 0.8 : 1)
+            let opaque = UIAccessibility.isReduceTransparencyEnabled || appearance.accessibilityContrast == .high
+            if let palette = self.themePalette {
+                self.glassEffectView?.isHidden = opaque
+                self.backgroundColor = opaque ? (isAction ? actionColor : palette.opaqueKey.uiColor) : .clear
+                if #available(iOS 26.0, *), !opaque,
+                   let effectView = self.glassEffectView, let effect = effectView.effect as? UIGlassEffect {
+                    effect.tintColor = isAction ? actionColor : palette.surface.uiColor.withAlphaComponent(
+                        min(1, palette.tintOpacity + (self.isHighlighted ? 0.18 : 0)))
+                    effectView.effect = effect
+                } else if !opaque {
+                    self.backgroundColor = isAction ? actionColor : palette.opaqueKey.uiColor
+                }
+            } else if #available(iOS 26.0, *), let effectView = self.glassEffectView,
                let effect = effectView.effect as? UIGlassEffect {
                 // Glass path (.regular/.clear): the fill is the glass view; tint
                 // it (brighter when pressed) instead of swapping a solid color.
@@ -533,6 +550,9 @@ final class KeyboardKeyButton: UIButton {
                     highlighted: self.isHighlighted
                 )
             }
+            self.layer.borderWidth = self.keyOutlines ? (appearance.accessibilityContrast == .high ? 1 : 0.5) : 0
+            self.layer.borderColor = (self.themePalette?.ink.uiColor ?? KeyboardTheme.textColor(for: appearance))
+                .withAlphaComponent(appearance.accessibilityContrast == .high ? 0.8 : 0.35).cgColor
             let restShadow = self.currentMetrics.keyShadowOpacity
             self.layer.shadowOpacity = self.isHighlighted
                 ? max(0, restShadow - 0.12)

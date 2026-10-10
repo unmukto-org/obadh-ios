@@ -6,6 +6,40 @@ Current limitations and verification requirements live in [KNOWN-ISSUES.md](KNOW
 
 ## Unreleased
 
+### 2026-10-09 — Native keyboard themes
+
+- Added Appearance with all 71 Android reference presets, including five
+  bilinear multicolor gradients, and multiple saved photo themes. System
+  remains the default and keeps the existing keyboard rendering, geometry,
+  host appearance hints and colors. Light/Dark and outlines are opt-in.
+- Theme artwork sits below native Liquid Glass keys and the existing glass
+  container on iOS 26+. Opaque accessibility/older-system fallback, readable
+  suggestion ink, contrast checks and the unchanged native emoji panel protect
+  legibility. The app uses native navigation, Forms, sheets and toolbars.
+- Only Add Photo Theme opens Apple's Photos picker; no broad library permission
+  request or asset enumeration is used. Editing uses the saved local copy.
+  Import supports cancellable iCloud loading, bounded oriented JPEG copies,
+  source metadata removal, drag/pinch crop, accessible position/zoom/brightness
+  controls, naming, preview and native deletion confirmation.
+- The app serializes photo writes, publishes immutable image revisions before
+  an atomic manifest, preserves the current theme on failures, and deletes all
+  local revisions when removing a theme. The keyboard reads only the selected
+  bounded render off the typing thread, rejects stale loads, retries unavailable
+  images on presentation, and releases photo content while inactive.
+- Appearance changes preserve composition. Palette state belongs to each view;
+  production theme notifications use cancellable weak subscriptions. Existing
+  System keys are reused, and a background-only update avoids a row rebuild.
+- Verification: 201 SwiftPM tests, 103 UIKit lifecycle/field tests, image
+  orientation/privacy tests, and real iPhone 11 / iOS 26.5 simulator UI flows
+  passed. UI coverage includes color/mesh/photo keyboards with actual typing,
+  preview/cancel/apply, persistence, System restoration, native Photos picker
+  cancellation, crop/brightness, edit and deletion. Final loader and appearance
+  changes received targeted reruns. Physical iPhone 11/A13 performance and
+  memory-pressure acceptance remain separate from simulator validation.
+- Reference provenance, regeneration and storage behavior are documented in
+  [Tools/Themes/README.md](Tools/Themes/README.md).
+
+
 ### 2026-10-09 — Engine 0.9.5 and automatic emoticons
 
 - Updated the Rust engine to 0.9.5, rebuilt all device/simulator bridge slices,

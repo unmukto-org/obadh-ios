@@ -21,6 +21,9 @@ protocol SuggestionBarViewDelegate: AnyObject {
 }
 
 final class SuggestionBarView: UIView {
+    var themePalette: KeyboardThemePalette? {
+        didSet { micButton.update(state: micState, traitCollection: traitCollection, metrics: metrics, themePalette: themePalette) }
+    }
     weak var delegate: SuggestionBarViewDelegate?
 
     private var suggestions: [KeyboardSuggestion] = []
@@ -105,7 +108,8 @@ final class SuggestionBarView: UIView {
                 isQuoted: quotedText != nil && suggestion?.text == quotedText,
                 showsChrome: showsChrome,
                 traitCollection: traitCollection,
-                metrics: metrics
+                metrics: metrics,
+                themePalette: themePalette
             )
         }
 
@@ -116,7 +120,7 @@ final class SuggestionBarView: UIView {
             dismissVariantPopover(animated: false)
         }
 
-        let separatorColor = KeyboardTheme.separatorColor(for: traitCollection)
+        let separatorColor = themePalette?.ink.uiColor.withAlphaComponent(0.18) ?? KeyboardTheme.separatorColor(for: traitCollection)
         for separator in separators {
             separator.backgroundColor = separatorColor
         }
@@ -127,7 +131,7 @@ final class SuggestionBarView: UIView {
         showsMicButton = visible
         micState = state
         micButton.isHidden = !visible
-        micButton.update(state: state, traitCollection: traitCollection, metrics: metrics)
+        micButton.update(state: state, traitCollection: traitCollection, metrics: metrics, themePalette: themePalette)
         guard layoutChanged else { return }
         micWidthConstraint?.constant = visible ? Self.micSlotWidth : 0
         setNeedsLayout()
@@ -139,7 +143,7 @@ final class SuggestionBarView: UIView {
         let showing = phase != nil
         if let phase {
             voiceIndicator.setContentOffset(metrics.suggestionContentOffset)
-            voiceIndicator.setPhase(phase, textColor: KeyboardTheme.suggestionTextColor(for: traitCollection))
+            voiceIndicator.setPhase(phase, textColor: themePalette?.ink.uiColor ?? KeyboardTheme.suggestionTextColor(for: traitCollection))
         }
         guard showing != isShowingVoiceIndicator else { return }
         isShowingVoiceIndicator = showing
@@ -166,7 +170,7 @@ final class SuggestionBarView: UIView {
         contentTopConstraint?.constant = metrics.suggestionContentTopInset
         contentBottomConstraint?.constant = -metrics.suggestionContentBottomInset
         setNeedsLayout()
-        micButton.update(state: micState, traitCollection: traitCollection, metrics: metrics)
+        micButton.update(state: micState, traitCollection: traitCollection, metrics: metrics, themePalette: themePalette)
         update(suggestions: suggestions, emojis: emojis, quotedText: quotedText)
     }
 
@@ -239,7 +243,7 @@ final class SuggestionBarView: UIView {
 
         registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: SuggestionBarView, _) in
             view.update(suggestions: view.suggestions, emojis: view.emojis, quotedText: view.quotedText)
-            view.micButton.update(state: view.micState, traitCollection: view.traitCollection, metrics: view.metrics)
+            view.micButton.update(state: view.micState, traitCollection: view.traitCollection, metrics: view.metrics, themePalette: view.themePalette)
         }
 
         update(suggestions: [])
@@ -417,10 +421,11 @@ private final class SuggestionSlotControl: UIControl {
         isQuoted: Bool = false,
         showsChrome: Bool,
         traitCollection: UITraitCollection,
-        metrics: KeyboardMetrics
+        metrics: KeyboardMetrics,
+        themePalette: KeyboardThemePalette? = nil
     ) {
         label.text = suggestion.map { isQuoted ? "\u{201C}\($0.text)\u{201D}" : $0.text }
-        label.textColor = suggestion == nil ? .clear : KeyboardTheme.suggestionTextColor(for: traitCollection)
+        label.textColor = suggestion == nil ? .clear : (themePalette?.ink.uiColor ?? KeyboardTheme.suggestionTextColor(for: traitCollection))
         label.font = font(for: suggestion, metrics: metrics)
         label.transform = CGAffineTransform(translationX: 0, y: metrics.suggestionContentOffset)
         // Native-style: every shown slot is tappable. The deterministic literal is the
@@ -678,13 +683,13 @@ final class SuggestionMicControl: UIControl {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func update(state: Mode, traitCollection: UITraitCollection, metrics: KeyboardMetrics) {
+    func update(state: Mode, traitCollection: UITraitCollection, metrics: KeyboardMetrics, themePalette: KeyboardThemePalette? = nil) {
         let changed = state != mode
         mode = state
         let pointSize = min(20, max(15, metrics.suggestionFontSize * 0.92))
         let configuration = UIImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
         glyph.image = UIImage(systemName: state == .listening ? "mic.fill" : "mic", withConfiguration: configuration)
-        glyph.tintColor = state == .listening ? Self.accent : KeyboardTheme.suggestionTextColor(for: traitCollection)
+        glyph.tintColor = state == .listening ? Self.accent : (themePalette?.ink.uiColor ?? KeyboardTheme.suggestionTextColor(for: traitCollection))
         glyph.transform = CGAffineTransform(translationX: 0, y: metrics.suggestionContentOffset)
         warmDot.transform = glyph.transform
         let dotAlpha: CGFloat = state == .warm ? 1 : 0

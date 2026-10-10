@@ -57,6 +57,7 @@ targets:
     sources:
       - path: Tools/TypingAccuracy/App
       - path: Tools/TypingAccuracy/Core
+      - path: Shared/Sources/Appearance
       - path: Shared/Sources/Design
       - path: Shared/Sources/Keyboard
       - path: Shared/Sources/Engine
@@ -85,6 +86,13 @@ targets:
     platform: iOS
     sources:
       - path: ObadhApp/Sources
+      - path: Shared/Sources/Appearance
+      - path: Shared/Sources/Design
+      - path: Shared/Sources/Keyboard/KeyboardKeyButton.swift
+      - path: Shared/Sources/Keyboard/KeyboardLayout.swift
+      - path: Shared/Sources/Keyboard/KeyboardFieldPolicy.swift
+      - path: Shared/Sources/Keyboard/KeyboardFieldLayout.swift
+      - path: Shared/Sources/Keyboard/KeyboardLayoutGeometry.swift
       - path: ObadhApp/Resources/Assets.xcassets
       - path: ObadhApp/Resources/PrivacyInfo.xcprivacy
         buildPhase: resources
@@ -135,6 +143,7 @@ targets:
     platform: iOS
     sources:
       - path: ObadhKeyboard/Sources
+      - path: Shared/Sources/Appearance
       - path: Shared/Sources/Design
       - path: Shared/Sources/Engine
       - path: Shared/Sources/Keyboard
@@ -192,6 +201,7 @@ targets:
     sources:
       - path: Tests/ObadhKeyboardLifecycleTests
       - path: ObadhKeyboard/Sources
+      - path: Shared/Sources/Appearance
       - path: Shared/Sources/Design
       - path: Shared/Sources/Engine
       - path: Shared/Sources/Keyboard

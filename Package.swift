@@ -18,6 +18,8 @@ let package = Package(
             path: "Shared/Sources",
             exclude: [
                 "Design",
+                "Appearance/KeyboardThemeUIKit.swift",
+                "Appearance/KeyboardThemePreviewView.swift",
                 "VoiceUI",
                 "VoiceGlow",
                 "Keyboard/Emoji/EmojiPanelView.swift",

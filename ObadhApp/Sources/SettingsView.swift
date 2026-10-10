@@ -39,6 +39,11 @@ struct SettingsView: View {
                     keyboardMissingSection
                 }
                 keyboardSection
+                Section {
+                    NavigationLink { AppearanceView() } label: {
+                        Label("Appearance", systemImage: "paintpalette")
+                    }.accessibilityIdentifier("appearance-settings")
+                }
                 voiceSection
                 autocorrectSection
                 emojiSection

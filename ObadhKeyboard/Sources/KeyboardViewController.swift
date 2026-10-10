@@ -1,3 +1,4 @@
+import notify
 import UIKit
 import os
 
@@ -63,6 +64,16 @@ class KeyboardViewController: UIInputViewController {
     // non-transparent so touches over the inter-key gaps still reach the clear
     // KeyboardTouchSurfaceView. Preferred over a hand-rolled UIVisualEffect,
     // which reads as a distinct rectangle vs. the surrounding keyboard.
+    private var themeBackdrop = KeyboardThemeBackdropView()
+    private var themeAppearance = KeyboardAppearance()
+    private var themePalette: KeyboardThemePalette?
+    private var renderedThemePalette: KeyboardThemePalette?
+    private var renderedKeyOutlines = false
+    private var themePhoto: CGImage?
+    private var themePhotoRevision: UUID?
+    private var themePhotoTask: Task<Void, Never>?
+    private var themeGeneration = UUID()
+    private var themeNotificationToken: Int32?
     private var keyboardBackgroundView = UIInputView(frame: .zero, inputViewStyle: .keyboard)
     private let keyboardTouchSurface = KeyboardTouchSurfaceView()
     private let keyPreviewCallout = KeyboardKeyPreviewCallout()
@@ -225,6 +236,10 @@ class KeyboardViewController: UIInputViewController {
         }
         memoryProbe.record("models and autosuggest restored")
         // Haptics are prepared in viewWillAppear, only for an actual presentation.
+        themeAppearance = keyboardPreferences.appearance
+        if !themeAppearance.isSystem, let preset = KeyboardThemeCatalog.preset(themeAppearance.themeID) {
+            themePalette = KeyboardThemePalette(preset: preset)
+        }
         configureRootView()
         configureSuggestionBar()
         memoryProbe.record("root and suggestion bar configured")
@@ -234,7 +249,9 @@ class KeyboardViewController: UIInputViewController {
         synchronizeHostInputTraits(forceRead: true)
         reloadKeyboardRows()
         memoryProbe.record("key rows built")
+        reloadTheme(force: true)
         refreshKeyboard()
+        startThemeObserver()
         #if DEBUG
         startKeyTintObserver()
         configurePresentationProbe()
@@ -265,6 +282,9 @@ class KeyboardViewController: UIInputViewController {
         voice.hostDidDisappear()
         feedbackController.suspend()
         isContentSuspended = true
+        themePhotoTask?.cancel(); themePhotoTask = nil
+        themeGeneration = UUID(); themePhoto = nil; themePhotoRevision = nil; themePalette = nil
+        themeBackdrop.removeFromSuperview(); themeBackdrop = KeyboardThemeBackdropView()
 
         highlightedKeyButton = nil
         activeTouchKey = nil
@@ -316,13 +336,83 @@ class KeyboardViewController: UIInputViewController {
         reloadKeyboardRows()
         refreshKeyboard()
         view.setNeedsLayout()
+        reloadTheme(force: true)
         memoryProbe.record("content restored")
     }
 
     deinit {
+        themePhotoTask?.cancel()
+        if let token = themeNotificationToken { notify_cancel(token) }
         #if DEBUG
         stopKeyTintObserver()
         #endif
+    }
+
+    private func startThemeObserver() {
+        guard themeNotificationToken == nil else { return }
+        var token: Int32 = 0
+        let status = notify_register_dispatch(KeyboardPreferences.appearanceChangedNotification, &token, .main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.reloadTheme() }
+        }
+        if status == NOTIFY_STATUS_OK { themeNotificationToken = token }
+    }
+
+    private func applyThemeInterfaceStyle() {
+        if let themePalette {
+            overrideUserInterfaceStyle = themePalette.prefersDark ? .dark : .light
+        } else if themeAppearance.mode != .automatic {
+            overrideUserInterfaceStyle = themeAppearance.mode == .dark ? .dark : .light
+        } else {
+            switch fieldPolicy.traits.appearance {
+            case .automatic: overrideUserInterfaceStyle = .unspecified
+            case .light: overrideUserInterfaceStyle = .light
+            case .dark: overrideUserInterfaceStyle = .dark
+            }
+        }
+    }
+
+    private func reloadTheme(force: Bool = false) {
+        let next = keyboardPreferences.appearance
+        let retryPhoto = next.photoID != nil && (themePhoto == nil || themePhotoRevision != next.revision) && themePhotoTask == nil
+        guard force || next != themeAppearance || retryPhoto else { return }
+        let retainPhoto = next.photoID != nil && next.photoID == themeAppearance.photoID && themePhoto != nil
+        themeAppearance = next
+        guard !isContentSuspended else { return }
+        themePhotoTask?.cancel(); themePhotoTask = nil
+        let generation = UUID(); themeGeneration = generation
+        if !retainPhoto { themePhoto = nil; themePhotoRevision = nil }
+        let preset = next.isSystem || next.photoID != nil ? nil : KeyboardThemeCatalog.preset(next.themeID)
+        themePalette = preset.map(KeyboardThemePalette.init) ?? (retainPhoto ? .photo : nil)
+        if let id = next.photoID {
+            themePhotoTask = Task { [weak self] in
+                // Both metadata lookup and bounded decode stay off the typing
+                // thread. Only the selected record needs a filesystem check.
+                let image = await Task.detached(priority: .userInitiated) {
+                    let store = KeyboardPhotoThemeStore()
+                    guard let record = store.photo(id: id), let url = store.renderURL(record) else { return nil as CGImage? }
+                    return KeyboardThemeImage.decode(url)
+                }.value
+                guard !Task.isCancelled, let self, self.themeGeneration == generation else { return }
+                self.themePhotoTask = nil
+                guard let image else { return } // Retry unavailable files on the next presentation.
+                self.themePhoto = image; self.themePhotoRevision = next.revision; self.themePalette = .photo
+                self.presentTheme(preset: nil)
+            }
+        }
+        presentTheme(preset: preset)
+    }
+
+    private func presentTheme(preset: KeyboardThemePreset?) {
+        let rebuild = renderedThemePalette != themePalette || renderedKeyOutlines != themeAppearance.keyOutlines
+        if rebuild {
+            keyboardTouchSurface.cancelTracking()
+            hideKeyPreview(animated: false)
+        }
+        applyThemeInterfaceStyle()
+        themeBackdrop.display(preset: preset, photo: themePhoto, palette: themePalette)
+        suggestionBar.themePalette = themePalette
+        if rebuild { reloadKeyboardRows() }
+        refreshKeyboard()
     }
 
     #if DEBUG
@@ -496,6 +586,7 @@ class KeyboardViewController: UIInputViewController {
         super.viewWillAppear(animated)
         isPresentationActive = true
         restoreContentIfNeeded()
+        reloadTheme()
         memoryProbe.record("viewWillAppear")
         viewWillAppearWasCalled = true
         // Every presentation re-detects the host's container style (the host app
@@ -926,11 +1017,7 @@ class KeyboardViewController: UIInputViewController {
             manualShiftOverride = nil
             keyboardMode = next.initialMode
         }
-        switch next.traits.appearance {
-        case .automatic: overrideUserInterfaceStyle = .unspecified
-        case .light: overrideUserInterfaceStyle = .light
-        case .dark: overrideUserInterfaceStyle = .dark
-        }
+        applyThemeInterfaceStyle()
         suggestionBar.setMicButton(visible: voicePreferences.micButtonEnabled && next.allowsVoice, state: .idle)
         updateAutomaticCapitalization()
         if documentChanged || inputChanged {
@@ -1095,7 +1182,15 @@ class KeyboardViewController: UIInputViewController {
             keyboardBackgroundView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             keyboardBackgroundView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
-
+        themeBackdrop.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(themeBackdrop)
+        NSLayoutConstraint.activate([
+            themeBackdrop.topAnchor.constraint(equalTo: view.topAnchor),
+            themeBackdrop.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            themeBackdrop.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            themeBackdrop.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+        themeBackdrop.display(preset: nil, photo: nil, palette: nil)
     }
 
     private func configureSuggestionBar() {
@@ -1259,7 +1354,7 @@ class KeyboardViewController: UIInputViewController {
             let heightOfRow = rowHeight(atIndex: rowIndex, metrics: metrics)
 
             for (keyIndex, key) in row.keys.enumerated() {
-                let button = KeyboardKeyButton(key: key)
+                let button = KeyboardKeyButton(key: key, themePalette: themePalette, keyOutlines: themeAppearance.keyOutlines)
                 button.secondarySymbol = KeyboardFieldLayout.secondary(for: key, field: layoutField)
                 button.onAccessibilityActivate = { [weak self] in
                     guard let self else { return }
@@ -1307,6 +1402,8 @@ class KeyboardViewController: UIInputViewController {
         keyboardStack.setNeedsLayout()
         keyboardTouchSurface.keyRows = []
         // Buttons were rebuilt, so force the next appearance pass to restyle them.
+        renderedThemePalette = themePalette
+        renderedKeyOutlines = themeAppearance.keyOutlines
         lastAppearanceState = nil
     }
 
@@ -1318,6 +1415,7 @@ class KeyboardViewController: UIInputViewController {
         updateKeyboardHeightConstraintIfReady()
         view.backgroundColor = .clear
         suggestionBar.isHidden = showsEmojiPanel
+        themeBackdrop.isHidden = showsEmojiPanel || themePalette == nil
         keyboardStack.isHidden = showsEmojiPanel && !isEmojiSearchActive
         keyboardGlassContainer?.isHidden = keyboardStack.isHidden
         keyboardTouchSurface.isHidden = keyboardStack.isHidden
@@ -2494,7 +2592,8 @@ class KeyboardViewController: UIInputViewController {
         keyPreviewCallout.update(
             text: previewText,
             metrics: metrics,
-            traitCollection: traitCollection
+            traitCollection: traitCollection,
+            themePalette: themePalette
         )
 
         let size = KeyboardKeyPreviewCallout.preferredSize(
