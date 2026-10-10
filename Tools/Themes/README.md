@@ -34,8 +34,14 @@ keystroke. Appearance changes update visuals without clearing composition; Syste
 background-only updates avoid unnecessary row rebuilds. Production notification
 subscriptions are weak and cancelled with their controller.
 Each view owns its palette; previews cannot change the running keyboard's colors.
-Catalog cards are lightweight swatches, while a single full preview reuses the
-production key renderer and layout without loading the typing engine. The app
+Catalog thumbnails and the full preview share the production key renderer and
+layout at the same 414:280 aspect ratio, including Bangla legends, utility keys,
+native glass, outlines and accessibility fallback. On-screen thumbnails capture
+the composited preview with UIKit's snapshot API and release its live effects;
+drawHierarchy/layer rendering can alter Liquid Glass. A memory-pressure-evictable
+snapshot cache with a 12 MiB estimated pixel-cost limit includes dimensions, display scale, appearance traits,
+Reduce Transparency, outlines and photo revision; off-screen cards release their
+snapshots. No thumbnail or full preview loads the typing engine. The app
 preview uses a semantic gray underlay because host-owned keyboard chrome is only
 available in the actual keyboard; the extension keeps that native chrome.
 
@@ -46,6 +52,8 @@ permission request, permission probe, asset enumeration, upload or network code
 in this feature. The system picker handles access restrictions and explicitly
 shares the selected item. Editing a saved theme uses Obadh's local copy.
 Keyboard Full Access is not required for read-only shared theme files.
+The app's privacy manifest declares file metadata reasons C617.1 for its own
+containers and 3B52.1 for size checks on the explicitly selected picker file.
 
 A file-based Transferable downscales the selected image before retaining bytes:
 100 MB compressed / 100 megapixel source limits; 2048-pixel source, 1280-pixel

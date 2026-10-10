@@ -51,7 +51,8 @@ struct AppearanceView: View {
           if !photos.isEmpty {
             LazyVGrid(columns: columns, spacing: 16) {
               ForEach(photos) { photo in
-                PhotoThemeCard(photo: photo, selected: appearance.themeID == photo.themeID) {
+                PhotoThemeCard(photo: photo, appearance: appearance,
+                  selected: appearance.themeID == photo.themeID) {
                   selection = ThemeSelection(id: photo.themeID, photo: photo)
                 }
               }
@@ -74,7 +75,9 @@ struct AppearanceView: View {
                   selection = ThemeSelection(id: preset.id)
                 } label: {
                   ThemeCard(name: preset.name, selected: appearance.themeID == preset.id) {
-                    ThemeSwatch(preset: preset)
+                    ThemeThumbnail(appearance: .init(
+                      themeID: preset.id, mode: appearance.mode,
+                      keyOutlines: appearance.keyOutlines))
                   }
                 }.buttonStyle(.plain).accessibilityIdentifier("theme-" + preset.id)
                   .accessibilityAddTraits(appearance.themeID == preset.id ? .isSelected : [])
@@ -200,42 +203,43 @@ private struct ThemeCard<Artwork: View>: View {
   @ViewBuilder let artwork: () -> Artwork
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      artwork().frame(height: 95).clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(alignment: .bottom) {
-          VStack(spacing: 4) {
-            ForEach(0..<3) { row in
-              HStack(spacing: 3) {
-                ForEach(0..<(row == 2 ? 7 : 9), id: \.self) { _ in
-                  RoundedRectangle(cornerRadius: 2).fill(.white.opacity(0.45)).frame(height: 12)
-                }
-              }
-            }
-          }.padding(12).accessibilityHidden(true)
-        }
+      artwork().aspectRatio(414.0 / 280.0, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .allowsHitTesting(false).accessibilityHidden(true)
       HStack(alignment: .firstTextBaseline) {
         Text(name).font(.subheadline.weight(.medium)).foregroundStyle(.primary)
           .multilineTextAlignment(.leading)
         Spacer(minLength: 4)
         if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(.tint) }
       }
-    }.accessibilityElement(children: .ignore).accessibilityLabel(name)
+    }.contentShape(Rectangle())
+      .accessibilityElement(children: .ignore).accessibilityLabel(name)
   }
 }
 
 private struct PhotoThemeCard: View {
   let photo: KeyboardPhotoTheme
+  let appearance: KeyboardAppearance
   let selected: Bool
   let action: () -> Void
   @State private var image: CGImage?
+  @State private var decodedRevision: UUID?
   var body: some View {
     Button(action: action) {
-      ThemeCard(name: photo.name, selected: selected) { ThemeSwatch(preset: nil, photo: image) }
+      ThemeCard(name: photo.name, selected: selected) {
+        ThemeThumbnail(appearance: .init(themeID: photo.themeID, mode: appearance.mode,
+          keyOutlines: appearance.keyOutlines, revision: photo.revision),
+          photo: decodedRevision == photo.revision ? image : nil)
+      }
     }.buttonStyle(.plain).accessibilityIdentifier("theme-" + photo.themeID)
       .accessibilityAddTraits(selected ? .isSelected : [])
       .task(id: photo.revision) {
         guard let url = KeyboardPhotoThemeStore().thumbnailURL(photo) else { return }
         let decoded = await Task.detached { KeyboardThemeImage.decode(url, maxSide: 240) }.value
-        if !Task.isCancelled { image = decoded }
+        if !Task.isCancelled {
+          image = decoded
+          decodedRevision = photo.revision
+        }
       }
   }
 }

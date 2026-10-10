@@ -9,18 +9,6 @@ struct ThemePreview: UIViewRepresentable {
   }
 }
 
-/// Lightweight swatches; only the selected theme gets a full glass keyboard.
-struct ThemeSwatch: UIViewRepresentable {
-  let preset: KeyboardThemePreset?
-  var photo: CGImage? = nil
-  func makeUIView(context: Context) -> KeyboardThemeBackdropView { KeyboardThemeBackdropView() }
-  func updateUIView(_ view: KeyboardThemeBackdropView, context: Context) {
-    view.display(
-      preset: preset, photo: photo,
-      palette: preset.map(KeyboardThemePalette.init) ?? (photo != nil ? .photo : nil))
-  }
-}
-
 struct ThemeSelection: Identifiable {
   let id: String
   var photo: KeyboardPhotoTheme? = nil

@@ -16,6 +16,12 @@ Current limitations and verification requirements live in [KNOWN-ISSUES.md](KNOW
   container on iOS 26+. Opaque accessibility/older-system fallback, readable
   suggestion ink, contrast checks and the unchanged native emoji panel protect
   legibility. The app uses native navigation, Forms, sheets and toolbars.
+- Corrected distorted catalog thumbnails: cards now capture the same production
+  keyboard preview at its actual aspect ratio, including key shapes, legends,
+  glass, gradients, outlines and photo crop. A memory-pressure-evictable snapshot
+  cache releases live effects after rendering and includes photo revisions and
+  accessibility traits; off-screen cards release their images. The whole card
+  remains tappable. Photo edits cannot cache the previous revision's image.
 - Only Add Photo Theme opens Apple's Photos picker; no broad library permission
   request or asset enumeration is used. Editing uses the saved local copy.
   Import supports cancellable iCloud loading, bounded oriented JPEG copies,
@@ -36,6 +42,10 @@ Current limitations and verification requirements live in [KNOWN-ISSUES.md](KNOW
   cancellation, crop/brightness, edit and deletion. Final loader and appearance
   changes received targeted reruns. Physical iPhone 11/A13 performance and
   memory-pressure acceptance remain separate from simulator validation.
+- Thumbnail follow-up passed native snapshot/revision/cache-release tests and
+  three iPhone 11 simulator UI flows. Solid, linear-gradient, mesh and photo
+  cards were visually compared with their full previews; native picker,
+  photo edit/delete, selection persistence and System restoration also passed.
 - Reference provenance, regeneration and storage behavior are documented in
   [Tools/Themes/README.md](Tools/Themes/README.md).
 

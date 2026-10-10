@@ -149,6 +149,7 @@
 		87A7A3EDCDF78307780AB1CB /* KeyboardFieldContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2B5795ECF408A46CB89DA4 /* KeyboardFieldContextTests.swift */; };
 		87BF616CE3D6140F42355047 /* KeyboardLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CFF9E5FDDBFC923C946FF4 /* KeyboardLayout.swift */; };
 		87D1A84F96B30E1DAF83EC89 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94B56BEB7F3697DA4E57C7F6 /* SettingsView.swift */; };
+		87F9D0F0EC031141F471A55D /* ThemeThumbnailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9620FB1AD7F1835EB217F91B /* ThemeThumbnailTests.swift */; };
 		8CD493DB246474F420787F2B /* BanglaEmojiSuggestionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FCEAEC18E70D2E206C2073B /* BanglaEmojiSuggestionStore.swift */; };
 		8D9102A3CACCD380724DC7BA /* VoiceLevelFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E21BC9228695D10D003243C /* VoiceLevelFeed.swift */; };
 		8DE6B4F3AD0F716CB3DB4B5F /* KeyboardFieldLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AD67E712C743C6236F263A3 /* KeyboardFieldLayout.swift */; };
@@ -245,6 +246,7 @@
 		DB96CE66B57DF0EB328E050C /* KeyboardFieldLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AD67E712C743C6236F263A3 /* KeyboardFieldLayout.swift */; };
 		DD9DE2910DB60E12C42B5ADD /* KeyboardKeyButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61724397185A8DA236054BCD /* KeyboardKeyButton.swift */; };
 		DF0521CFB49D31EEE0A306E1 /* VoiceLevelFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E21BC9228695D10D003243C /* VoiceLevelFeed.swift */; };
+		DF2E935C29845AD7243A2DCC /* ThemeThumbnail.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEB48BC910F2A00117F25E08 /* ThemeThumbnail.swift */; };
 		DF6B8FF6D9DCC88189D37FF2 /* VoiceLevelChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07673C6572F5EA9C2D61536A /* VoiceLevelChannel.swift */; };
 		E069CEACDC6107371D84AEA2 /* KeyboardDebugChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDD5C1AACA44AA367113C3B /* KeyboardDebugChannel.swift */; };
 		E134E54F61512CC0742EF6C7 /* KeyboardSoundSettingsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 751E8F02EB9DD71E6D181695 /* KeyboardSoundSettingsUITests.swift */; };
@@ -434,6 +436,7 @@
 		908489CAD992A57FB442C9D5 /* VoiceSessionProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSessionProtocol.swift; sourceTree = "<group>"; };
 		9190B22D2BF999398F6F6597 /* MemoryProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryProbe.swift; sourceTree = "<group>"; };
 		94B56BEB7F3697DA4E57C7F6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		9620FB1AD7F1835EB217F91B /* ThemeThumbnailTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeThumbnailTests.swift; sourceTree = "<group>"; };
 		97D481F4E6A82EE36C8B539B /* KeyboardKeyAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardKeyAppearanceTests.swift; sourceTree = "<group>"; };
 		9A52704B5167E0CA0199DD32 /* EngineContentionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineContentionTests.swift; sourceTree = "<group>"; };
 		9BFF57B1CEF3C39D97D6A19D /* ObadhKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ObadhKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -466,6 +469,7 @@
 		CA25B6E6AA69340048CEEE76 /* KeyboardControllerReleaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardControllerReleaseTests.swift; sourceTree = "<group>"; };
 		CE02F649AF24D3536F0F37C8 /* VoiceGlowSwiftUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceGlowSwiftUI.swift; sourceTree = "<group>"; };
 		CEA91B62CA47AAEA6ACD7B22 /* VoiceTranscript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceTranscript.swift; sourceTree = "<group>"; };
+		CEB48BC910F2A00117F25E08 /* ThemeThumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeThumbnail.swift; sourceTree = "<group>"; };
 		D32B9625D19A384E972278B5 /* KeyboardSoundTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardSoundTests.swift; sourceTree = "<group>"; };
 		D8193E5BBD867C1E997426A8 /* VoiceSessionDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSessionDependencies.swift; sourceTree = "<group>"; };
 		D9ADB202376C34EB2B402A81 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
@@ -682,6 +686,7 @@
 			isa = PBXGroup;
 			children = (
 				C981F478F4742648FD165C0F /* ThemePhotoProcessingTests.swift */,
+				9620FB1AD7F1835EB217F91B /* ThemeThumbnailTests.swift */,
 				2C91563884E109E0F949BF89 /* VoicePipelineReliabilityTests.swift */,
 				6DE33F91CAB50BC26EF7B1DD /* VoiceSessionReliabilityTests.swift */,
 			);
@@ -850,6 +855,7 @@
 				AC1B8CE64EB42D762DF3DB10 /* ThemePhotoEditor.swift */,
 				55D273B5D46EEA8D354CE921 /* ThemePhotoLibrary.swift */,
 				C374CCFA26F04010AE6FF258 /* ThemePreview.swift */,
+				CEB48BC910F2A00117F25E08 /* ThemeThumbnail.swift */,
 			);
 			path = Appearance;
 			sourceTree = "<group>";
@@ -1324,6 +1330,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				982727F3FD10846AEC43D114 /* ThemePhotoProcessingTests.swift in Sources */,
+				87F9D0F0EC031141F471A55D /* ThemeThumbnailTests.swift in Sources */,
 				C7996BB582989EF4E5F970CA /* VoicePipelineReliabilityTests.swift in Sources */,
 				078BF21FD2470F3AEDDF0B03 /* VoiceSessionReliabilityTests.swift in Sources */,
 			);
@@ -1452,6 +1459,7 @@
 				656AEC19844FA07FC3FD46C0 /* ThemePhotoEditor.swift in Sources */,
 				5EF3F89ED479A1FD3D343C8B /* ThemePhotoLibrary.swift in Sources */,
 				279B9B151BBF9959862DAE01 /* ThemePreview.swift in Sources */,
+				DF2E935C29845AD7243A2DCC /* ThemeThumbnail.swift in Sources */,
 				3AC894C97A9CF1AA238C2BC5 /* VoiceAudioCapture.swift in Sources */,
 				F48717A0D0905C31EF08E755 /* VoiceAudioRing.swift in Sources */,
 				C5034F033517E53E2112C079 /* VoiceDraftReconciler.swift in Sources */,

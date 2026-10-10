@@ -1,8 +1,8 @@
 #if canImport(UIKit)
   import UIKit
 
-  /// A single full preview uses the production keys and native glass container.
-  /// Catalog swatches never instantiate a keyboard or load the language engine.
+  /// Full previews and catalog thumbnails share production keys, layout and
+  /// native glass. This presentation-only renderer never loads the typing engine.
   @MainActor
   final class KeyboardThemePreviewView: UIView {
     private let board = UIView()

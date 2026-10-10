@@ -8,6 +8,18 @@ final class KeyboardAppearanceUITests: XCTestCase {
     attachment.lifetime = .keepAlways
     add(attachment)
   }
+  private func reveal(_ card: XCUIElement, app: XCUIApplication, attempts: Int = 30) {
+    for _ in 0..<attempts {
+      if card.exists, card.isHittable {
+        let frame = card.frame
+        if frame.width > 100, frame.height > 70,
+          frame.minY > app.navigationBars.firstMatch.frame.maxY,
+          frame.maxY <= app.scrollViews.firstMatch.frame.maxY - 4 { return }
+      }
+      app.scrollViews.firstMatch.swipeUp()
+    }
+    XCTFail("Theme card never became fully visible: " + card.identifier, file: #filePath, line: #line)
+  }
   func testThemePreviewApplyPersistenceSystemAndPhotoPickerCancellation() throws {
     continueAfterFailure = false
     let app = XCUIApplication()
@@ -20,10 +32,7 @@ final class KeyboardAppearanceUITests: XCTestCase {
     capture("appearance-catalog", app: app)
     let blue = app.buttons["theme-blue"]
     app.scrollViews.firstMatch.swipeUp()
-    for _ in 0..<6
-    where !blue.isHittable || blue.frame.maxY > app.windows.firstMatch.frame.maxY - 80 {
-      app.scrollViews.firstMatch.swipeUp()
-    }
+    reveal(blue, app: app)
     XCTAssertTrue(blue.isHittable)
     blue.tap()
     XCTAssertTrue(app.buttons["use-theme"].waitForExistence(timeout: 5))
@@ -36,10 +45,7 @@ final class KeyboardAppearanceUITests: XCTestCase {
     app.launch()
     appearanceLink.tap()
     app.scrollViews.firstMatch.swipeUp()
-    for _ in 0..<6
-    where !blue.isHittable || blue.frame.maxY > app.windows.firstMatch.frame.maxY - 80 {
-      app.scrollViews.firstMatch.swipeUp()
-    }
+    reveal(blue, app: app)
     XCTAssertTrue(blue.isSelected)
     for _ in 0..<10 where !app.buttons["theme-system"].isHittable { app.swipeDown() }
     app.buttons["theme-system"].tap()
@@ -78,6 +84,27 @@ final class KeyboardAppearanceUITests: XCTestCase {
     app.buttons["appearance-settings"].tap()
   }
 
+  func testThumbnailFidelityForSolidGradientAndMesh() throws {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["--screen=settings"]
+    app.launch()
+    XCTAssertTrue(app.buttons["appearance-settings"].waitForExistence(timeout: 10))
+    app.buttons["appearance-settings"].tap()
+    for id in ["blue", "light_gradient_8", "dark_gradient_28"] {
+      let card = app.buttons["theme-" + id]
+      reveal(card, app: app)
+      let thumbnail = XCTAttachment(screenshot: card.screenshot())
+      thumbnail.name = "thumbnail-" + id
+      thumbnail.lifetime = .keepAlways
+      add(thumbnail)
+      card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).tap()
+      XCTAssertTrue(app.buttons["use-theme"].waitForExistence(timeout: 5))
+      capture("preview-" + id, app: app)
+      app.buttons["Cancel"].tap()
+    }
+  }
+
   func testColorAndMeshOnLiveKeyboard() throws {
     continueAfterFailure = false
     let app = XCUIApplication()
@@ -89,10 +116,12 @@ final class KeyboardAppearanceUITests: XCTestCase {
     for id in ["blue", "dark_gradient_28"] {
       let card = app.buttons["theme-" + id]
       app.scrollViews.firstMatch.swipeUp()
-      for _ in 0..<24 where !card.isHittable || card.frame.maxY > 800 {
-        app.scrollViews.firstMatch.swipeUp()
-      }
+      reveal(card, app: app)
       XCTAssertTrue(card.isHittable, app.debugDescription)
+      let thumbnail = XCTAttachment(screenshot: card.screenshot())
+      thumbnail.name = "thumbnail-" + id
+      thumbnail.lifetime = .keepAlways
+      add(thumbnail)
       card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
       XCTAssertTrue(app.buttons["use-theme"].waitForExistence(timeout: 5))
       capture("preview-" + id, app: app)
@@ -131,6 +160,10 @@ final class KeyboardAppearanceUITests: XCTestCase {
     let photo = app.buttons["My Photo"].firstMatch
     XCTAssertTrue(photo.waitForExistence(timeout: 10), app.debugDescription)
     XCTAssertTrue(photo.isSelected)
+    let thumbnail = XCTAttachment(screenshot: photo.screenshot())
+    thumbnail.name = "thumbnail-photo"
+    thumbnail.lifetime = .keepAlways
+    add(thumbnail)
     liveKeyboard(app, name: "photo")
     XCTAssertTrue(photo.waitForExistence(timeout: 5))
     photo.tap()
