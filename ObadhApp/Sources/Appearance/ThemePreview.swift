@@ -59,6 +59,11 @@ struct ThemeDetailView: View {
           ThemePreview(appearance: proposed, photo: image)
             .aspectRatio(414.0 / 280.0, contentMode: .fit).listRowInsets(EdgeInsets())
             .accessibilityLabel("Keyboard preview")
+        } header: {
+          if selection.id != "system" {
+            Text(selection.name).font(.title3.weight(.semibold))
+              .textCase(nil).foregroundStyle(.primary)
+          }
         }
         if photoLoadFailed {
           Section {
@@ -89,7 +94,8 @@ struct ThemeDetailView: View {
           }
         }
       }
-      .navigationTitle(selection.name).navigationBarTitleDisplayMode(.inline)
+      .navigationTitle(selection.id == "system" ? "System" : "Theme Preview")
+      .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
         ToolbarItem(placement: .confirmationAction) {

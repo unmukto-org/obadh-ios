@@ -6,6 +6,17 @@ Current limitations and verification requirements live in [KNOWN-ISSUES.md](KNOW
 
 ## Unreleased
 
+### 2026-10-09 — Theme names
+
+- Gave every one of the 71 shared presets a distinct name tied to its colors,
+  such as Rosewater Horizon, Honey Lavender, Violet Supernova and Ember Nebula.
+  Android remains the source catalog, and iOS imports its names verbatim.
+  Theme IDs, colors, groups and saved selections are unchanged.
+- Display the complete name above the iOS theme preview, where the navigation
+  title could truncate longer names.
+- Verified 201 iOS core tests, two iPhone 11 simulator picker/preview flows,
+  catalog regeneration, and Android `:keyboard:compileDebugKotlin`.
+
 ### 2026-10-09 — Native keyboard themes
 
 - Added Appearance with all 71 Android reference presets, including five

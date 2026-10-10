@@ -13,6 +13,12 @@ palette/gradient samples, pinned to its source revision and SHA256. Platform
 renderers remain separate. The generated Swift catalog contains no Android UI
 implementation. Regenerate after a deliberate catalog change:
 
+The theme names are written in the Android source catalog and imported verbatim
+to iOS. All 71 have distinct, palette-specific names. Persistent theme IDs and
+groups remain stable, so renaming does not change saved selections or artwork.
+The iOS detail sheet displays the full name above its preview, even when it
+would be too long for the navigation bar.
+
 ```sh
 python3 Tools/Themes/import_android_catalog.py --android ../obadh-android
 python3 Tools/Themes/import_android_catalog.py --check

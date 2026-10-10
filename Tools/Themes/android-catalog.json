@@ -1,10 +1,10 @@
 {
-  "sourceRevision": "c9f6d5fa2ee99b4d8d487574f3224ba2c9f41285",
-  "sourceSHA256": "e8faf545f4d5137cc8c15d997c14ec880940816d49ce9e6164cac4b15b8e15fa",
+  "sourceRevision": "feaffe61710d6409ed8541bcb7df8b315d819d7d",
+  "sourceSHA256": "7e1bdb8ee9b5ff0fcd24671f1b1c4077dcbd790f89d7b892733ea3c8c7eb0802",
   "themes": [
     {
       "id": "material_light",
-      "name": "Material Light",
+      "name": "Arctic Glass",
       "group": "Colors",
       "palette": [
         4293718001,
@@ -19,7 +19,7 @@
     },
     {
       "id": "material_dark",
-      "name": "Material Dark",
+      "name": "Deep Slate",
       "group": "Colors",
       "palette": [
         4280693304,
@@ -34,7 +34,7 @@
     },
     {
       "id": "classic_light",
-      "name": "Classic Light",
+      "name": "Pearl Paper",
       "group": "Colors",
       "palette": [
         4293454573,
@@ -49,7 +49,7 @@
     },
     {
       "id": "classic_dark",
-      "name": "Classic Dark",
+      "name": "Charcoal Hour",
       "group": "Colors",
       "palette": [
         4280888883,
@@ -64,7 +64,7 @@
     },
     {
       "id": "red",
-      "name": "Red",
+      "name": "Ruby Current",
       "group": "Colors",
       "palette": [
         4291176488,
@@ -79,7 +79,7 @@
     },
     {
       "id": "green",
-      "name": "Green",
+      "name": "Clover Pulse",
       "group": "Colors",
       "palette": [
         4282622023,
@@ -94,7 +94,7 @@
     },
     {
       "id": "teal",
-      "name": "Teal",
+      "name": "Jade Lagoon",
       "group": "Colors",
       "palette": [
         4278217052,
@@ -109,7 +109,7 @@
     },
     {
       "id": "blue",
-      "name": "Blue",
+      "name": "Cobalt Wave",
       "group": "Colors",
       "palette": [
         4279592384,
@@ -124,7 +124,7 @@
     },
     {
       "id": "cyan",
-      "name": "Cyan",
+      "name": "Glacier Spark",
       "group": "Colors",
       "palette": [
         4286635754,
@@ -139,7 +139,7 @@
     },
     {
       "id": "deep_purple",
-      "name": "Deep Purple",
+      "name": "Amethyst Orbit",
       "group": "Colors",
       "palette": [
         4282722208,
@@ -154,7 +154,7 @@
     },
     {
       "id": "pink",
-      "name": "Pink",
+      "name": "Berry Velvet",
       "group": "Colors",
       "palette": [
         4289533015,
@@ -169,7 +169,7 @@
     },
     {
       "id": "light_pink",
-      "name": "Light Pink",
+      "name": "Petal Cloud",
       "group": "Colors",
       "palette": [
         4294491088,
@@ -184,7 +184,7 @@
     },
     {
       "id": "sand",
-      "name": "Sand",
+      "name": "Desert Silk",
       "group": "Colors",
       "palette": [
         4292529605,
@@ -199,7 +199,7 @@
     },
     {
       "id": "brown",
-      "name": "Brown",
+      "name": "Cacao Ember",
       "group": "Colors",
       "palette": [
         4283315246,
@@ -214,7 +214,7 @@
     },
     {
       "id": "blue_grey",
-      "name": "Blue Grey",
+      "name": "Storm Harbor",
       "group": "Colors",
       "palette": [
         4281812815,
@@ -229,7 +229,7 @@
     },
     {
       "id": "black",
-      "name": "Black",
+      "name": "Obsidian Ink",
       "group": "Colors",
       "palette": [
         4278190080,
@@ -244,7 +244,7 @@
     },
     {
       "id": "holo_blue",
-      "name": "Holo Blue",
+      "name": "Electric Holo",
       "group": "Colors",
       "palette": [
         4279637526,
@@ -259,7 +259,7 @@
     },
     {
       "id": "holo_white",
-      "name": "Holo White",
+      "name": "Monochrome Holo",
       "group": "Colors",
       "palette": [
         4279637526,
@@ -274,7 +274,7 @@
     },
     {
       "id": "light_gradient_1",
-      "name": "Light gradient theme 1",
+      "name": "Rosewater Horizon",
       "group": "Light gradient",
       "palette": [
         4294752441,
@@ -357,7 +357,7 @@
     },
     {
       "id": "light_gradient_2",
-      "name": "Light gradient theme 2",
+      "name": "Porcelain Mist",
       "group": "Light gradient",
       "palette": [
         4293124311,
@@ -440,7 +440,7 @@
     },
     {
       "id": "light_gradient_3",
-      "name": "Light gradient theme 3",
+      "name": "Mauve Fog",
       "group": "Light gradient",
       "palette": [
         4292725192,
@@ -523,7 +523,7 @@
     },
     {
       "id": "light_gradient_4",
-      "name": "Light gradient theme 4",
+      "name": "Silver Drift",
       "group": "Light gradient",
       "palette": [
         4293324539,
@@ -606,7 +606,7 @@
     },
     {
       "id": "light_gradient_5",
-      "name": "Light gradient theme 5",
+      "name": "Raspberry Sorbet",
       "group": "Light gradient",
       "palette": [
         4294427348,
@@ -689,7 +689,7 @@
     },
     {
       "id": "light_gradient_6",
-      "name": "Light gradient theme 6",
+      "name": "Peach Skyway",
       "group": "Light gradient",
       "palette": [
         4294697943,
@@ -772,7 +772,7 @@
     },
     {
       "id": "light_gradient_7",
-      "name": "Light gradient theme 7",
+      "name": "Honey Lavender",
       "group": "Light gradient",
       "palette": [
         4294961063,
@@ -855,7 +855,7 @@
     },
     {
       "id": "light_gradient_8",
-      "name": "Light gradient theme 8",
+      "name": "Clover Blush",
       "group": "Light gradient",
       "palette": [
         4289912481,
@@ -938,7 +938,7 @@
     },
     {
       "id": "light_gradient_9",
-      "name": "Light gradient theme 9",
+      "name": "Apricot Glow",
       "group": "Light gradient",
       "palette": [
         4294886810,
@@ -1021,7 +1021,7 @@
     },
     {
       "id": "light_gradient_10",
-      "name": "Light gradient theme 10",
+      "name": "Orchid Daydream",
       "group": "Light gradient",
       "palette": [
         4294819295,
@@ -1104,7 +1104,7 @@
     },
     {
       "id": "light_gradient_11",
-      "name": "Light gradient theme 11",
+      "name": "Lavender Sunrise",
       "group": "Light gradient",
       "palette": [
         4291084028,
@@ -1187,7 +1187,7 @@
     },
     {
       "id": "light_gradient_12",
-      "name": "Light gradient theme 12",
+      "name": "Glacier Meadow",
       "group": "Light gradient",
       "palette": [
         4289647338,
@@ -1270,7 +1270,7 @@
     },
     {
       "id": "light_gradient_13",
-      "name": "Light gradient theme 13",
+      "name": "Citrus Bloom",
       "group": "Light gradient",
       "palette": [
         4292733377,
@@ -1353,7 +1353,7 @@
     },
     {
       "id": "light_gradient_14",
-      "name": "Light gradient theme 14",
+      "name": "Seaside Sunrise",
       "group": "Light gradient",
       "palette": [
         4287613933,
@@ -1436,7 +1436,7 @@
     },
     {
       "id": "light_gradient_15",
-      "name": "Light gradient theme 15",
+      "name": "Coral Ember",
       "group": "Light gradient",
       "palette": [
         4293622396,
@@ -1519,7 +1519,7 @@
     },
     {
       "id": "light_gradient_16",
-      "name": "Light gradient theme 16",
+      "name": "Lagoon Current",
       "group": "Light gradient",
       "palette": [
         4283547349,
@@ -1602,7 +1602,7 @@
     },
     {
       "id": "light_gradient_17",
-      "name": "Light gradient theme 17",
+      "name": "Strawberry Cream",
       "group": "Light gradient",
       "palette": [
         4294485180,
@@ -1685,7 +1685,7 @@
     },
     {
       "id": "light_gradient_18",
-      "name": "Light gradient theme 18",
+      "name": "Sage Afternoon",
       "group": "Light gradient",
       "palette": [
         4284712075,
@@ -1768,7 +1768,7 @@
     },
     {
       "id": "light_gradient_19",
-      "name": "Light gradient theme 19",
+      "name": "Clouded Periwinkle",
       "group": "Light gradient",
       "palette": [
         4292861911,
@@ -1851,7 +1851,7 @@
     },
     {
       "id": "light_gradient_20",
-      "name": "Light gradient theme 20",
+      "name": "Pebble Sand",
       "group": "Light gradient",
       "palette": [
         4289246388,
@@ -1934,7 +1934,7 @@
     },
     {
       "id": "light_gradient_21",
-      "name": "Light gradient theme 21",
+      "name": "Sage Sunset",
       "group": "Light gradient",
       "palette": [
         4289512377,
@@ -2017,7 +2017,7 @@
     },
     {
       "id": "light_gradient_22",
-      "name": "Light gradient theme 22",
+      "name": "Dusty Rose",
       "group": "Light gradient",
       "palette": [
         4290877857,
@@ -2100,7 +2100,7 @@
     },
     {
       "id": "light_gradient_23",
-      "name": "Light gradient theme 23",
+      "name": "Aqua Meadow",
       "group": "Light gradient",
       "palette": [
         4284399059,
@@ -2183,7 +2183,7 @@
     },
     {
       "id": "light_gradient_24",
-      "name": "Light gradient theme 24",
+      "name": "Mint Nebula",
       "group": "Light gradient",
       "palette": [
         4290769381,
@@ -2266,7 +2266,7 @@
     },
     {
       "id": "light_gradient_25",
-      "name": "Light gradient theme 25",
+      "name": "Bluebell Dream",
       "group": "Light gradient",
       "palette": [
         4289520895,
@@ -2349,7 +2349,7 @@
     },
     {
       "id": "dark_gradient_1",
-      "name": "Dark gradient theme 1",
+      "name": "Violet Supernova",
       "group": "Dark gradient",
       "palette": [
         4280029801,
@@ -2432,7 +2432,7 @@
     },
     {
       "id": "dark_gradient_2",
-      "name": "Dark gradient theme 2",
+      "name": "Eclipse Smoke",
       "group": "Dark gradient",
       "palette": [
         4284243812,
@@ -2515,7 +2515,7 @@
     },
     {
       "id": "dark_gradient_3",
-      "name": "Dark gradient theme 3",
+      "name": "Mocha Afterglow",
       "group": "Dark gradient",
       "palette": [
         4284499778,
@@ -2598,7 +2598,7 @@
     },
     {
       "id": "dark_gradient_4",
-      "name": "Dark gradient theme 4",
+      "name": "Harbor Dusk",
       "group": "Dark gradient",
       "palette": [
         4283523949,
@@ -2681,7 +2681,7 @@
     },
     {
       "id": "dark_gradient_5",
-      "name": "Dark gradient theme 5",
+      "name": "Deep Lagoon",
       "group": "Dark gradient",
       "palette": [
         4278287212,
@@ -2764,7 +2764,7 @@
     },
     {
       "id": "dark_gradient_6",
-      "name": "Dark gradient theme 6",
+      "name": "Electric Cobalt",
       "group": "Dark gradient",
       "palette": [
         4279595480,
@@ -2847,7 +2847,7 @@
     },
     {
       "id": "dark_gradient_7",
-      "name": "Dark gradient theme 7",
+      "name": "Storm Signal",
       "group": "Dark gradient",
       "palette": [
         4281688202,
@@ -2930,7 +2930,7 @@
     },
     {
       "id": "dark_gradient_8",
-      "name": "Dark gradient theme 8",
+      "name": "Graphite Veil",
       "group": "Dark gradient",
       "palette": [
         4283849054,
@@ -3013,7 +3013,7 @@
     },
     {
       "id": "dark_gradient_9",
-      "name": "Dark gradient theme 9",
+      "name": "Cocoa Nocturne",
       "group": "Dark gradient",
       "palette": [
         4284569429,
@@ -3096,7 +3096,7 @@
     },
     {
       "id": "dark_gradient_10",
-      "name": "Dark gradient theme 10",
+      "name": "Abyssal Teal",
       "group": "Dark gradient",
       "palette": [
         4278603338,
@@ -3179,7 +3179,7 @@
     },
     {
       "id": "dark_gradient_11",
-      "name": "Dark gradient theme 11",
+      "name": "Ocean Circuit",
       "group": "Dark gradient",
       "palette": [
         4278353023,
@@ -3262,7 +3262,7 @@
     },
     {
       "id": "dark_gradient_12",
-      "name": "Dark gradient theme 12",
+      "name": "Wisteria Twilight",
       "group": "Dark gradient",
       "palette": [
         4286675622,
@@ -3345,7 +3345,7 @@
     },
     {
       "id": "dark_gradient_13",
-      "name": "Dark gradient theme 13",
+      "name": "Garnet Shadow",
       "group": "Dark gradient",
       "palette": [
         4286789692,
@@ -3428,7 +3428,7 @@
     },
     {
       "id": "dark_gradient_14",
-      "name": "Dark gradient theme 14",
+      "name": "Indigo Estuary",
       "group": "Dark gradient",
       "palette": [
         4283124374,
@@ -3511,7 +3511,7 @@
     },
     {
       "id": "dark_gradient_15",
-      "name": "Dark gradient theme 15",
+      "name": "Midnight Harbor",
       "group": "Dark gradient",
       "palette": [
         4278281623,
@@ -3594,7 +3594,7 @@
     },
     {
       "id": "dark_gradient_16",
-      "name": "Dark gradient theme 16",
+      "name": "Amethyst Voltage",
       "group": "Dark gradient",
       "palette": [
         4283313085,
@@ -3677,7 +3677,7 @@
     },
     {
       "id": "dark_gradient_17",
-      "name": "Dark gradient theme 17",
+      "name": "Magenta Afterdark",
       "group": "Dark gradient",
       "palette": [
         4289533015,
@@ -3760,7 +3760,7 @@
     },
     {
       "id": "dark_gradient_18",
-      "name": "Dark gradient theme 18",
+      "name": "Sapphire Rush",
       "group": "Dark gradient",
       "palette": [
         4278553044,
@@ -3843,7 +3843,7 @@
     },
     {
       "id": "dark_gradient_19",
-      "name": "Dark gradient theme 19",
+      "name": "Plum Ember",
       "group": "Dark gradient",
       "palette": [
         4281609046,
@@ -3926,7 +3926,7 @@
     },
     {
       "id": "dark_gradient_20",
-      "name": "Dark gradient theme 20",
+      "name": "Cobalt Cosmos",
       "group": "Dark gradient",
       "palette": [
         4278471581,
@@ -4009,7 +4009,7 @@
     },
     {
       "id": "dark_gradient_21",
-      "name": "Dark gradient theme 21",
+      "name": "Bluegrass Aurora",
       "group": "Dark gradient",
       "palette": [
         4278797496,
@@ -4092,7 +4092,7 @@
     },
     {
       "id": "dark_gradient_22",
-      "name": "Dark gradient theme 22",
+      "name": "Twilight Ember",
       "group": "Dark gradient",
       "palette": [
         4280034413,
@@ -4175,7 +4175,7 @@
     },
     {
       "id": "dark_gradient_23",
-      "name": "Dark gradient theme 23",
+      "name": "Mulberry Dusk",
       "group": "Dark gradient",
       "palette": [
         4283905884,
@@ -4258,7 +4258,7 @@
     },
     {
       "id": "dark_gradient_24",
-      "name": "Dark gradient theme 24",
+      "name": "Sunset Mosaic",
       "group": "Dark gradient",
       "palette": [
         4283327109,
@@ -4631,7 +4631,7 @@
     },
     {
       "id": "dark_gradient_25",
-      "name": "Dark gradient theme 25",
+      "name": "Aurora Rift",
       "group": "Dark gradient",
       "palette": [
         4283308381,
@@ -5004,7 +5004,7 @@
     },
     {
       "id": "dark_gradient_26",
-      "name": "Dark gradient theme 26",
+      "name": "Verdant Orbit",
       "group": "Dark gradient",
       "palette": [
         4279451753,
@@ -5377,7 +5377,7 @@
     },
     {
       "id": "dark_gradient_27",
-      "name": "Dark gradient theme 27",
+      "name": "Fuchsia Galaxy",
       "group": "Dark gradient",
       "palette": [
         4282265199,
@@ -5750,7 +5750,7 @@
     },
     {
       "id": "dark_gradient_28",
-      "name": "Dark gradient theme 28",
+      "name": "Ember Nebula",
       "group": "Dark gradient",
       "palette": [
         4285274638,
