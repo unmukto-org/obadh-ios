@@ -67,8 +67,9 @@ A file-based Transferable downscales the selected image before retaining bytes:
 100 MB compressed / 100 megapixel source limits; 2048-pixel source, 1280-pixel
 render and 240-pixel thumbnail. EXIF orientation is applied and JPEG reencoding
 removes source EXIF/GPS metadata; the encoder may add color-space and pixel
-dimension tags. The editor offers drag/pinch, accessible positioning,
-zoom and brightness sliders, reset, naming and a real keyboard preview. The
+dimension tags. The editor offers direct drag/pinch framing, a compact frame
+options menu and VoiceOver actions for gesture-free adjustment, reset,
+brightness, naming and a real keyboard preview. The
 photo/keyboard switch keeps one preview visible above a scrolling adjustment
 panel; it collapses while the user names the theme so the text field stays
 usable above the keyboard. Crop and brightness

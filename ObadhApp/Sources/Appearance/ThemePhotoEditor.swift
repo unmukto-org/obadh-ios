@@ -69,10 +69,21 @@ struct ThemePhotoEditor: View {
               .clipShape(RoundedRectangle(cornerRadius: 18))
               .overlay(RoundedRectangle(cornerRadius: 18)
                 .strokeBorder(Color(.separator).opacity(0.18)))
-              Text(showKeyboardPreview
-                ? "Live preview · Photo stays on device"
-                : "Drag to move · Pinch to zoom")
-                .font(.footnote).foregroundStyle(.secondary)
+              HStack(spacing: 12) {
+                Text(showKeyboardPreview
+                  ? "Live preview · Photo stays on device"
+                  : "Drag to move · Pinch to zoom")
+                  .font(.footnote).foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                if !showKeyboardPreview, let original {
+                  frameOptions(for: original)
+                  if crop != .init() {
+                    Button("Reset") { crop = .init() }
+                      .font(.footnote)
+                      .accessibilityIdentifier("reset-photo-crop")
+                  }
+                }
+              }
             }
           }
         }
@@ -92,21 +103,6 @@ struct ThemePhotoEditor: View {
                 .onChange(of: name) { _, value in
                   if value.count > 80 { name = String(value.prefix(80)) }
                 }
-            }
-            VStack(alignment: .leading, spacing: 14) {
-              HStack {
-                Text("Framing").font(.headline)
-                Spacer()
-                Button("Reset") { crop = .init() }
-                  .font(.subheadline).disabled(crop == .init())
-                  .accessibilityIdentifier("reset-photo-crop")
-              }
-              VStack(spacing: 16) {
-                control("Zoom", value: $crop.zoom, range: 1...4)
-                control("Move Left or Right", value: $crop.centerX, range: 0...1)
-                control("Move Up or Down", value: $crop.centerY, range: 0...1)
-              }.padding(16).background(.regularMaterial,
-                in: RoundedRectangle(cornerRadius: 18))
             }
             VStack(alignment: .leading, spacing: 12) {
               Text("Readability").font(.headline)
@@ -176,6 +172,38 @@ struct ThemePhotoEditor: View {
       Slider(value: value, in: range).accessibilityLabel(title)
     }
   }
+  private func frameOptions(for image: CGImage) -> some View {
+    let rect = crop.rectangle(imageWidth: Double(image.width), imageHeight: Double(image.height))
+    return Menu {
+      Section("Zoom") {
+        Button("Zoom In", systemImage: "plus.magnifyingglass") { adjustZoom(1.25, image) }
+          .disabled(crop.zoom >= 4)
+        Button("Zoom Out", systemImage: "minus.magnifyingglass") { adjustZoom(0.8, image) }
+          .disabled(crop.zoom <= 1)
+      }
+      Section("Position") {
+        Button("Move Picture Left", systemImage: "arrow.left") {
+          movePicture(x: 1, y: 0, image)
+        }.disabled(rect.x + rect.width >= 1 - 0.000_001)
+        Button("Move Picture Right", systemImage: "arrow.right") {
+          movePicture(x: -1, y: 0, image)
+        }.disabled(rect.x <= 0.000_001)
+        Button("Move Picture Up", systemImage: "arrow.up") {
+          movePicture(x: 0, y: 1, image)
+        }.disabled(rect.y + rect.height >= 1 - 0.000_001)
+        Button("Move Picture Down", systemImage: "arrow.down") {
+          movePicture(x: 0, y: -1, image)
+        }.disabled(rect.y <= 0.000_001)
+      }
+    } label: {
+      Image(systemName: "ellipsis.circle")
+        .font(.title3)
+        .frame(minWidth: 32, minHeight: 32)
+        .contentShape(Rectangle())
+    }
+    .accessibilityLabel("Frame options")
+    .accessibilityHint("Adjust the photo without gestures")
+  }
   private func cropView(_ image: CGImage) -> some View {
     GeometryReader { geometry in
       let rect = crop.rectangle(imageWidth: Double(image.width), imageHeight: Double(image.height))
@@ -209,9 +237,35 @@ struct ThemePhotoEditor: View {
             zoomStart = nil
           }
         )
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Photo crop preview")
-        .accessibilityHint("Use the framing sliders below to adjust the crop.")
+        .accessibilityHint("Drag to move or pinch to zoom. Frame options offers buttons for each adjustment.")
+        .accessibilityIdentifier("photo-crop-preview")
+        .accessibilityAction(named: Text("Zoom In")) { adjustZoom(1.25, image) }
+        .accessibilityAction(named: Text("Zoom Out")) { adjustZoom(0.8, image) }
+        .accessibilityAction(named: Text("Move Picture Left")) {
+          movePicture(x: 1, y: 0, image)
+        }
+        .accessibilityAction(named: Text("Move Picture Right")) {
+          movePicture(x: -1, y: 0, image)
+        }
+        .accessibilityAction(named: Text("Move Picture Up")) {
+          movePicture(x: 0, y: 1, image)
+        }
+        .accessibilityAction(named: Text("Move Picture Down")) {
+          movePicture(x: 0, y: -1, image)
+        }
     }
+  }
+  private func adjustZoom(_ factor: Double, _ image: CGImage) {
+    crop.zoom = min(4, max(1, crop.zoom * factor))
+    normalizeCrop(image)
+  }
+  private func movePicture(x: Double, y: Double, _ image: CGImage) {
+    let rect = crop.rectangle(imageWidth: Double(image.width), imageHeight: Double(image.height))
+    crop.centerX += x * rect.width * 0.1
+    crop.centerY += y * rect.height * 0.1
+    normalizeCrop(image)
   }
   private func normalizeCrop(_ image: CGImage) {
     let rect = crop.rectangle(imageWidth: Double(image.width), imageHeight: Double(image.height))

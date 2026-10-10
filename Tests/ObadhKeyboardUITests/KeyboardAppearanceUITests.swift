@@ -161,9 +161,12 @@ final class KeyboardAppearanceUITests: XCTestCase {
     capture("native-photo-editor", app: app)
     app.segmentedControls.buttons["Keyboard"].tap()
     capture("native-photo-keyboard-live-preview", app: app)
-    let zoom = app.sliders["Zoom"]
-    for _ in 0..<5 where !zoom.isHittable { app.scrollViews.firstMatch.swipeUp() }
-    zoom.adjust(toNormalizedSliderPosition: 0.35)
+    app.segmentedControls.buttons["Photo"].tap()
+    let crop = app.descendants(matching: .any)["photo-crop-preview"].firstMatch
+    XCTAssertTrue(crop.waitForExistence(timeout: 5))
+    crop.pinch(withScale: 1.7, velocity: 1)
+    XCTAssertTrue(app.buttons["reset-photo-crop"].waitForExistence(timeout: 5))
+    app.segmentedControls.buttons["Keyboard"].tap()
     capture("native-photo-keyboard-after-zoom", app: app)
     let brightness = app.sliders["Photo Brightness"]
     for _ in 0..<4 where !brightness.isHittable { app.scrollViews.firstMatch.swipeUp() }
