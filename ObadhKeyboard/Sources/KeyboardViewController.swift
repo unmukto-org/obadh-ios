@@ -1182,13 +1182,21 @@ class KeyboardViewController: UIInputViewController {
             keyboardBackgroundView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             keyboardBackgroundView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
+        // iOS owns the narrow material band above the extension and the dock
+        // below it. Treat artwork as a contained surface within that material,
+        // rather than drawing a square-edged sheet up to both host-owned seams.
+        // The system appearance keeps its original full-size native backdrop.
+        let themeInset: CGFloat = 4
+        themeBackdrop.layer.cornerRadius = 18
+        themeBackdrop.layer.cornerCurve = .continuous
+        themeBackdrop.clipsToBounds = true
         themeBackdrop.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(themeBackdrop)
         NSLayoutConstraint.activate([
-            themeBackdrop.topAnchor.constraint(equalTo: view.topAnchor),
-            themeBackdrop.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            themeBackdrop.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            themeBackdrop.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            themeBackdrop.topAnchor.constraint(equalTo: view.topAnchor, constant: themeInset),
+            themeBackdrop.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: themeInset),
+            themeBackdrop.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -themeInset),
+            themeBackdrop.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -themeInset)
         ])
         themeBackdrop.display(preset: nil, photo: nil, palette: nil)
     }
