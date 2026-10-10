@@ -46,6 +46,11 @@ Current limitations and verification requirements live in [KNOWN-ISSUES.md](KNOW
   three iPhone 11 simulator UI flows. Solid, linear-gradient, mesh and photo
   cards were visually compared with their full previews; native picker,
   photo edit/delete, selection persistence and System restoration also passed.
+- Installed signed Release **1.0.1 (198)**, engine **0.9.5**, source
+  `80c44d06`, on iPhone 16 Pro Max / iOS 27.0.1 on October 9. Device readback
+  confirms build 198; app/extension stamps match and signatures verify.
+  Automatic launch was blocked by the locked phone. Compact local evidence is
+  under `build/theme-thumbnail-verification-2026-10-09/`.
 - Reference provenance, regeneration and storage behavior are documented in
   [Tools/Themes/README.md](Tools/Themes/README.md).
 

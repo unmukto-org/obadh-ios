@@ -86,8 +86,12 @@ Run `swift test` for catalog, contrast, crop, preference and atomic-store tests.
 opaque accessibility fallback, artwork release and live changes during typing.
 `ObadhVoiceTests/ThemePhotoProcessingTests` checks bounded JPEG processing and
 metadata removal (the app-hosted test target also owns these app-only utilities).
+`ObadhVoiceTests/ThemeThumbnailTests` checks edited photo revisions, loading
+placeholders, independent reuse of cached snapshots and release of live effects.
 `ObadhKeyboardUITests/KeyboardAppearanceUITests` exercises preview/cancel/apply,
 persistence, restoring System, native picker cancellation and photo editing.
+Its thumbnail fidelity flow captures solid, gradient and mesh cards beside
+their full previews for visual review.
 Simulator photo tests require ad-hoc signing (`CODE_SIGNING_ALLOWED=YES
 CODE_SIGN_IDENTITY=-`) so the app and extension receive their real App Group
 entitlements; an unsigned simulator build deliberately cannot save shared themes.
