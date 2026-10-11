@@ -67,6 +67,7 @@ class KeyboardViewController: UIInputViewController {
     private var themeBackdrop = KeyboardThemeBackdropView()
     private var themeAppearance = KeyboardAppearance()
     private var themePalette: KeyboardThemePalette?
+    private var themePaletteScheme: ThemeColorScheme?
     private var renderedThemePalette: KeyboardThemePalette?
     private var renderedKeyOutlines = false
     private var themePhoto: CGImage?
@@ -238,7 +239,9 @@ class KeyboardViewController: UIInputViewController {
         // Haptics are prepared in viewWillAppear, only for an actual presentation.
         themeAppearance = keyboardPreferences.appearance
         if !themeAppearance.isSystem, let preset = KeyboardThemeCatalog.preset(themeAppearance.themeID) {
-            themePalette = KeyboardThemePalette(preset: preset, scheme: currentThemeScheme)
+            let scheme = currentThemeScheme
+            themePalette = KeyboardThemePalette(preset: preset, scheme: scheme)
+            themePaletteScheme = scheme
         }
         configureRootView()
         configureSuggestionBar()
@@ -283,7 +286,8 @@ class KeyboardViewController: UIInputViewController {
         feedbackController.suspend()
         isContentSuspended = true
         themePhotoTask?.cancel(); themePhotoTask = nil
-        themeGeneration = UUID(); themePhoto = nil; themePhotoRevision = nil; themePalette = nil
+        themeGeneration = UUID(); themePhoto = nil; themePhotoRevision = nil
+        themePalette = nil; themePaletteScheme = nil
         themeBackdrop.removeFromSuperview(); themeBackdrop = KeyboardThemeBackdropView()
 
         highlightedKeyButton = nil
@@ -400,6 +404,7 @@ class KeyboardViewController: UIInputViewController {
         let scheme = currentThemeScheme
         themePalette = preset.map { KeyboardThemePalette(preset: $0, scheme: scheme) }
             ?? (retainPhoto ? .photo(for: scheme) : nil)
+        themePaletteScheme = themePalette == nil ? nil : scheme
         if let id = next.photoID {
             themePhotoTask = Task { [weak self] in
                 // Both metadata lookup and bounded decode stay off the typing
@@ -413,7 +418,9 @@ class KeyboardViewController: UIInputViewController {
                 self.themePhotoTask = nil
                 guard let image else { return } // Retry unavailable files on the next presentation.
                 self.themePhoto = image; self.themePhotoRevision = next.revision
-                self.themePalette = .photo(for: self.currentThemeScheme)
+                let scheme = self.currentThemeScheme
+                self.themePalette = .photo(for: scheme)
+                self.themePaletteScheme = scheme
                 self.presentTheme(preset: nil)
             }
         }
@@ -1458,11 +1465,12 @@ class KeyboardViewController: UIInputViewController {
     private func refreshKeyboard() {
         guard !isContentSuspended else { return }
         synchronizeHostInputTraits()
-        if themePalette != nil {
-            let scheme = currentThemeScheme
+        let scheme = currentThemeScheme
+        if themePalette != nil, themePaletteScheme != scheme {
             let preset = KeyboardThemeCatalog.preset(themeAppearance.themeID)
             let updated = preset.map { KeyboardThemePalette(preset: $0, scheme: scheme) }
                 ?? (themePhoto != nil ? .photo(for: scheme) : nil)
+            themePaletteScheme = scheme
             if updated != themePalette {
                 themePalette = updated
                 themeBackdrop.display(preset: preset, photo: themePhoto, palette: updated)
