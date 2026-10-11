@@ -63,11 +63,22 @@ struct ThemePhotoEditor: View {
               GeometryReader { geometry in
                 Group {
                   if showKeyboardPreview {
-                    ThemePreview(appearance: .init(
-                      themeID: "photo." + (draft.existing?.id ?? draft.id).uuidString,
-                      keyOutlines: keyOutlines, keyTransparency: keyTransparency,
-                      keyBorderStrength: keyBorderStrength), photo: original, editingCrop: crop,
-                      editingBrightness: brightness)
+                    HStack(alignment: .top, spacing: 10) {
+                      ForEach([KeyboardAppearance.Mode.light, .dark], id: \.self) { previewMode in
+                        VStack(alignment: .leading, spacing: 7) {
+                          Text(previewMode == .light ? "Light" : "Dark")
+                            .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                          ThemePreview(appearance: .init(
+                            themeID: "photo." + (draft.existing?.id ?? draft.id).uuidString,
+                            mode: previewMode,
+                            keyOutlines: keyOutlines, keyTransparency: keyTransparency,
+                            keyBorderStrength: keyBorderStrength), photo: original,
+                            editingCrop: crop, editingBrightness: brightness)
+                            .aspectRatio(414.0 / 280.0, contentMode: .fit)
+                        }
+                        .frame(maxWidth: .infinity)
+                      }
+                    }
                   } else if let original {
                     cropView(original)
                   } else if decodeFailed {
@@ -82,7 +93,9 @@ struct ThemePhotoEditor: View {
                 .onAppear { previewWidth = geometry.size.width }
                 .onChange(of: geometry.size.width) { _, width in previewWidth = width }
               }
-              .frame(height: previewWidth * 280.0 / 414.0)
+              .frame(height: showKeyboardPreview
+                ? (previewWidth - 10) / 2 * 280.0 / 414.0 + 26
+                : previewWidth * 280.0 / 414.0)
               .clipShape(RoundedRectangle(cornerRadius: 18))
               .overlay(RoundedRectangle(cornerRadius: 18)
                 .strokeBorder(Color(.separator).opacity(0.18)))

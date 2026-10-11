@@ -15,11 +15,16 @@
     private var photo: CGImage?
     private var editingCrop: ThemePhotoCrop?
     private var editingBrightness: Double = 1
+    private var renderedScheme: ThemeColorScheme?
 
     override init(frame: CGRect) {
       super.init(frame: frame)
       registerForTraitChanges([UITraitUserInterfaceStyle.self]) {
         (view: KeyboardThemePreviewView, _) in
+        if let selection = view.selection {
+          view.display(selection, photo: view.photo, editingCrop: view.editingCrop,
+            editingBrightness: view.editingBrightness)
+        }
         view.setNeedsLayout()
       }
       isUserInteractionEnabled = false
@@ -52,26 +57,27 @@
     required init?(coder: NSCoder) { fatalError("Unused") }
     func display(_ appearance: KeyboardAppearance, photo: CGImage?,
       editingCrop: ThemePhotoCrop? = nil, editingBrightness: Double = 1) {
+      let scheme: ThemeColorScheme = appearance.mode == .dark ? .dark
+        : appearance.mode == .light ? .light
+        : traitCollection.userInterfaceStyle == .dark ? .dark : .light
       guard selection != appearance || self.photo !== photo
-        || self.editingCrop != editingCrop || self.editingBrightness != editingBrightness else {
+        || self.editingCrop != editingCrop || self.editingBrightness != editingBrightness
+        || renderedScheme != scheme else {
         return
       }
-      let rebuildKeys = selection?.themeID != appearance.themeID
+      let rebuildKeys = selection?.themeID != appearance.themeID || renderedScheme != scheme
+      renderedScheme = scheme
       selection = appearance
       self.photo = photo
       self.editingCrop = editingCrop
       self.editingBrightness = editingBrightness
       let preset = KeyboardThemeCatalog.preset(appearance.themeID)
-      let palette =
-        preset.map(KeyboardThemePalette.init) ?? (appearance.photoID != nil ? .photo : nil)
-      // Native material follows the preview host, even when the custom keys
-      // use a dark palette. This mirrors the live extension's suggestion band.
+      let palette = preset.map { KeyboardThemePalette(preset: $0, scheme: scheme) }
+        ?? (appearance.photoID != nil ? .photo(for: scheme) : nil)
       overrideUserInterfaceStyle = appearance.mode == .light ? .light
         : appearance.mode == .dark ? .dark : .unspecified
-      // Keep the key glass in the palette's preferred appearance while the
-      // surrounding material and suggestion strip follow the host preview.
-      let keyStyle: UIUserInterfaceStyle = palette.map { $0.prefersDark ? .dark : .light }
-        ?? .unspecified
+      let keyStyle: UIUserInterfaceStyle = palette == nil ? .unspecified
+        : scheme == .dark ? .dark : .light
       (group.superview as? UIVisualEffectView)?.overrideUserInterfaceStyle = keyStyle
       group.overrideUserInterfaceStyle = keyStyle
       backdrop.display(preset: preset, photo: photo, palette: palette,

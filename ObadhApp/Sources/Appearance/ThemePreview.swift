@@ -57,7 +57,8 @@ struct ThemeDetailView: View {
     _keyBorderStrength = State(initialValue: selection.photo?.keyBorderStrength ?? appearance.keyBorderStrength)
   }
   private var proposed: KeyboardAppearance {
-    .init(themeID: selection.id, mode: mode, keyOutlines: outlines,
+    .init(themeID: selection.id,
+      mode: selection.id == "system" ? mode : .automatic, keyOutlines: outlines,
       keyTransparency: keyTransparency, keyBorderStrength: keyBorderStrength)
   }
   var body: some View {
@@ -65,12 +66,19 @@ struct ThemeDetailView: View {
       ScrollView {
         VStack(alignment: .leading, spacing: 22) {
           Text(selection.name).font(.title2.bold())
-          ThemePreview(appearance: proposed, photo: image)
-            .aspectRatio(414.0 / 280.0, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 18))
-            .overlay(RoundedRectangle(cornerRadius: 18)
-              .strokeBorder(Color(.separator).opacity(0.18)))
-            .accessibilityLabel("Keyboard preview")
+          if selection.id == "system" {
+            ThemePreview(appearance: proposed, photo: image)
+              .aspectRatio(414.0 / 280.0, contentMode: .fit)
+              .clipShape(RoundedRectangle(cornerRadius: 18))
+              .overlay(RoundedRectangle(cornerRadius: 18)
+                .strokeBorder(Color(.separator).opacity(0.18)))
+              .accessibilityLabel("Keyboard preview")
+          } else {
+            HStack(alignment: .top, spacing: 10) {
+              themePreviewCard(.light, title: "Light")
+              themePreviewCard(.dark, title: "Dark")
+            }
+          }
           if photoLoadFailed {
             Text(
               "This saved photo couldn’t be loaded. Edit it to rebuild the theme, or choose another theme."
@@ -182,5 +190,20 @@ struct ThemeDetailView: View {
         }
       }
     }
+  }
+
+  private func themePreviewCard(_ previewMode: KeyboardAppearance.Mode, title: String) -> some View {
+    VStack(alignment: .leading, spacing: 7) {
+      Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+      ThemePreview(appearance: .init(themeID: selection.id, mode: previewMode,
+        keyOutlines: outlines, keyTransparency: keyTransparency,
+        keyBorderStrength: keyBorderStrength), photo: image)
+        .aspectRatio(414.0 / 280.0, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14)
+          .strokeBorder(Color(.separator).opacity(0.18)))
+        .accessibilityLabel("\(title) keyboard preview")
+    }
+    .frame(maxWidth: .infinity)
   }
 }

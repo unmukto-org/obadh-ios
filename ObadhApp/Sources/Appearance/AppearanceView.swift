@@ -108,7 +108,7 @@ struct AppearanceView: View {
               } label: {
                 ThemeCard(name: preset.name, selected: appearance.themeID == preset.id) {
                   ThemeThumbnail(appearance: .init(
-                    themeID: preset.id, mode: appearance.mode,
+                    themeID: preset.id,
                     keyOutlines: appearance.keyOutlines,
                     keyTransparency: appearance.keyTransparency,
                     keyBorderStrength: appearance.keyBorderStrength))
@@ -325,7 +325,7 @@ private struct PhotoThemeCard: View {
       ThemeCard(
         name: photo.name, selected: selected, artworkAspectRatio: ThemeThumbnail.aspectRatio
       ) {
-        ThemeThumbnail(appearance: .init(themeID: photo.themeID, mode: appearance.mode,
+        ThemeThumbnail(appearance: .init(themeID: photo.themeID,
           keyOutlines: photo.keyOutlines, keyTransparency: photo.keyTransparency,
           keyBorderStrength: photo.keyBorderStrength, revision: photo.revision),
           photo: decodedRevision == photo.revision ? image : nil)

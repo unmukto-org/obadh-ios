@@ -74,10 +74,13 @@ final class ThemeThumbnailView: UIView {
   private func refresh() {
     guard let appearance else { return }
     let preset = KeyboardThemeCatalog.preset(appearance.themeID)
-    let palette = preset.map(KeyboardThemePalette.init)
-      ?? (appearance.photoID != nil ? .photo : nil)
     overrideUserInterfaceStyle = appearance.mode == .light ? .light
       : appearance.mode == .dark ? .dark : .unspecified
+    let scheme: ThemeColorScheme = appearance.mode == .dark ? .dark
+      : appearance.mode == .light ? .light
+      : traitCollection.userInterfaceStyle == .dark ? .dark : .light
+    let palette = preset.map { KeyboardThemePalette(preset: $0, scheme: scheme) }
+      ?? (appearance.photoID != nil ? .photo(for: scheme) : nil)
     backdrop.display(preset: preset, photo: photo, palette: palette)
     keys.display(palette: palette, outlines: appearance.keyOutlines,
       transparency: appearance.keyTransparency, borderStrength: appearance.keyBorderStrength)

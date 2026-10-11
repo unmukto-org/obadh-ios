@@ -14,6 +14,7 @@
     private let scrim = CALayer()
     private let materialBlendMask = CAGradientLayer()
     private var nativeSuggestionBandHeight: CGFloat = 0
+    private var suggestionTop: CGFloat = 0
     private var keyFieldTop: CGFloat = 1
     override init(frame: CGRect) {
       super.init(frame: frame)
@@ -34,6 +35,7 @@
         UIColor.clear.cgColor,
         UIColor.black.cgColor,
         UIColor.black.cgColor,
+        UIColor.clear.cgColor,
       ]
     }
     required init?(coder: NSCoder) { fatalError("Unused") }
@@ -45,23 +47,26 @@
       updateMaterialBlendMask()
       CATransaction.commit()
     }
-    /// Leave the suggestion strip on the same native material as the iOS-owned
-    /// band above it. Feather the artwork through the actual inset before the
-    /// first key row, so the boundary follows keyboard geometry on every size.
-    func alignWithNativeSuggestionBand(height: CGFloat, keyFieldTop: CGFloat) {
+    /// Reveal artwork gently through our suggestion strip and first-row inset,
+    /// then return to the native material before the system-owned lower dock.
+    func alignWithNativeSuggestionBand(height: CGFloat, keyFieldTop: CGFloat,
+      suggestionTop: CGFloat = 0) {
       nativeSuggestionBandHeight = max(0, height)
-      self.keyFieldTop = max(nativeSuggestionBandHeight + 1, keyFieldTop)
+      self.suggestionTop = max(0, suggestionTop)
+      self.keyFieldTop = max(self.suggestionTop + 1, keyFieldTop)
       layer.mask = materialBlendMask
       updateMaterialBlendMask()
     }
     private func updateMaterialBlendMask() {
       materialBlendMask.frame = bounds
       guard bounds.height > 0 else { return }
-      let start = min(bounds.height, nativeSuggestionBandHeight)
-      let end = min(bounds.height, keyFieldTop)
+      let start = min(bounds.height, suggestionTop)
+      let full = min(bounds.height, keyFieldTop)
+      let fadeStart = max(full, bounds.height - max(24, nativeSuggestionBandHeight * 0.65))
       materialBlendMask.locations = [0,
         NSNumber(value: start / bounds.height),
-        NSNumber(value: end / bounds.height), 1]
+        NSNumber(value: full / bounds.height),
+        NSNumber(value: fadeStart / bounds.height), 1]
     }
     func display(preset: KeyboardThemePreset?, photo: CGImage?, palette: KeyboardThemePalette?,
       editingCrop: ThemePhotoCrop? = nil, editingBrightness: Double = 1) {
