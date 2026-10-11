@@ -5,6 +5,14 @@ struct ThemePhotoEditor: View {
   let saved: (KeyboardPhotoTheme) -> Void
   @Environment(\.dismiss) private var dismiss
   @State private var name: String
+  @State private var nameWasEdited = false
+  @State private var isNaming = false
+  @State private var isStyling = false
+  @State private var styleModelAvailable = false
+  @State private var styleTask: Task<Void, Never>?
+  @State private var styleMessage: String?
+  @State private var modelAvailable = false
+  @State private var namingTask: Task<Void, Never>?
   @State private var crop: ThemePhotoCrop
   @State private var brightness: Double
   @State private var original: CGImage?
@@ -12,7 +20,9 @@ struct ThemePhotoEditor: View {
   @State private var zoomStart: Double?
   @State private var saving = false
   @State private var decodeFailed = false
-  private let outlines = KeyboardPreferences().appearance.keyOutlines
+  @State private var keyTransparency: Double
+  @State private var keyOutlines: Bool
+  @State private var keyBorderStrength: Double
   @State private var error: String?
   @State private var saveTask: Task<Void, Never>?
   @State private var showKeyboardPreview = false
@@ -24,18 +34,24 @@ struct ThemePhotoEditor: View {
   init(draft: ThemePhotoDraft, saved: @escaping (KeyboardPhotoTheme) -> Void) {
     self.draft = draft
     self.saved = saved
-    _name = State(initialValue: draft.existing?.name ?? "My Photo")
+    _name = State(initialValue: draft.existing?.name ?? "")
     _crop = State(initialValue: draft.existing?.crop ?? .init())
     _brightness = State(initialValue: draft.existing?.brightness ?? 0.65)
+    _keyTransparency = State(initialValue: draft.existing?.keyTransparency ?? 0.25)
+    _keyOutlines = State(initialValue: draft.existing?.keyOutlines ?? false)
+    _keyBorderStrength = State(initialValue: draft.existing?.keyBorderStrength ?? 0.5)
   }
   var body: some View {
     NavigationStack {
       VStack(spacing: 0) {
         VStack(alignment: .leading, spacing: 14) {
           VStack(alignment: .leading, spacing: 5) {
-            Text(draft.existing == nil ? "Frame your photo" : "Refine your photo")
+            Text(showKeyboardPreview ? "Shape your keyboard"
+              : draft.existing == nil ? "Frame your photo" : "Refine your photo")
               .font(.title2.bold())
-            Text("See each adjustment on the keyboard as you work.")
+            Text(showKeyboardPreview
+              ? "Tune the keys over your photo before saving."
+              : "Frame and name your photo, then customize the keyboard.")
               .font(.subheadline).foregroundStyle(.secondary)
           }
           if !nameFocused {
@@ -49,7 +65,8 @@ struct ThemePhotoEditor: View {
                   if showKeyboardPreview {
                     ThemePreview(appearance: .init(
                       themeID: "photo." + (draft.existing?.id ?? draft.id).uuidString,
-                      keyOutlines: outlines), photo: original, editingCrop: crop,
+                      keyOutlines: keyOutlines, keyTransparency: keyTransparency,
+                      keyBorderStrength: keyBorderStrength), photo: original, editingCrop: crop,
                       editingBrightness: brightness)
                   } else if let original {
                     cropView(original)
@@ -92,26 +109,89 @@ struct ThemePhotoEditor: View {
         Divider()
         ScrollView {
           VStack(alignment: .leading, spacing: 24) {
-            VStack(alignment: .leading, spacing: 10) {
-              Text("Name").font(.headline)
-              TextField("Theme Name", text: $name)
-                .textInputAutocapitalization(.words)
-                .focused($nameFocused)
-                .accessibilityIdentifier("photo-theme-name")
-                .padding(14)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-                .onChange(of: name) { _, value in
-                  if value.count > 80 { name = String(value.prefix(80)) }
+            if !showKeyboardPreview {
+              VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                  Text("Name").font(.headline)
+                  Spacer()
+                  if styleModelAvailable {
+                    Button("Suggest Name", systemImage: "sparkles") {
+                      namingTask?.cancel()
+                      namingTask = Task { await suggestName() }
+                    }
+                    .font(.footnote)
+                    .disabled(isNaming || original == nil || saving)
+                    .accessibilityIdentifier("suggest-photo-theme-name")
+                  }
                 }
-            }
-            VStack(alignment: .leading, spacing: 12) {
-              Text("Readability").font(.headline)
+                TextField("Theme Name", text: Binding(
+                  get: { name },
+                  set: { name = $0; nameWasEdited = true }
+                ))
+                  .textInputAutocapitalization(.words)
+                  .focused($nameFocused)
+                  .accessibilityIdentifier("photo-theme-name")
+                  .padding(14)
+                  .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                  .onChange(of: name) { _, value in
+                    if value.count > 80 { name = String(value.prefix(80)) }
+                  }
+                if isNaming {
+                  Label("Finding a name on this iPhone…", systemImage: "sparkles")
+                    .font(.footnote).foregroundStyle(.secondary)
+                }
+              }
               VStack(alignment: .leading, spacing: 12) {
-                control("Photo Brightness", value: $brightness, range: 0.2...1)
-                Text("A subtle tint keeps the keys and suggestions easy to read.")
-                  .font(.footnote).foregroundStyle(.secondary)
-              }.padding(16).background(.regularMaterial,
-                in: RoundedRectangle(cornerRadius: 18))
+                Text("Readability").font(.headline)
+                VStack(alignment: .leading, spacing: 12) {
+                  control("Photo Brightness", value: $brightness, range: 0.2...1)
+                  Text("A subtle tint keeps the keys and suggestions easy to read.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                }.padding(16).background(.regularMaterial,
+                  in: RoundedRectangle(cornerRadius: 18))
+              }
+            }
+            if showKeyboardPreview {
+              VStack(alignment: .leading, spacing: 12) {
+                Text("Keys").font(.headline)
+                VStack(alignment: .leading, spacing: 14) {
+                  if modelAvailable {
+                    HStack {
+                      Button("Auto Style", systemImage: "sparkles") {
+                        styleTask?.cancel()
+                        styleTask = Task { await suggestKeyStyle() }
+                      }
+                      .disabled(isStyling || original == nil)
+                      .accessibilityIdentifier("suggest-photo-key-style")
+                      if isStyling { ProgressView().controlSize(.small) }
+                    }
+                  }
+                  if let styleMessage {
+                    Text(styleMessage).font(.footnote).foregroundStyle(.secondary)
+                  }
+                  VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                      Text("Transparency")
+                      Spacer()
+                      Text("\(Int((keyTransparency / 0.85 * 100).rounded()))%")
+                        .foregroundStyle(.secondary).monospacedDigit()
+                    }
+                    Slider(value: $keyTransparency, in: 0...0.85)
+                      .accessibilityLabel("Key Transparency")
+                  }
+                  Toggle("Key Borders", isOn: $keyOutlines)
+                  if keyOutlines {
+                    VStack(alignment: .leading, spacing: 6) {
+                      Text("Border Definition")
+                      Slider(value: $keyBorderStrength, in: 0...1)
+                        .accessibilityLabel("Border Definition")
+                    }
+                  }
+                  Text("Watch the glass respond over your photo as you adjust it.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                }.padding(16).background(.regularMaterial,
+                  in: RoundedRectangle(cornerRadius: 18))
+              }
             }
           }
           .padding(.horizontal, 20).padding(.vertical, 12)
@@ -121,16 +201,25 @@ struct ThemePhotoEditor: View {
       .background(Color(.systemGroupedBackground))
       .disabled(saving)
       .safeAreaInset(edge: .bottom, spacing: 0) {
-        Button(action: save) {
+        Button {
+          if showKeyboardPreview {
+            save()
+          } else {
+            nameFocused = false
+            showKeyboardPreview = true
+          }
+        } label: {
           HStack(spacing: 8) {
             if saving { ProgressView().tint(.white) }
-            Text(saving ? "Saving…" : draft.existing == nil ? "Use Photo Theme" : "Save Changes")
+            Text(showKeyboardPreview
+              ? saving ? "Saving…" : draft.existing == nil ? "Use Photo Theme" : "Save Changes"
+              : "Next")
               .frame(maxWidth: .infinity)
           }.frame(minHeight: 44)
         }
         .buttonStyle(.borderedProminent)
         .disabled(original == nil || saving || trimmedName.isEmpty)
-        .accessibilityIdentifier("save-photo-theme")
+        .accessibilityIdentifier(showKeyboardPreview ? "save-photo-theme" : "next-photo-theme")
         .padding(.horizontal, 20).padding(.vertical, 10)
         .background(.bar)
       }
@@ -145,6 +234,10 @@ struct ThemePhotoEditor: View {
         }
       }
       .interactiveDismissDisabled(saving)
+      .onDisappear {
+        namingTask?.cancel()
+        styleTask?.cancel()
+      }
       .alert(
         "Photo Theme Unavailable",
         isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })
@@ -154,15 +247,60 @@ struct ThemePhotoEditor: View {
         Text(error ?? "")
       }
       .task {
+        let fallback = await ThemePhotoLibrary.shared.nextAvailableName()
+        if draft.existing == nil, name.isEmpty { name = fallback }
+        let isGenerated = await ThemePhotoLibrary.shared.isGeneratedName(name)
+        let modelAvailable = await ThemePhotoLibrary.shared.canSuggestName()
+        self.modelAvailable = modelAvailable
+        styleModelAvailable = await ThemePhotoLibrary.shared.canSuggestKeyStyle()
         do {
           original = try await Task.detached { try ThemePhotoCodec.image(draft.jpeg) }.value
         } catch {
           decodeFailed = true
           self.error =
             "This photo couldn’t be decoded. Cancel and choose another photo. Your current theme hasn’t changed."
+          return
+        }
+        if (draft.existing == nil || isGenerated) && modelAvailable && !nameWasEdited {
+          await suggestName(automatic: true)
         }
       }
     }
+  }
+  private func suggestName(automatic: Bool = false) async {
+    guard !isNaming, !saving, original != nil else { return }
+    let startingName = name
+    let startingCrop = crop
+    isNaming = true
+    defer { isNaming = false }
+    guard let suggestion = await ThemePhotoLibrary.shared.suggestedName(
+      for: draft.jpeg, crop: startingCrop, excluding: draft.existing?.id),
+      !Task.isCancelled, !saving, name == startingName,
+      (!automatic || !nameWasEdited)
+    else { return }
+    name = suggestion
+  }
+  private func suggestKeyStyle() async {
+    guard !isStyling, !saving, original != nil, styleModelAvailable else { return }
+    let startingCrop = crop
+    let startingTransparency = keyTransparency
+    let startingOutlines = keyOutlines
+    let startingBorderStrength = keyBorderStrength
+    isStyling = true
+    styleMessage = nil
+    defer { isStyling = false }
+    guard let suggestion = await ThemePhotoLibrary.shared.suggestedKeyStyle(
+      for: draft.jpeg, crop: startingCrop) else {
+      if !Task.isCancelled { styleMessage = "Couldn’t analyze this photo. Your settings are unchanged." }
+      return
+    }
+    guard !Task.isCancelled, !saving, crop == startingCrop,
+      keyTransparency == startingTransparency, keyOutlines == startingOutlines,
+      keyBorderStrength == startingBorderStrength else { return }
+    keyTransparency = suggestion.transparency
+    keyOutlines = suggestion.outlines
+    keyBorderStrength = suggestion.borderStrength
+    styleMessage = "Suggested from your photo. Fine-tune anything you like."
   }
   private func control(_ title: String, value: Binding<Double>, range: ClosedRange<Double>)
     -> some View
@@ -277,7 +415,8 @@ struct ThemePhotoEditor: View {
     saving = true
     let record = KeyboardPhotoTheme(
       id: draft.existing?.id ?? UUID(), revision: UUID(), name: trimmedName, crop: crop,
-      brightness: brightness)
+      brightness: brightness, keyTransparency: keyTransparency,
+      keyOutlines: keyOutlines, keyBorderStrength: keyBorderStrength)
     saveTask = Task {
       do {
         try await ThemePhotoLibrary.shared.save(record, source: draft.jpeg)

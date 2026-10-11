@@ -56,7 +56,7 @@
         || self.editingCrop != editingCrop || self.editingBrightness != editingBrightness else {
         return
       }
-      let rebuildKeys = selection != appearance
+      let rebuildKeys = selection?.themeID != appearance.themeID
       selection = appearance
       self.photo = photo
       self.editingCrop = editingCrop
@@ -82,10 +82,18 @@
         rows = KeyboardLayoutProvider.rows(for: .letters).map { row in
           row.keys.map { key in
             let button = KeyboardKeyButton(
-              key: key, themePalette: palette, keyOutlines: appearance.keyOutlines)
+              key: key, themePalette: palette, keyOutlines: appearance.keyOutlines,
+              keyTransparency: appearance.keyTransparency,
+              keyBorderStrength: appearance.keyBorderStrength)
             group.addSubview(button)
             return button
           }
+        }
+      }
+      if !rebuildKeys {
+        for button in rows.flatMap({ $0 }) {
+          button.updateThemeSurface(transparency: appearance.keyTransparency,
+            outlines: appearance.keyOutlines, borderStrength: appearance.keyBorderStrength)
         }
       }
       if rebuildKeys { setNeedsLayout() }
@@ -109,8 +117,8 @@
       nativeBackground.frame = board.bounds
       backdrop.frame = board.bounds
       backdrop.alignWithNativeSuggestionBand(
-        height: max(0, metrics.suggestionHeight - 5),
-        revealHeight: 5 + metrics.keyboardInsets.top)
+        height: metrics.suggestionHeight,
+        keyFieldTop: metrics.suggestionHeight + metrics.keyboardInsets.top)
       (group.superview as? UIVisualEffectView)?.frame = board.bounds
       group.frame = board.bounds
       suggestions.frame = CGRect(x: 0, y: 0, width: width, height: metrics.suggestionHeight)

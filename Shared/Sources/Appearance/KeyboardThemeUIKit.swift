@@ -14,7 +14,7 @@
     private let scrim = CALayer()
     private let materialBlendMask = CAGradientLayer()
     private var nativeSuggestionBandHeight: CGFloat = 0
-    private var revealHeight: CGFloat = 1
+    private var keyFieldTop: CGFloat = 1
     override init(frame: CGRect) {
       super.init(frame: frame)
       isUserInteractionEnabled = false
@@ -46,10 +46,11 @@
       CATransaction.commit()
     }
     /// Leave the suggestion strip on the same native material as the iOS-owned
-    /// band above it. Reveal artwork only in the gap before the first key row.
-    func alignWithNativeSuggestionBand(height: CGFloat, revealHeight: CGFloat) {
+    /// band above it. Feather the artwork through the actual inset before the
+    /// first key row, so the boundary follows keyboard geometry on every size.
+    func alignWithNativeSuggestionBand(height: CGFloat, keyFieldTop: CGFloat) {
       nativeSuggestionBandHeight = max(0, height)
-      self.revealHeight = max(1, revealHeight)
+      self.keyFieldTop = max(nativeSuggestionBandHeight + 1, keyFieldTop)
       layer.mask = materialBlendMask
       updateMaterialBlendMask()
     }
@@ -57,7 +58,7 @@
       materialBlendMask.frame = bounds
       guard bounds.height > 0 else { return }
       let start = min(bounds.height, nativeSuggestionBandHeight)
-      let end = min(bounds.height, start + revealHeight)
+      let end = min(bounds.height, keyFieldTop)
       materialBlendMask.locations = [0,
         NSNumber(value: start / bounds.height),
         NSNumber(value: end / bounds.height), 1]

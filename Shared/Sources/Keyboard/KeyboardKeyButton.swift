@@ -79,13 +79,19 @@ final class KeyboardKeyButton: UIButton {
     /// Touches are owned entirely by `KeyboardTouchSurfaceView`, so this is purely
     /// visual (`isInteractive = false`).
     private var glassEffectView: UIVisualEffectView?
+    private var themedGlassIsClear = false
 
     private let themePalette: KeyboardThemePalette?
-    private let keyOutlines: Bool
+    private var keyOutlines: Bool
+    private var keyTransparency: Double
+    private var keyBorderStrength: Double
 
-    init(key: KeyboardKey, themePalette: KeyboardThemePalette? = nil, keyOutlines: Bool = false) {
+    init(key: KeyboardKey, themePalette: KeyboardThemePalette? = nil, keyOutlines: Bool = false,
+         keyTransparency: Double = 0, keyBorderStrength: Double = 0.5) {
         self.themePalette = themePalette
         self.keyOutlines = keyOutlines
+        self.keyTransparency = keyTransparency
+        self.keyBorderStrength = keyBorderStrength
         self.key = key
         super.init(frame: .zero)
         configure()
@@ -94,6 +100,15 @@ final class KeyboardKeyButton: UIButton {
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    func updateThemeSurface(transparency: Double, outlines: Bool, borderStrength: Double) {
+        keyOutlines = outlines
+        if themePalette != nil {
+            keyTransparency = transparency
+            keyBorderStrength = borderStrength
+        }
+        applyPressedState(animated: false)
     }
 
     func updateAppearance(
@@ -424,12 +439,14 @@ final class KeyboardKeyButton: UIButton {
         // (a clipped effect view can't cast an outer shadow).
         if #available(iOS 26.0, *) {
             let glassStyle: UIGlassEffect.Style?
-            switch themePalette == nil ? KeyboardGlassStyle.current : .regular {
+            switch themePalette == nil ? KeyboardGlassStyle.current
+                : (keyTransparency >= 0.45 ? .clear : .regular) {
             case .regular: glassStyle = .regular
             case .clear: glassStyle = .clear
             case .translucent, .solid: glassStyle = nil
             }
             if let glassStyle {
+                themedGlassIsClear = themePalette != nil && glassStyle == .clear
                 let effect = UIGlassEffect(style: glassStyle)
                 effect.isInteractive = false
                 let effectView = UIVisualEffectView(effect: effect)
@@ -520,12 +537,21 @@ final class KeyboardKeyButton: UIButton {
                 self.glassEffectView?.isHidden = opaque
                 self.backgroundColor = opaque ? (isAction ? actionColor : palette.opaqueKey.uiColor) : .clear
                 if #available(iOS 26.0, *), !opaque,
-                   let effectView = self.glassEffectView, let effect = effectView.effect as? UIGlassEffect {
-                    effect.tintColor = isAction ? actionColor : palette.surface.uiColor.withAlphaComponent(
-                        min(1, palette.tintOpacity + (self.isHighlighted ? 0.18 : 0)))
-                    effectView.effect = effect
+                   let effectView = self.glassEffectView {
+                    let wantsClear = self.keyTransparency >= 0.45
+                    if self.themedGlassIsClear != wantsClear {
+                        effectView.effect = UIGlassEffect(style: wantsClear ? .clear : .regular)
+                        self.themedGlassIsClear = wantsClear
+                    }
+                    if let effect = effectView.effect as? UIGlassEffect {
+                        effect.tintColor = isAction ? actionColor : palette.surface.uiColor.withAlphaComponent(
+                            min(1, palette.tintOpacity * (1 - self.keyTransparency)
+                                + (self.isHighlighted ? 0.18 : 0)))
+                        effectView.effect = effect
+                    }
                 } else if !opaque {
-                    self.backgroundColor = isAction ? actionColor : palette.opaqueKey.uiColor
+                    self.backgroundColor = (isAction ? actionColor : palette.opaqueKey.uiColor)
+                        .withAlphaComponent(1 - self.keyTransparency)
                 }
             } else if #available(iOS 26.0, *), let effectView = self.glassEffectView,
                let effect = effectView.effect as? UIGlassEffect {
@@ -550,9 +576,13 @@ final class KeyboardKeyButton: UIButton {
                     highlighted: self.isHighlighted
                 )
             }
-            self.layer.borderWidth = self.keyOutlines ? (appearance.accessibilityContrast == .high ? 1 : 0.5) : 0
+            let themedBorderWidth = 0.25 + self.keyBorderStrength * 0.5
+            self.layer.borderWidth = self.keyOutlines
+                ? (appearance.accessibilityContrast == .high ? 1 : self.themePalette == nil ? 0.5 : themedBorderWidth)
+                : 0
             self.layer.borderColor = (self.themePalette?.ink.uiColor ?? KeyboardTheme.textColor(for: appearance))
-                .withAlphaComponent(appearance.accessibilityContrast == .high ? 0.8 : 0.35).cgColor
+                .withAlphaComponent(appearance.accessibilityContrast == .high ? 0.8
+                    : self.themePalette == nil ? 0.35 : 0.2 + self.keyBorderStrength * 0.3).cgColor
             let restShadow = self.currentMetrics.keyShadowOpacity
             self.layer.shadowOpacity = self.isHighlighted
                 ? max(0, restShadow - 0.12)

@@ -183,26 +183,32 @@ final class KeyboardAppearanceUITests: XCTestCase {
     let asset = app.images.matching(NSPredicate(format: "label BEGINSWITH %@", "Photo,")).firstMatch
     XCTAssertTrue(asset.waitForExistence(timeout: 10), app.debugDescription)
     asset.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-    let save = app.buttons["save-photo-theme"]
-    XCTAssertTrue(save.waitForExistence(timeout: 15), app.debugDescription)
+    let next = app.buttons["next-photo-theme"]
+    XCTAssertTrue(next.waitForExistence(timeout: 15), app.debugDescription)
     let enabled = XCTNSPredicateExpectation(
-      predicate: NSPredicate(format: "enabled == true"), object: save)
+      predicate: NSPredicate(format: "enabled == true"), object: next)
     XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 10), .completed)
     capture("native-photo-editor", app: app)
-    app.segmentedControls.buttons["Keyboard"].tap()
+    XCTAssertFalse(app.sliders["Key Transparency"].exists)
+    let photoName = app.textFields["photo-theme-name"].value as? String
+    next.tap()
+    let save = app.buttons["save-photo-theme"]
+    XCTAssertTrue(save.waitForExistence(timeout: 5))
+    XCTAssertTrue(app.sliders["Key Transparency"].exists)
+    XCTAssertFalse(app.buttons["suggest-photo-key-style"].exists,
+      "Model actions stay hidden on devices without the image model")
     capture("native-photo-keyboard-live-preview", app: app)
     app.segmentedControls.buttons["Photo"].tap()
     let crop = app.descendants(matching: .any)["photo-crop-preview"].firstMatch
     XCTAssertTrue(crop.waitForExistence(timeout: 5))
     crop.pinch(withScale: 1.7, velocity: 1)
     XCTAssertTrue(app.buttons["reset-photo-crop"].waitForExistence(timeout: 5))
-    app.segmentedControls.buttons["Keyboard"].tap()
+    XCTAssertTrue(app.sliders["Photo Brightness"].exists)
+    XCTAssertTrue(next.waitForExistence(timeout: 5))
+    next.tap()
     capture("native-photo-keyboard-after-zoom", app: app)
-    let brightness = app.sliders["Photo Brightness"]
-    for _ in 0..<4 where !brightness.isHittable { app.scrollViews.firstMatch.swipeUp() }
-    brightness.adjust(toNormalizedSliderPosition: 0.5)
     save.tap()
-    let photo = app.buttons["My Photo"].firstMatch
+    let photo = app.buttons[photoName ?? "Custom 1"].firstMatch
     XCTAssertTrue(photo.waitForExistence(timeout: 10), app.debugDescription)
     XCTAssertTrue(photo.isSelected)
     let thumbnail = XCTAttachment(screenshot: photo.screenshot())
@@ -215,7 +221,7 @@ final class KeyboardAppearanceUITests: XCTestCase {
     XCTAssertTrue(app.buttons["Edit Photo"].waitForExistence(timeout: 5))
     capture("saved-photo-glass-preview", app: app)
     app.buttons["Edit Photo"].tap()
-    XCTAssertTrue(save.waitForExistence(timeout: 5))
+    XCTAssertTrue(next.waitForExistence(timeout: 5))
     app.buttons["Cancel"].tap()
     XCTAssertTrue(photo.waitForExistence(timeout: 5))
     photo.tap()

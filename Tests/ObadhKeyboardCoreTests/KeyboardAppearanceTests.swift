@@ -65,6 +65,29 @@ final class KeyboardAppearanceTests: XCTestCase {
     XCTAssertNotEqual(preferences.appearance.revision, first.revision)
     XCTAssertEqual(KeyboardPreferences(defaults: defaults).appearance, preferences.appearance)
   }
+  func testGlassSettingsRoundTripAndLegacyThemesKeepTheirOriginalLook() throws {
+    let appearance = KeyboardAppearance(themeID: "blue", keyOutlines: true,
+      keyTransparency: 0.7, keyBorderStrength: 0.9)
+    XCTAssertEqual(try JSONDecoder().decode(KeyboardAppearance.self,
+      from: JSONEncoder().encode(appearance)), appearance)
+    let legacyAppearance = Data(#"{"themeID":"blue","mode":"automatic","keyOutlines":false}"#.utf8)
+    let restored = try JSONDecoder().decode(KeyboardAppearance.self, from: legacyAppearance)
+    XCTAssertEqual(restored.keyTransparency, 0)
+    XCTAssertEqual(restored.keyBorderStrength, 0.5)
+    XCTAssertFalse(KeyboardAppearance(themeID: "blue", keyTransparency: .nan).isRecognized)
+    XCTAssertFalse(KeyboardAppearance(themeID: "blue", keyTransparency: 1).isRecognized)
+
+    let photo = KeyboardPhotoTheme(id: UUID(), revision: UUID(), name: "Sea Light",
+      crop: .init(), brightness: 0.7, keyTransparency: 0.6,
+      keyOutlines: true, keyBorderStrength: 0.8)
+    XCTAssertEqual(try JSONDecoder().decode(KeyboardPhotoTheme.self,
+      from: JSONEncoder().encode(photo)), photo)
+    let legacyPhoto = Data(#"{"id":"\#(photo.id)","revision":"\#(photo.revision)","name":"Sea Light","crop":{"centerX":0.5,"centerY":0.5,"zoom":1},"brightness":0.7}"#.utf8)
+    let restoredPhoto = try JSONDecoder().decode(KeyboardPhotoTheme.self, from: legacyPhoto)
+    XCTAssertEqual(restoredPhoto.keyTransparency, 0)
+    XCTAssertFalse(restoredPhoto.keyOutlines)
+    XCTAssertEqual(restoredPhoto.keyBorderStrength, 0.5)
+  }
   func testCropAlwaysStaysInsideImageAndPreservesAspectRatio() {
     for size in [(10.0, 8000.0), (8000, 10), (2048, 2048), (4000, 3000)] {
       for center in [-10.0, 0, 0.5, 1, 10, .nan] {
@@ -124,5 +147,36 @@ final class KeyboardAppearanceTests: XCTestCase {
     XCTAssertThrowsError(
       try store.save(photo, original: Data([1]), rendered: Data([1]), thumbnail: Data([1])))
     XCTAssertTrue(store.photos.isEmpty)
+  }
+
+  func testPhotoNameMigrationAndDefaultAvoidExistingCustomNames() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = KeyboardPhotoThemeStore(directory: directory)
+    let bytes = Data([1, 2, 3])
+    let first = KeyboardPhotoTheme(
+      id: UUID(), revision: UUID(), name: "My Photo", crop: .init(), brightness: 0.6)
+    let second = KeyboardPhotoTheme(
+      id: UUID(), revision: UUID(), name: " custom  1 ", crop: .init(), brightness: 0.6)
+    let third = KeyboardPhotoTheme(
+      id: UUID(), revision: UUID(), name: "My Photo", crop: .init(), brightness: 0.6)
+    try store.save(first, original: bytes, rendered: bytes, thumbnail: bytes)
+    try store.save(second, original: bytes, rendered: bytes, thumbnail: bytes)
+    try store.save(third, original: bytes, rendered: bytes, thumbnail: bytes)
+
+    XCTAssertEqual(store.nextAvailablePhotoName(), "Custom 2")
+    try store.migrateLegacyPhotoNames()
+    XCTAssertEqual(store.photo(id: first.id)?.name, "Custom 2")
+    XCTAssertEqual(store.photo(id: second.id)?.name, " custom  1 ")
+    XCTAssertEqual(store.photo(id: third.id)?.name, "Custom 3")
+    XCTAssertEqual(store.nextAvailablePhotoName(), "Custom 4")
+    XCTAssertFalse(try store.renameGeneratedPhoto(first, to: "Blue Meadow"),
+      "A model result for stale metadata must not replace a newer name")
+    let current = try XCTUnwrap(store.photo(id: first.id))
+    XCTAssertTrue(try store.renameGeneratedPhoto(current, to: "Blue Meadow"))
+    XCTAssertEqual(store.photo(id: first.id)?.name, "Blue Meadow")
+    let other = try XCTUnwrap(store.photo(id: third.id))
+    XCTAssertFalse(try store.renameGeneratedPhoto(other, to: "Blue Meadow"),
+      "Model suggestions cannot collide with an existing photo name")
   }
 }

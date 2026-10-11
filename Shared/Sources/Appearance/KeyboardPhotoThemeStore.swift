@@ -6,7 +6,37 @@ struct KeyboardPhotoTheme: Codable, Equatable, Identifiable, Sendable {
   var name: String
   let crop: ThemePhotoCrop
   let brightness: Double
+  let keyTransparency: Double
+  let keyOutlines: Bool
+  let keyBorderStrength: Double
   var themeID: String { "photo." + id.uuidString }
+
+  init(id: UUID, revision: UUID, name: String, crop: ThemePhotoCrop, brightness: Double,
+    keyTransparency: Double = 0, keyOutlines: Bool = false, keyBorderStrength: Double = 0.5) {
+    self.id = id
+    self.revision = revision
+    self.name = name
+    self.crop = crop
+    self.brightness = brightness
+    self.keyTransparency = keyTransparency
+    self.keyOutlines = keyOutlines
+    self.keyBorderStrength = keyBorderStrength
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id, revision, name, crop, brightness, keyTransparency, keyOutlines, keyBorderStrength
+  }
+  init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    id = try values.decode(UUID.self, forKey: .id)
+    revision = try values.decode(UUID.self, forKey: .revision)
+    name = try values.decode(String.self, forKey: .name)
+    crop = try values.decode(ThemePhotoCrop.self, forKey: .crop)
+    brightness = try values.decode(Double.self, forKey: .brightness)
+    keyTransparency = try values.decodeIfPresent(Double.self, forKey: .keyTransparency) ?? 0
+    keyOutlines = try values.decodeIfPresent(Bool.self, forKey: .keyOutlines) ?? false
+    keyBorderStrength = try values.decodeIfPresent(Double.self, forKey: .keyBorderStrength) ?? 0.5
+  }
 }
 
 /// The containing app is the sole writer. Immutable revision files are published
@@ -23,12 +53,74 @@ struct KeyboardPhotoThemeStore: Sendable {
   }
   private struct Manifest: Codable {
     var version = 1
-    let photos: [KeyboardPhotoTheme]
+    var photos: [KeyboardPhotoTheme]
   }
   var photos: [KeyboardPhotoTheme] {
     guard directory != nil, let manifest = try? loadManifest() else { return [] }
     var seen = Set<UUID>()
     return manifest.photos.filter { seen.insert($0.id).inserted && isReadable($0) }
+  }
+  /// Finds the first positive `Custom n` name not used by any saved record.
+  /// Parsing treats spelling and whitespace variants as the same name, so a
+  /// generated name cannot collide with a prior generated or user-entered one.
+  func nextAvailablePhotoName() -> String {
+    let records = (try? loadManifest().photos) ?? []
+    let used = Set(records.compactMap { customPhotoNumber(in: $0.name) })
+    var number = 1
+    while used.contains(number) { number += 1 }
+    return "Custom \(number)"
+  }
+  func isGeneratedPhotoName(_ name: String) -> Bool {
+    customPhotoNumber(in: name) != nil
+  }
+
+  func nameIsAvailable(_ name: String, excluding id: UUID? = nil) -> Bool {
+    let normalized = normalizedPhotoName(name)
+    guard !normalized.isEmpty else { return false }
+    let records = (try? loadManifest().photos) ?? []
+    return !records.contains { $0.id != id && normalizedPhotoName($0.name) == normalized }
+  }
+
+  /// The model may return after a photo was edited or deleted. Only update the
+  /// exact generated-name revision that was analyzed.
+  func renameGeneratedPhoto(_ photo: KeyboardPhotoTheme, to name: String) throws -> Bool {
+    guard let directory else { throw Failure.unavailable }
+    var manifest = try loadManifest()
+    guard let index = manifest.photos.firstIndex(where: { $0.id == photo.id }),
+      manifest.photos[index].revision == photo.revision,
+      manifest.photos[index].name == photo.name,
+      isGeneratedPhotoName(photo.name),
+      !name.isEmpty, name.count <= 80,
+      !manifest.photos.contains(where: {
+        $0.id != photo.id && normalizedPhotoName($0.name) == normalizedPhotoName(name)
+      })
+    else { return false }
+    manifest.photos[index].name = name
+    try write(JSONEncoder().encode(manifest), to: directory.appendingPathComponent("catalog.json"))
+    return true
+  }
+
+  /// Migrates the former universal placeholder without touching image files or
+  /// revisions. Manifest publication is atomic, exactly like a normal save.
+  func migrateLegacyPhotoNames() throws {
+    guard let directory else { throw Failure.unavailable }
+    var manifest = try loadManifest()
+    let legacyIndexes = manifest.photos.indices.filter {
+      normalizedPhotoName(manifest.photos[$0].name) == "my photo"
+    }
+    guard !legacyIndexes.isEmpty else { return }
+
+    var used = Set(manifest.photos.enumerated().compactMap { index, photo in
+      legacyIndexes.contains(index) ? nil : customPhotoNumber(in: photo.name)
+    })
+    var candidate = 1
+    for index in legacyIndexes {
+      while used.contains(candidate) { candidate += 1 }
+      manifest.photos[index].name = "Custom \(candidate)"
+      used.insert(candidate)
+      candidate += 1
+    }
+    try write(JSONEncoder().encode(manifest), to: directory.appendingPathComponent("catalog.json"))
   }
   func photo(id: UUID) -> KeyboardPhotoTheme? {
     guard let record = try? loadManifest().photos.first(where: { $0.id == id }), isReadable(record)
@@ -39,6 +131,8 @@ struct KeyboardPhotoThemeStore: Sendable {
     guard let url = renderURL(photo) else { return false }
     return !photo.name.isEmpty && photo.name.count <= 80
       && photo.brightness.isFinite && (0...1).contains(photo.brightness)
+      && photo.keyTransparency.isFinite && (0...0.85).contains(photo.keyTransparency)
+      && photo.keyBorderStrength.isFinite && (0...1).contains(photo.keyBorderStrength)
       && photo.crop.zoom.isFinite && (1...4).contains(photo.crop.zoom)
       && photo.crop.centerX.isFinite && (0...1).contains(photo.crop.centerX)
       && photo.crop.centerY.isFinite && (0...1).contains(photo.crop.centerY)
@@ -60,6 +154,8 @@ struct KeyboardPhotoThemeStore: Sendable {
     guard let directory else { throw Failure.unavailable }
     guard photo.name.count <= 80, !photo.name.isEmpty,
       photo.brightness.isFinite, (0...1).contains(photo.brightness),
+      photo.keyTransparency.isFinite, (0...0.85).contains(photo.keyTransparency),
+      photo.keyBorderStrength.isFinite, (0...1).contains(photo.keyBorderStrength),
       photo.crop.zoom.isFinite, (1...4).contains(photo.crop.zoom),
       photo.crop.centerX.isFinite, (0...1).contains(photo.crop.centerX),
       photo.crop.centerY.isFinite, (0...1).contains(photo.crop.centerY),
@@ -157,5 +253,18 @@ struct KeyboardPhotoThemeStore: Sendable {
     #else
       try data.write(to: url, options: .atomic)
     #endif
+  }
+
+  private func customPhotoNumber(in name: String) -> Int? {
+    let words = normalizedPhotoName(name).split(separator: " ")
+    guard words.count == 2, words[0] == "custom", let number = Int(words[1]), number > 0 else {
+      return nil
+    }
+    return number
+  }
+
+  private func normalizedPhotoName(_ name: String) -> String {
+    name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+      .split(whereSeparator: \.isWhitespace).joined(separator: " ")
   }
 }

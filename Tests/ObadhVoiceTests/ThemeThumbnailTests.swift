@@ -5,6 +5,23 @@ import XCTest
 
 @MainActor
 final class ThemeThumbnailTests: XCTestCase {
+  func testSystemOutlinePreviewUpdatesWithoutRebuildingKeys() throws {
+    let view = KeyboardThemePreviewView(frame: CGRect(x: 0, y: 0, width: 414, height: 280))
+    func keys(in root: UIView) -> [KeyboardKeyButton] {
+      (root as? KeyboardKeyButton).map { [$0] } ?? root.subviews.flatMap(keys)
+    }
+    view.display(KeyboardAppearance(), photo: nil)
+    let original = keys(in: view)
+    XCTAssertFalse(original.isEmpty)
+    XCTAssertEqual(original[0].layer.borderWidth, 0)
+    view.display(KeyboardAppearance(keyOutlines: true), photo: nil)
+    let outlined = keys(in: view)
+    XCTAssertTrue(zip(original, outlined).allSatisfy { $0 === $1 })
+    XCTAssertGreaterThan(outlined[0].layer.borderWidth, 0)
+    view.display(KeyboardAppearance(), photo: nil)
+    XCTAssertEqual(keys(in: view)[0].layer.borderWidth, 0)
+  }
+
   func testPhotoEditorPreviewUpdatesCropAndBrightnessSynchronously() throws {
     let image = try XCTUnwrap(UIGraphicsImageRenderer(size: CGSize(width: 600, height: 400))
       .image { context in
@@ -36,6 +53,13 @@ final class ThemeThumbnailTests: XCTestCase {
     XCTAssertEqual(updatedKeys.count, firstKeys.count)
     XCTAssertTrue(zip(firstKeys, updatedKeys).allSatisfy { $0 === $1 },
       "Dragging a slider must not recreate native glass keys")
+    let glassAppearance = KeyboardAppearance(themeID: appearance.themeID,
+      keyOutlines: true, keyTransparency: 0.7, keyBorderStrength: 1)
+    view.display(glassAppearance, photo: image, editingCrop: cropped, editingBrightness: 0.35)
+    let glassKeys = keys(in: view)
+    XCTAssertTrue(zip(firstKeys, glassKeys).allSatisfy { $0 === $1 },
+      "Glass and border adjustments should update the existing keys")
+    XCTAssertGreaterThan(glassKeys[0].layer.borderWidth, 0)
   }
 
   func testPhotoRevisionUpdatesArtworkWithoutAllocatingNativeGlassKeys() throws {

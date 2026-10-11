@@ -7,10 +7,39 @@ struct ThemeThumbnail: UIViewRepresentable {
   let appearance: KeyboardAppearance
   var photo: CGImage? = nil
 
+  /// Width ÷ height of the card artwork (the key block, without a suggestion band).
+  @MainActor static var aspectRatio: CGFloat { ThemeThumbnailGeometry.aspectRatio }
+
   func makeUIView(context: Context) -> ThemeThumbnailView { ThemeThumbnailView() }
   func updateUIView(_ view: ThemeThumbnailView, context: Context) {
     view.display(appearance, photo: photo)
   }
+}
+
+/// Real iPhone portrait geometry at 414 × 280, cropped to the four key rows.
+/// The suggestion band is not part of the thumbnail; the detail preview keeps it.
+@MainActor
+enum ThemeThumbnailGeometry {
+  static let width: CGFloat = 414
+  static let height: CGFloat = 280
+  /// Matches the 6pt side inset used for the key rows.
+  static let margin: CGFloat = 6
+  static let rows = KeyboardLayoutProvider.rows(for: .letters)
+  static let metrics = KeyboardTheme.metrics(
+    for: CGSize(width: width, height: height),
+    traitCollection: UITraitCollection { traits in
+      traits.userInterfaceIdiom = .phone
+      traits.verticalSizeClass = .regular
+      traits.horizontalSizeClass = .compact
+    })
+  static var firstRowY: CGFloat { metrics.suggestionHeight + metrics.keyboardInsets.top }
+  /// The visible canvas region: key rows plus a uniform margin.
+  static var content: CGRect {
+    let count = CGFloat(rows.count)
+    let block = count * metrics.minimumKeyHeight + max(0, count - 1) * metrics.rowSpacing
+    return CGRect(x: 0, y: firstRowY - margin, width: width, height: block + 2 * margin)
+  }
+  static var aspectRatio: CGFloat { content.width / content.height }
 }
 
 @MainActor
@@ -50,32 +79,26 @@ final class ThemeThumbnailView: UIView {
     overrideUserInterfaceStyle = appearance.mode == .light ? .light
       : appearance.mode == .dark ? .dark : .unspecified
     backdrop.display(preset: preset, photo: photo, palette: palette)
-    keys.display(palette: palette, outlines: appearance.keyOutlines)
+    keys.display(palette: palette, outlines: appearance.keyOutlines,
+      transparency: appearance.keyTransparency, borderStrength: appearance.keyBorderStrength)
   }
   override func layoutSubviews() {
     super.layoutSubviews()
+    // No suggestion band in the thumbnail, so the backdrop is not masked to
+    // imitate the native strip: it fills the card behind the key rows.
     backdrop.frame = bounds
     keys.frame = bounds
-    let metrics = KeyboardTheme.metrics(for: CGSize(width: 414, height: 280),
-      traitCollection: traitCollection.modifyingTraits {
-        $0.userInterfaceIdiom = .phone
-        $0.verticalSizeClass = .regular
-        $0.horizontalSizeClass = .compact
-      })
-    let scale = min(bounds.width / 414, bounds.height / 280)
-    let topPadding = (bounds.height - 280 * scale) / 2
-    backdrop.alignWithNativeSuggestionBand(
-      height: topPadding + max(0, metrics.suggestionHeight - 5) * scale,
-      revealHeight: (5 + metrics.keyboardInsets.top) * scale)
   }
 }
 
-/// Draw the real iPhone row geometry in one pass at 414 × 280, then scale it
-/// to the card. The detail preview shows the final native glass material.
+/// Draw the real iPhone row geometry in one pass, cropped to the key block,
+/// then scale it to the card. The detail preview shows the final native glass material.
 private final class ThemeThumbnailKeysView: UIView {
   private var palette: KeyboardThemePalette?
   private var outlines = false
-  private let rows = KeyboardLayoutProvider.rows(for: .letters)
+  private var transparency = 0.0
+  private var borderStrength = 0.5
+  private let rows = ThemeThumbnailGeometry.rows
   private let paragraph: NSParagraphStyle = {
     let style = NSMutableParagraphStyle()
     style.alignment = .center
@@ -89,43 +112,39 @@ private final class ThemeThumbnailKeysView: UIView {
     isUserInteractionEnabled = false
   }
   required init?(coder: NSCoder) { fatalError("Unused") }
-  func display(palette: KeyboardThemePalette?, outlines: Bool) {
-    guard self.palette != palette || self.outlines != outlines else { return }
+  func display(palette: KeyboardThemePalette?, outlines: Bool, transparency: Double,
+    borderStrength: Double) {
+    guard self.palette != palette || self.outlines != outlines
+      || self.transparency != transparency || self.borderStrength != borderStrength else { return }
     self.palette = palette
     self.outlines = outlines
+    self.transparency = transparency
+    self.borderStrength = borderStrength
     setNeedsDisplay()
   }
   override func draw(_ rect: CGRect) {
     guard bounds.width > 0, bounds.height > 0, let context = UIGraphicsGetCurrentContext() else {
       return
     }
-    let width: CGFloat = 414
-    let height: CGFloat = 280
-    let scale = min(bounds.width / width, bounds.height / height)
+    let width = ThemeThumbnailGeometry.width
+    let content = ThemeThumbnailGeometry.content
+    let scale = min(bounds.width / content.width, bounds.height / content.height)
     context.saveGState()
-    context.translateBy(x: (bounds.width - width * scale) / 2,
-      y: (bounds.height - height * scale) / 2)
+    context.translateBy(x: (bounds.width - content.width * scale) / 2,
+      y: (bounds.height - content.height * scale) / 2)
     context.scaleBy(x: scale, y: scale)
+    context.translateBy(x: -content.minX, y: -content.minY)
     defer { context.restoreGState() }
 
-    let metrics = KeyboardTheme.metrics(for: CGSize(width: width, height: height),
-      traitCollection: traitCollection.modifyingTraits {
-        $0.userInterfaceIdiom = .phone
-        $0.verticalSizeClass = .regular
-        $0.horizontalSizeClass = .compact
-      })
+    let metrics = ThemeThumbnailGeometry.metrics
     let ink = palette?.ink.uiColor ?? KeyboardTheme.textColor(for: traitCollection)
-    let keyFill = palette?.surface.uiColor.withAlphaComponent(palette?.tintOpacity ?? 0.55)
+    let keyFill = palette?.surface.uiColor.withAlphaComponent(
+      (palette?.tintOpacity ?? 0.55) * (1 - transparency))
       ?? UIColor.white.withAlphaComponent(0.65)
-    ("আমি                  বাংলা                  লিখি" as NSString).draw(
-      in: CGRect(x: 8, y: 8, width: width - 16, height: metrics.suggestionHeight - 8),
-      withAttributes: [.font: UIFont.systemFont(ofSize: 17),
-        .foregroundColor: KeyboardTheme.suggestionTextColor(for: traitCollection),
-        .paragraphStyle: paragraph])
     for (rowIndex, row) in rows.enumerated() {
       let frames = KeyboardLayoutGeometry.keyFrames(for: row,
         availableWidth: Double(width - 12), keySpacing: Double(metrics.keySpacing))
-      let y = metrics.suggestionHeight + metrics.keyboardInsets.top
+      let y = ThemeThumbnailGeometry.firstRowY
         + CGFloat(rowIndex) * (metrics.minimumKeyHeight + metrics.rowSpacing)
       for frame in frames where frame.key != .spacer {
         let keyRect = CGRect(x: frame.x + 6, y: Double(y), width: frame.width,
@@ -134,8 +153,8 @@ private final class ThemeThumbnailKeysView: UIView {
         keyFill.setFill()
         path.fill()
         if outlines {
-          ink.withAlphaComponent(0.25).setStroke()
-          path.lineWidth = 1
+          ink.withAlphaComponent(0.15 + borderStrength * 0.3).setStroke()
+          path.lineWidth = 0.5 + borderStrength
           path.stroke()
         }
         guard let label = label(for: frame.key) else { continue }

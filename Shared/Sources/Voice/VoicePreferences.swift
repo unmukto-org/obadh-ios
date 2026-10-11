@@ -17,7 +17,7 @@ struct VoicePreferences {
 
     /// Whether the keyboard shows the mic at the head of the suggestion strip.
     var micButtonEnabled: Bool {
-        get { defaults.object(forKey: Self.micButtonEnabledKey) as? Bool ?? true }
+        get { defaults.object(forKey: Self.micButtonEnabledKey) as? Bool ?? false }
         nonmutating set { defaults.set(newValue, forKey: Self.micButtonEnabledKey) }
     }
 

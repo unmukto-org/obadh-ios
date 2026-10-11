@@ -413,7 +413,16 @@ class KeyboardViewController: UIInputViewController {
         // Suggestions remain on native glass, continuous with the system-owned
         // band above the extension. Theme colors start at the key field.
         suggestionBar.themePalette = nil
-        if rebuild { reloadKeyboardRows() }
+        if rebuild {
+            reloadKeyboardRows()
+        } else if themePalette != nil {
+            for button in keyButtons {
+                button.updateThemeSurface(
+                    transparency: themeAppearance.keyTransparency,
+                    outlines: themeAppearance.keyOutlines,
+                    borderStrength: themeAppearance.keyBorderStrength)
+            }
+        }
         refreshKeyboard()
     }
 
@@ -1188,8 +1197,8 @@ class KeyboardViewController: UIInputViewController {
         // through the suggestion strip, then reveal artwork before the keys.
         let metrics = currentMetrics
         themeBackdrop.alignWithNativeSuggestionBand(
-            height: max(0, metrics.suggestionHeight - 5),
-            revealHeight: 5 + metrics.keyboardInsets.top)
+            height: metrics.suggestionHeight,
+            keyFieldTop: metrics.suggestionHeight + metrics.keyboardInsets.top)
         themeBackdrop.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(themeBackdrop)
         NSLayoutConstraint.activate([
@@ -1362,7 +1371,11 @@ class KeyboardViewController: UIInputViewController {
             let heightOfRow = rowHeight(atIndex: rowIndex, metrics: metrics)
 
             for (keyIndex, key) in row.keys.enumerated() {
-                let button = KeyboardKeyButton(key: key, themePalette: themePalette, keyOutlines: themeAppearance.keyOutlines)
+                let button = KeyboardKeyButton(
+                    key: key, themePalette: themePalette,
+                    keyOutlines: themeAppearance.keyOutlines,
+                    keyTransparency: themeAppearance.keyTransparency,
+                    keyBorderStrength: themeAppearance.keyBorderStrength)
                 button.secondarySymbol = KeyboardFieldLayout.secondary(for: key, field: layoutField)
                 button.onAccessibilityActivate = { [weak self] in
                     guard let self else { return }
@@ -2411,8 +2424,8 @@ class KeyboardViewController: UIInputViewController {
         let metrics = currentMetrics
         let insets = metrics.keyboardInsets
         themeBackdrop.alignWithNativeSuggestionBand(
-            height: max(0, metrics.suggestionHeight - 5),
-            revealHeight: 5 + insets.top)
+            height: metrics.suggestionHeight,
+            keyFieldTop: metrics.suggestionHeight + insets.top)
         updateKeyboardHeightConstraintIfReady()
         keyboardStack.spacing = metrics.rowSpacing
         keyboardStackLeadingConstraint?.constant = 0

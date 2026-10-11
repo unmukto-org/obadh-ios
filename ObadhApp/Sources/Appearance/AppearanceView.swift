@@ -109,7 +109,9 @@ struct AppearanceView: View {
                 ThemeCard(name: preset.name, selected: appearance.themeID == preset.id) {
                   ThemeThumbnail(appearance: .init(
                     themeID: preset.id, mode: appearance.mode,
-                    keyOutlines: appearance.keyOutlines))
+                    keyOutlines: appearance.keyOutlines,
+                    keyTransparency: appearance.keyTransparency,
+                    keyBorderStrength: appearance.keyBorderStrength))
                 }
               }.buttonStyle(.plain).accessibilityIdentifier("theme-" + preset.id)
                 .accessibilityAddTraits(appearance.themeID == preset.id ? .isSelected : [])
@@ -143,6 +145,9 @@ struct AppearanceView: View {
         if draft.existing == nil || appearance.photoID == record.id {
           var next = appearance
           next.themeID = record.themeID
+          next.keyTransparency = record.keyTransparency
+          next.keyOutlines = record.keyOutlines
+          next.keyBorderStrength = record.keyBorderStrength
           apply(next)
         }
       }
@@ -157,11 +162,20 @@ struct AppearanceView: View {
       Text(error ?? "")
     }
     .task {
+      await ThemePhotoLibrary.shared.migrateLegacyNames()
       await reloadPhotos()
       await ThemePhotoLibrary.shared.collect()
       if let group = KeyboardThemeCatalog.preset(appearance.themeID)?.group,
         let selected = ThemeCollection.allCases.first(where: { $0.group == group }) {
         collection = selected
+      }
+      if await ThemePhotoLibrary.shared.canSuggestName() {
+        for photo in photos {
+          guard !Task.isCancelled else { break }
+          if await ThemePhotoLibrary.shared.renameGeneratedPhoto(photo) {
+            await reloadPhotos()
+          }
+        }
       }
     }
     .onChange(of: pickerItem) { _, item in if let item { importPhoto(item) } }
@@ -270,10 +284,11 @@ private enum ThemeCollection: String, CaseIterable, Identifiable {
 private struct ThemeCard<Artwork: View>: View {
   let name: String
   let selected: Bool
+  var artworkAspectRatio: CGFloat = 414.0 / 280.0
   @ViewBuilder let artwork: () -> Artwork
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      artwork().aspectRatio(414.0 / 280.0, contentMode: .fit)
+      artwork().aspectRatio(artworkAspectRatio, contentMode: .fit)
         .overlay(alignment: .topTrailing) {
           if selected {
             Image(systemName: "checkmark.circle.fill")
@@ -307,9 +322,12 @@ private struct PhotoThemeCard: View {
   @State private var decodedRevision: UUID?
   var body: some View {
     Button(action: action) {
-      ThemeCard(name: photo.name, selected: selected) {
+      ThemeCard(
+        name: photo.name, selected: selected, artworkAspectRatio: ThemeThumbnail.aspectRatio
+      ) {
         ThemeThumbnail(appearance: .init(themeID: photo.themeID, mode: appearance.mode,
-          keyOutlines: appearance.keyOutlines, revision: photo.revision),
+          keyOutlines: photo.keyOutlines, keyTransparency: photo.keyTransparency,
+          keyBorderStrength: photo.keyBorderStrength, revision: photo.revision),
           photo: decodedRevision == photo.revision ? image : nil)
       }
     }.buttonStyle(.plain).accessibilityIdentifier("theme-" + photo.themeID)

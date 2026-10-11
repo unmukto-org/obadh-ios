@@ -34,6 +34,8 @@ struct ThemeDetailView: View {
   @Environment(\.dismiss) private var dismiss
   @State private var mode: KeyboardAppearance.Mode
   @State private var outlines: Bool
+  @State private var keyTransparency: Double
+  @State private var keyBorderStrength: Double
   @State private var image: CGImage?
   @State private var deleteConfirmation = false
   @State private var photoLoadFailed = false
@@ -50,10 +52,13 @@ struct ThemeDetailView: View {
     self.delete = delete
     self._error = error
     _mode = State(initialValue: appearance.mode)
-    _outlines = State(initialValue: appearance.keyOutlines)
+    _outlines = State(initialValue: selection.photo?.keyOutlines ?? appearance.keyOutlines)
+    _keyTransparency = State(initialValue: selection.photo?.keyTransparency ?? appearance.keyTransparency)
+    _keyBorderStrength = State(initialValue: selection.photo?.keyBorderStrength ?? appearance.keyBorderStrength)
   }
   private var proposed: KeyboardAppearance {
-    .init(themeID: selection.id, mode: mode, keyOutlines: outlines)
+    .init(themeID: selection.id, mode: mode, keyOutlines: outlines,
+      keyTransparency: keyTransparency, keyBorderStrength: keyBorderStrength)
   }
   var body: some View {
     NavigationStack {
@@ -83,9 +88,37 @@ struct ThemeDetailView: View {
                 .font(.footnote).foregroundStyle(.secondary)
             }
           }
-          Toggle("Key Outlines", isOn: $outlines)
-            .padding(16).background(.regularMaterial,
-              in: RoundedRectangle(cornerRadius: 18))
+          if selection.id == "system" {
+            Toggle("Key Outlines", isOn: $outlines)
+              .padding(16).background(.regularMaterial,
+                in: RoundedRectangle(cornerRadius: 18))
+          } else if selection.photo == nil {
+            VStack(alignment: .leading, spacing: 14) {
+              Text("Keys").font(.headline)
+              VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 6) {
+                  HStack {
+                    Text("Transparency")
+                    Spacer()
+                    Text("\(Int((keyTransparency / 0.85 * 100).rounded()))%")
+                      .foregroundStyle(.secondary).monospacedDigit()
+                  }
+                  Slider(value: $keyTransparency, in: 0...0.85)
+                    .accessibilityLabel("Key Transparency")
+                }
+                Toggle("Key Borders", isOn: $outlines)
+                if outlines {
+                  VStack(alignment: .leading, spacing: 6) {
+                    Text("Border Definition")
+                    Slider(value: $keyBorderStrength, in: 0...1)
+                      .accessibilityLabel("Border Definition")
+                  }
+                }
+              }
+              .padding(16).background(.regularMaterial,
+                in: RoundedRectangle(cornerRadius: 18))
+            }
+          }
           if selection.photo != nil {
             VStack(spacing: 0) {
               Button(action: edit) {

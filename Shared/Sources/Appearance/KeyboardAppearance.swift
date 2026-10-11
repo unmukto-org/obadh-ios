@@ -5,7 +5,33 @@ struct KeyboardAppearance: Codable, Equatable, Sendable {
   var themeID = "system"
   var mode: Mode = .automatic
   var keyOutlines = false
+  /// Fraction of the themed key surface that reveals the artwork beneath it.
+  var keyTransparency = 0.0
+  var keyBorderStrength = 0.5
   var revision: UUID?
+
+  init(themeID: String = "system", mode: Mode = .automatic, keyOutlines: Bool = false,
+    keyTransparency: Double = 0, keyBorderStrength: Double = 0.5, revision: UUID? = nil) {
+    self.themeID = themeID
+    self.mode = mode
+    self.keyOutlines = keyOutlines
+    self.keyTransparency = keyTransparency
+    self.keyBorderStrength = keyBorderStrength
+    self.revision = revision
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case themeID, mode, keyOutlines, keyTransparency, keyBorderStrength, revision
+  }
+  init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    themeID = try values.decode(String.self, forKey: .themeID)
+    mode = try values.decode(Mode.self, forKey: .mode)
+    keyOutlines = try values.decode(Bool.self, forKey: .keyOutlines)
+    keyTransparency = try values.decodeIfPresent(Double.self, forKey: .keyTransparency) ?? 0
+    keyBorderStrength = try values.decodeIfPresent(Double.self, forKey: .keyBorderStrength) ?? 0.5
+    revision = try values.decodeIfPresent(UUID.self, forKey: .revision)
+  }
 
   var photoID: UUID? {
     guard themeID.hasPrefix("photo.") else { return nil }
@@ -13,7 +39,9 @@ struct KeyboardAppearance: Codable, Equatable, Sendable {
   }
   var isSystem: Bool { themeID == "system" }
   var isRecognized: Bool {
-    isSystem || photoID != nil || KeyboardThemeCatalog.preset(themeID) != nil
+    keyTransparency.isFinite && (0...0.85).contains(keyTransparency)
+      && keyBorderStrength.isFinite && (0...1).contains(keyBorderStrength)
+      && (isSystem || photoID != nil || KeyboardThemeCatalog.preset(themeID) != nil)
   }
 }
 
