@@ -18,4 +18,6 @@ else
   echo "Install Xcode, run sudo xcode-select -s /Applications/Xcode.app, then rerun this script." >&2
 fi
 
+"$ROOT_DIR/scripts/fetch-sherpa-onnx.sh"
+
 xcodegen generate --spec "$ROOT_DIR/project.yml"

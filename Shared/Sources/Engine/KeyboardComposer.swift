@@ -31,6 +31,39 @@ final class KeyboardComposer {
     private(set) var autocorrectTarget: String?
     private(set) var exactLoanwordTarget: String?
     private var correctionsResolved = false
+    private var literalInput = false
+    private var allowsEmoticons = false
+    private var singleQuotePreview: String?
+
+    /// The controller grants eligibility only at a visible token boundary in a
+    /// prose field. Keep this separate from statistical spelling correction.
+    func beginInput(literal: Bool, allowsEmoticons: Bool, singleQuotePreview: String? = nil) {
+        guard !hasActiveInput else { return }
+        literalInput = literal
+        self.allowsEmoticons = allowsEmoticons
+        self.singleQuotePreview = singleQuotePreview
+    }
+
+    func canAppendEmoticon(_ keys: String) -> Bool {
+        let canonical = EmoticonRules.canonicalKeys(keys)
+        // A Bangla numeral starting a token is numeric input, not an ASCII face.
+        // Numerals may still finish an already-started face, such as <৩ or :৩.
+        guard hasActiveInput || keys == canonical else { return false }
+        return allowsEmoticons && EmoticonRules.isPrefix(romanBuffer + canonical)
+    }
+
+    /// A lone x/o/T/B remains normal phonetic input until the face's syntax is
+    /// established. This preserves words and colon-based bisarga spelling.
+    var isEmoticonInput: Bool {
+        allowsEmoticons && EmoticonRules.isPrefix(romanBuffer)
+            && (romanBuffer.contains { !$0.isLetter && !$0.isNumber } || EmoticonRules.aliases[romanBuffer] != nil)
+    }
+
+    var emoticonEmoji: String? {
+        allowsEmoticons ? EmoticonRules.aliases[romanBuffer] : nil
+    }
+
+    var isLiteralInput: Bool { literalInput }
 
     init(
         engine: BanglaTypingEngine,
@@ -85,6 +118,10 @@ final class KeyboardComposer {
     }
 
     var activeSuggestions: [KeyboardSuggestion] {
+        if let emoji = emoticonEmoji {
+            return [KeyboardSuggestion(text: emoji, source: .autocorrect),
+                    KeyboardSuggestion(text: preview, source: .deterministic)]
+        }
         guard let exactLoanwordTarget else { return compositionSuggestions }
         return Self.mergeSuggestions(
             primary: [KeyboardSuggestion(text: exactLoanwordTarget, source: .autocorrect)]
@@ -97,13 +134,13 @@ final class KeyboardComposer {
     /// Exact loanwords always offer the literal as a quoted second choice, even
     /// when that literal also happens to be a dictionary word.
     func quotedLiteral(isOutOfVocabulary: Bool) -> String? {
-        exactLoanwordTarget != nil || isOutOfVocabulary ? preview : nil
+        emoticonEmoji != nil || exactLoanwordTarget != nil || isOutOfVocabulary ? preview : nil
     }
 
     /// What committing right now (space, return, punctuation) should insert: the
     /// auto-insert correction when one is active, otherwise the shown deterministic word.
     var commitText: String {
-        exactLoanwordTarget ?? autocorrectTarget ?? preview
+        emoticonEmoji ?? exactLoanwordTarget ?? autocorrectTarget ?? preview
     }
 
     /// Exact English loanwords are default transliterations regardless of the
@@ -120,6 +157,7 @@ final class KeyboardComposer {
         exactLoanwordTarget = nil
         correctionsResolved = true
         guard hasActiveInput else { return }
+        guard !isEmoticonInput, !literalInput else { return }
         guard let shown = compositionSuggestions.first, shown.source == .deterministic else { return }
         if let loanword = detailedCorrections.first(where: {
             $0.source == DetailedCorrection.Source.englishLoanwordExact
@@ -194,12 +232,12 @@ final class KeyboardComposer {
         return true
     }
 
-    func commitActiveInput() -> String? {
+    func commitActiveInput(allowCorrections: Bool = true, replaceEmoticon: Bool = true) -> String? {
         guard hasActiveInput else { return nil }
         // A rapid delimiter can beat the asynchronous ribbon query. Resolve once
         // at that boundary so exact loanwords do not depend on typing speed. This
         // never puts a full correction query on each letter's preview path.
-        if !correctionsResolved {
+        if allowCorrections && !correctionsResolved && !isEmoticonInput && !literalInput {
             resolveAutocorrectTarget(
                 autoInsertEnabled: false,
                 baselineFrequency: 0,
@@ -207,7 +245,12 @@ final class KeyboardComposer {
                 isProtectedWord: { _ in false }
             )
         }
-        let committed = commitText
+        let committed: String
+        if isEmoticonInput || literalInput {
+            committed = replaceEmoticon ? (emoticonEmoji ?? preview) : preview
+        } else {
+            committed = allowCorrections ? commitText : preview
+        }
         romanBuffer.removeAll(keepingCapacity: true)
         compositionSuggestions.removeAll(keepingCapacity: true)
         emojiSuggestions.removeAll(keepingCapacity: true)
@@ -245,7 +288,12 @@ final class KeyboardComposer {
             return
         }
 
-        let deterministic = engine.transliterate(engineInput)
+        let deterministic: String
+        if allowsEmoticons, romanBuffer == "'", let singleQuotePreview {
+            deterministic = singleQuotePreview
+        } else {
+            deterministic = literalInput || isEmoticonInput ? romanBuffer : engine.transliterate(engineInput)
+        }
         if deterministic.isEmpty {
             compositionSuggestions.removeAll(keepingCapacity: true)
             emojiSuggestions.removeAll(keepingCapacity: true)
@@ -254,7 +302,7 @@ final class KeyboardComposer {
             // Exact-match emoji for the composed word — high confidence only, so
             // they appear just as a full known word is completed. Cheap binary
             // search, safe on the keystroke path.
-            emojiSuggestions = emojiSuggester?.emojis(for: deterministic) ?? []
+            emojiSuggestions = isEmoticonInput || literalInput ? [] : (emojiSuggester?.emojis(for: deterministic) ?? [])
         }
     }
 
@@ -262,7 +310,7 @@ final class KeyboardComposer {
     /// deterministic preview. Ignored if the buffer changed since the fetch was
     /// requested (generation mismatch).
     func mergeAutocorrectCandidates(_ candidates: [String], generation: Int) {
-        guard generation == self.generation, hasActiveInput else { return }
+        guard generation == self.generation, hasActiveInput, !isEmoticonInput, !literalInput else { return }
 
         var merged: [KeyboardSuggestion] = []
         merged.reserveCapacity(compositionSuggestionLimit)

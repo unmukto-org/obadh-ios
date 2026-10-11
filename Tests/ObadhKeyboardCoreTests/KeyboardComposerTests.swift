@@ -4,6 +4,43 @@ import XCTest
 
 @MainActor
 final class KeyboardComposerTests: XCTestCase {
+    func testAllExactEmoticonsHaveLiteralPreviewsAndSeparateAutomaticCommits() {
+        let composer = KeyboardComposer(engine: FixtureEngine())
+        XCTAssertEqual(EmoticonRules.aliases.count, 322)
+        for (alias, emoji) in EmoticonRules.aliases {
+            composer.beginInput(literal: false, allowsEmoticons: true)
+            for key in alias {
+                XCTAssertTrue(composer.canAppendEmoticon(String(key)), alias)
+                composer.append(String(key))
+            }
+            XCTAssertEqual(composer.preview, alias)
+            XCTAssertEqual(composer.activeSuggestions.map(\.text), [emoji, alias])
+            XCTAssertEqual(composer.quotedLiteral(isOutOfVocabulary: false), alias)
+            XCTAssertEqual(composer.commitActiveInput(allowCorrections: false), emoji)
+        }
+    }
+
+    func testEmoticonsCanBeKeptLiteralAndIncompletePrefixesNeverGuess() {
+        let composer = KeyboardComposer(engine: FixtureEngine())
+        for alias in [":)", ":D", "<3"] {
+            composer.beginInput(literal: true, allowsEmoticons: true)
+            composer.append(alias)
+            XCTAssertEqual(composer.commitActiveInput(replaceEmoticon: false), alias)
+        }
+        for prefix in [":", ":--", "hi:)", ":):)", "http://a"] {
+            composer.beginInput(literal: true, allowsEmoticons: true)
+            composer.append(prefix)
+            XCTAssertNil(composer.emoticonEmoji)
+            XCTAssertEqual(composer.commitActiveInput(), prefix)
+        }
+        composer.beginInput(literal: false, allowsEmoticons: true)
+        XCTAssertFalse(composer.canAppendEmoticon("৮"))
+        composer.append("<")
+        XCTAssertTrue(composer.canAppendEmoticon("৩"))
+        composer.append(EmoticonRules.canonicalKeys("৩"))
+        XCTAssertEqual(composer.commitActiveInput(), "❤️")
+    }
+
     func testActiveInputRendersAsTextAndCommitsOnce() {
         let composer = KeyboardComposer(engine: FixtureEngine())
         let document = FakeCompositionDocument()
@@ -245,6 +282,25 @@ private struct FixtureEngine: BanglaTypingEngine {
 }
 
 extension KeyboardComposerTests {
+    func testHostCorrectionOptOutOverridesAnAlreadyResolvedLoanword() {
+        let composer = composerWithCorrection()
+        let literal = composer.preview
+        composer.resolveAutocorrectTarget(autoInsertEnabled: true, baselineFrequency: 0,
+            detailedCorrections: [DetailedCorrection(text: "ঋণশব্দ", source: 9,
+                editCost: 0, romanRepairCost: 0, frequency: 100)], isProtectedWord: { _ in false })
+        XCTAssertNotEqual(composer.commitText, literal)
+        XCTAssertEqual(composer.commitActiveInput(allowCorrections: false), literal)
+        XCTAssertFalse(composer.hasActiveInput)
+    }
+
+    func testHostCorrectionOptOutNeverRunsTheRapidCommitFallbackQuery() {
+        let engine = CountingFieldEngine()
+        let composer = KeyboardComposer(engine: engine)
+        composer.append("word")
+        XCTAssertEqual(composer.commitActiveInput(allowCorrections: false), "শব্দ")
+        XCTAssertEqual(engine.queries, 0)
+    }
+
     /// A colon typed mid-word stays in the roman buffer and reaches the engine, so
     /// bisarga renders. The keyboard routes it here rather than through the literal
     /// symbol path, which would commit the word first.
@@ -383,6 +439,17 @@ extension KeyboardComposerTests {
         composer.append("x")
         XCTAssertNil(composer.autocorrectTarget)
     }
+}
+
+private final class CountingFieldEngine: BanglaTypingEngine {
+    var queries = 0
+    func transliterate(_ input: String) -> String { "শব্দ" }
+    func detailedCorrections(for romanInput: String, limit: Int) -> [DetailedCorrection] {
+        queries += 1
+        return [DetailedCorrection(text: "ঋণশব্দ", source: 9, editCost: 0, romanRepairCost: 0, frequency: 100)]
+    }
+    func compositionSuggestions(for romanInput: String, limit: Int) -> [String] { [] }
+    func autosuggestSuggestions(for context: String, limit: Int) -> [String] { [] }
 }
 
 /// Bisarga is typed as a colon inside a word: `du` `:` `kho` is দুঃখ. The colon

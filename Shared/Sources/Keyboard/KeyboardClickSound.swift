@@ -11,7 +11,7 @@ enum KeyboardClickSound: Equatable {
             self = .delete
         case .space, .returnKey, .shift, .modeSwitch, .emoji:
             self = .modifier
-        case .character, .symbol, .globe, .tab, .capsLock, .hideKeyboard:
+        case .character, .symbol, .globe, .tab, .capsLock, .hideKeyboard, .spacer:
             // Keep the previous click on keys not covered by the phone comparison.
             self = .input
         }

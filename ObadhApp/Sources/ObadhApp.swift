@@ -40,6 +40,22 @@ final class ObadhAppDelegate: UIResponder, UIApplicationDelegate {
         configuration.delegateClass = ObadhSceneDelegate.self
         return configuration
     }
+
+    /// iOS relaunched us to deliver finished model downloads.
+    func application(
+        _ application: UIApplication,
+        handleEventsForBackgroundURLSession identifier: String,
+        completionHandler: @escaping () -> Void
+    ) {
+        guard identifier == VoiceModelDownloader.sessionIdentifier else {
+            completionHandler()
+            return
+        }
+        MainActor.assumeIsolated {
+            let downloader = VoiceModelLibrary.shared.downloader
+            downloader.backgroundCompletionHandler = completionHandler
+        }
+    }
 }
 
 final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
@@ -56,6 +72,15 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.rootViewController = makeRootViewController()
         window.makeKeyAndVisible()
         self.window = window
+
+        #if DEBUG
+        VoiceSelfTest.runIfRequested()
+        #endif
+
+        // Cold launch from the keyboard's mic: the URL arrives with the connection.
+        if let url = connectionOptions.urlContexts.first?.url {
+            handle(url)
+        }
 
         #if DEBUG
         // Fires a settings URL without a tap, so where iOS actually lands can be
@@ -90,6 +115,71 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
         #endif
     }
 
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        guard let url = URLContexts.first?.url else { return }
+        handle(url)
+    }
+
+    /// Returning to the app some other way (the icon, the switcher) after the voice
+    /// screen did its job shows the normal app, not a stale voice screen.
+    ///
+    /// A screen presented for this very trip is never stale: a cold launch presents it
+    /// in `willConnectTo` and only then enters the foreground, while its dictation is
+    /// still starting, and a warm launch may deliver the URL before this callback.
+    func sceneWillEnterForeground(_ scene: UIScene) {
+        guard voiceScreen != nil, !voiceScreenIsCurrent,
+              VoiceSessionController.shared.phase == .idle,
+              VoiceSessionController.shared.transcript.text.isEmpty else { return }
+        // Not animated: the app is not on screen yet, and a new voice screen may be
+        // presented right after this.
+        dismissVoiceScreen(animated: false)
+    }
+
+    func sceneDidEnterBackground(_ scene: UIScene) {
+        voiceScreenIsCurrent = false
+    }
+
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        // A failed/undelivered final survives process death. Opening Obadh from
+        // its icon must make that recovery copy reachable, not hide it at home.
+        let session = VoiceSessionController.shared
+        session.refreshAcknowledgement()
+        if session.phase == .idle, !session.transcript.text.isEmpty {
+            presentVoiceScreen()
+        }
+    }
+
+    private weak var voiceScreen: UIViewController?
+    /// The voice screen was opened by the keyboard's mic since the app last left the
+    /// foreground.
+    private var voiceScreenIsCurrent = false
+
+    private func handle(_ url: URL) {
+        guard url.scheme == VoiceSessionChannel.urlScheme, url.host == VoiceSessionChannel.urlHost else { return }
+        presentVoiceScreen()
+        voiceScreenIsCurrent = true
+        VoiceSessionController.shared.handleVoiceURL(url)
+    }
+
+    private func presentVoiceScreen() {
+        guard voiceScreen == nil, let root = window?.rootViewController else { return }
+        let screen = UIHostingController(rootView: VoiceSessionScreen(
+            session: .shared,
+            models: .shared,
+            onClose: { [weak self] in self?.dismissVoiceScreen() }
+        ))
+        screen.modalPresentationStyle = .fullScreen
+        var top = root
+        while let presented = top.presentedViewController { top = presented }
+        top.present(screen, animated: false)
+        voiceScreen = screen
+    }
+
+    private func dismissVoiceScreen(animated: Bool = true) {
+        voiceScreen?.dismiss(animated: animated)
+        voiceScreen = nil
+    }
+
     private func makeRootViewController() -> UIViewController {
         // Measurement and test harnesses reachable only by launch argument, and only
         // in Debug. Release has no text input anywhere in the app.
@@ -100,6 +190,9 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
             return KeyboardGeometryProbeViewController()
         }
 
+        if arguments.contains("--keyboard-field-test") {
+            return OrientationPinningNavigationController(rootViewController: KeyboardFieldTestViewController())
+        }
         if arguments.contains("--keyboard-test") {
             return OrientationPinningNavigationController(rootViewController: KeyboardTestViewController())
         }
@@ -108,13 +201,18 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
         // review: `--screen=about`.
         let screenPrefix = "--screen="
         if let argument = arguments.first(where: { $0.hasPrefix(screenPrefix) }) {
-            switch argument.dropFirst(screenPrefix.count) {
+            let screen = argument.dropFirst(screenPrefix.count)
+            switch screen {
             case "settings":
                 return UIHostingController(rootView: SettingsView(install: KeyboardInstallStateReader().read()))
             case "about":
                 return UIHostingController(rootView: NavigationStack { AboutView() })
             case "privacy":
                 return UIHostingController(rootView: NavigationStack { PrivacyView() })
+            case "voice-settings":
+                return UIHostingController(rootView: NavigationStack { VoiceSettingsView() })
+            case "voice-session":
+                return UIHostingController(rootView: VoiceSessionScreen(session: .shared, models: .shared, onClose: {}))
             default:
                 break
             }

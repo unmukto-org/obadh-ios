@@ -6,7 +6,125 @@ Current limitations and verification requirements live in [KNOWN-ISSUES.md](KNOW
 
 ## Unreleased
 
-No changes after the v1.0.1 release preparation yet.
+### 2026-10-09 — Theme names
+
+- Gave every one of the 71 shared presets a distinct name tied to its colors,
+  such as Rosewater Horizon, Honey Lavender, Violet Supernova and Ember Nebula.
+  Android remains the source catalog, and iOS imports its names verbatim.
+  Theme IDs, colors, groups and saved selections are unchanged.
+- Display the complete name above the iOS theme preview, where the navigation
+  title could truncate longer names.
+- Verified 201 iOS core tests, two iPhone 11 simulator picker/preview flows,
+  catalog regeneration, and Android `:keyboard:compileDebugKotlin`.
+- Installed and launched signed Release **1.0.1 (200)**, engine **0.9.5**,
+  source `cac090ca`, on iPhone 16 Pro Max / iOS 27.0.1. Device readback
+  confirms build 200 and both signed bundles have matching source stamps.
+
+### 2026-10-09 — Native keyboard themes
+
+- Added Appearance with all 71 Android reference presets, including five
+  bilinear multicolor gradients, and multiple saved photo themes. System
+  remains the default and keeps the existing keyboard rendering, geometry,
+  host appearance hints and colors. Light/Dark and outlines are opt-in.
+- Theme artwork sits below native Liquid Glass keys and the existing glass
+  container on iOS 26+. Opaque accessibility/older-system fallback, readable
+  suggestion ink, contrast checks and the unchanged native emoji panel protect
+  legibility. The app uses native navigation, Forms, sheets and toolbars.
+- Corrected distorted catalog thumbnails: cards now capture the same production
+  keyboard preview at its actual aspect ratio, including key shapes, legends,
+  glass, gradients, outlines and photo crop. A memory-pressure-evictable snapshot
+  cache releases live effects after rendering and includes photo revisions and
+  accessibility traits; off-screen cards release their images. The whole card
+  remains tappable. Photo edits cannot cache the previous revision's image.
+- Only Add Photo Theme opens Apple's Photos picker; no broad library permission
+  request or asset enumeration is used. Editing uses the saved local copy.
+  Import supports cancellable iCloud loading, bounded oriented JPEG copies,
+  source metadata removal, drag/pinch crop, accessible position/zoom/brightness
+  controls, naming, preview and native deletion confirmation.
+- The app serializes photo writes, publishes immutable image revisions before
+  an atomic manifest, preserves the current theme on failures, and deletes all
+  local revisions when removing a theme. The keyboard reads only the selected
+  bounded render off the typing thread, rejects stale loads, retries unavailable
+  images on presentation, and releases photo content while inactive.
+- Appearance changes preserve composition. Palette state belongs to each view;
+  production theme notifications use cancellable weak subscriptions. Existing
+  System keys are reused, and a background-only update avoids a row rebuild.
+- Verification: 201 SwiftPM tests, 103 UIKit lifecycle/field tests, image
+  orientation/privacy tests, and real iPhone 11 / iOS 26.5 simulator UI flows
+  passed. UI coverage includes color/mesh/photo keyboards with actual typing,
+  preview/cancel/apply, persistence, System restoration, native Photos picker
+  cancellation, crop/brightness, edit and deletion. Final loader and appearance
+  changes received targeted reruns. Physical iPhone 11/A13 performance and
+  memory-pressure acceptance remain separate from simulator validation.
+- Thumbnail follow-up passed native snapshot/revision/cache-release tests and
+  three iPhone 11 simulator UI flows. Solid, linear-gradient, mesh and photo
+  cards were visually compared with their full previews; native picker,
+  photo edit/delete, selection persistence and System restoration also passed.
+- Installed signed Release **1.0.1 (198)**, engine **0.9.5**, source
+  `80c44d06`, on iPhone 16 Pro Max / iOS 27.0.1 on October 9. Device readback
+  confirms build 198; app/extension stamps match and signatures verify.
+  Automatic launch was blocked by the locked phone. Compact local evidence is
+  under `build/theme-thumbnail-verification-2026-10-09/`.
+- Reference provenance, regeneration and storage behavior are documented in
+  [Tools/Themes/README.md](Tools/Themes/README.md).
+
+
+### 2026-10-09 — Engine 0.9.5 and automatic emoticons
+
+- Updated the Rust engine to 0.9.5, rebuilt all device/simulator bridge slices,
+  and bundled its release-matched loanword dictionary. Integration tests pin
+  the engine version, ABI, dictionary SHA256 and existing model fingerprints.
+- Prose fields now offer an emoji and the quoted exact typed emoticon before
+  committing. Both `:)` and `:-)` map to 😃. Space, Return and sentence
+  punctuation choose the emoji; tapping the literal keeps it. Immediate
+  Backspace after Space/punctuation restores the literal without repeating
+  conversion. All 322 engine aliases have a pinned, reproducible prefix index.
+- Preserve bisarga spelling, ordinary smart quotes and Bangla numeral input.
+  Email, URL, code, private, name, secure, numeric and correction-disabled
+  fields do not convert. Faces bypass personal word learning; Bangla word
+  emoji suggestions remain explicit choices.
+- Corrected a Unicode composition rewrite that reused an index from another
+  string and could crash when a Bangla digit became an ASCII face. Rewrites
+  now compare exact scalar prefixes and use indices belonging to their string.
+  Suggestion controls expose selectable choices to accessibility activation.
+- Verification: 195 SwiftPM tests, 99 real-controller UIKit tests and 23
+  real-engine tests passed. A final 27-test field suite covers punctuation
+  undo, and the real iPhone 11 simulator UI verifies both smile spellings,
+  both suggestion choices, automatic replacement and undo.
+- Installed and launched signed Release **1.0.1 (195)**, engine **0.9.5**,
+  source `c96c85d0`, on the owner's iPhone 16 Pro Max / iOS 27.0.1 (24A446).
+  App and keyboard extension have matching version/source metadata; strict
+  signature verification passed and debug tooling is absent. CoreDevice
+  readback confirms the installed build. Simulator success and installation
+  do not establish iPhone 11/A13 hardware acceptance.
+
+### 2026-10-09 — Input-field context
+
+- Integrated shared field policy and a public UIKit traits adapter with the
+  production keyboard. Added email/URL/search/social shortcuts, literal Latin
+  input and numeric/decimal pads while retaining Bangla prose composition.
+- Honor host correction, spelling, smart punctuation, spacing, capitalization,
+  Return availability and appearance hints. Credentials, identifiers and names
+  have explicit assistance/learning restrictions.
+- Focus changes preserve existing text and cancel stale touches, held Delete,
+  suggestion work and composition ownership. Dictation records its destination
+  document so a delayed result cannot enter a different identified field.
+- Added pure policy/layout tests, real-controller tests and a real field-service
+  harness. Single-line Return submission still differs from native on the tested
+  iOS 26.5 simulator; its strict expected-failure test and native reference keep
+  that acceptance gate visible in [KI-005](KNOWN-ISSUES.md#ki-005). Physical
+  iPhone 11-family qualification remains pending. Device installation is recorded
+  below; no App Store release is claimed by this entry.
+- Verification: 192 SwiftPM and 90 UIKit tests passed. Three real field-service
+  UI tests completed with one explicitly expected single-line Return failure;
+  email/URL/numeric typing, an unfinished word across focus changes, Latin case,
+  correction-disabled Bangla and multiline Return passed. The Release simulator
+  build passed and contains neither the field harness nor its debug logging.
+- Installed and launched signed Release **1.0.1 (193)**, source `94242178`, on the
+  owner's iPhone 16 Pro Max running iOS 27.0.1 (24A446). App and keyboard extension
+  report the same version/source; strict signature verification passed, and the
+  field-test harness/logging is absent from the device binaries. Installation
+  does not establish field-behavior acceptance or iPhone 11/A13 performance.
 
 ## v1.0.1 — 2026-09-25 (uploaded for release)
 

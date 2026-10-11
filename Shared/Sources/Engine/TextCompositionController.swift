@@ -78,7 +78,13 @@ final class TextCompositionController {
         // words like "বানহবাংলা". Scalars decrease monotonically however the host chunks
         // a delete, so we delete until the document's scalar length reaches where the
         // shared (grapheme-aligned) prefix ends.
-        let keep = current.commonPrefix(with: text)
+        // Foundation commonPrefix uses linguistic comparison (e.g. a curly
+        // quote can match a straight one). Ownership requires exact scalars, and
+        // String.Index from the returned prefix is not an index into `text`.
+        let keepCount = zip(current, text).prefix {
+            $0.0.unicodeScalars.elementsEqual($0.1.unicodeScalars)
+        }.count
+        let keep = String(current.prefix(keepCount))
         let removeScalars = current.unicodeScalars.count - keep.unicodeScalars.count
         let targetScalars = context.unicodeScalars.count - removeScalars
         var budget = removeScalars + 8   // guard against a host that never shrinks
@@ -86,7 +92,7 @@ final class TextCompositionController {
             document.deleteBackward()
             budget -= 1
         }
-        let insertion = String(text[keep.endIndex...])
+        let insertion = String(text.dropFirst(keepCount))
         if !insertion.isEmpty {
             document.insertText(insertion)
         }
@@ -118,13 +124,13 @@ final class TextCompositionController {
         composedText = ""
     }
 
-    func commitNextWordSuggestion(_ text: String, in document: TextDocumentEditing) {
+    func commitNextWordSuggestion(_ text: String, insertingSpaces: Bool = true, in document: TextDocumentEditing) {
         guard !text.isEmpty else { return }
-        if let previous = document.contextBeforeInput?.last, !previous.isWhitespace {
+        if insertingSpaces, let previous = document.contextBeforeInput?.last, !previous.isWhitespace {
             document.insertText(" ")
         }
         document.insertText(text)
-        document.insertText(" ")
+        if insertingSpaces { document.insertText(" ") }
     }
 
     /// Insert a literal space. The space key is explicit user intent: native inserts

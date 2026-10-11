@@ -25,6 +25,16 @@
 				<string>1C8F.1</string>
 			</array>
 		</dict>
+		<!-- File metadata: own-container/App Group voice and theme files (C617.1); size checks on the photo explicitly shared by the user through the system picker (3B52.1). -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+				<string>3B52.1</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

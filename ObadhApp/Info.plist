@@ -18,12 +18,25 @@
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>org.unmukto.obadh.voice</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>obadh</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Obadh listens only while you dictate from the Obadh keyboard. Speech is recognized on this iPhone and never leaves it.</string>
 	<key>OBADHAppGroup</key>
 	<string>$(OBADH_APP_GROUP)</string>
 	<key>OBADHBuildTime</key>

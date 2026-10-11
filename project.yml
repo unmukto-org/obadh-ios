@@ -20,6 +20,21 @@ settings:
     # or a project-level value would override the xcconfig.
     GENERATE_INFOPLIST_FILE: NO
 targets:
+  ObadhVoiceTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/ObadhVoiceTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(OBADH_APP_BUNDLE_ID).voicetests
+        GENERATE_INFOPLIST_FILE: YES
+    configFiles:
+      Debug: Config/Signing.xcconfig
+      Debug-Legacy: Config/Signing.xcconfig
+      Release: Config/Signing.xcconfig
+    dependencies:
+      - target: Obadh
   ObadhAccuracyLabUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -42,6 +57,7 @@ targets:
     sources:
       - path: Tools/TypingAccuracy/App
       - path: Tools/TypingAccuracy/Core
+      - path: Shared/Sources/Appearance
       - path: Shared/Sources/Design
       - path: Shared/Sources/Keyboard
       - path: Shared/Sources/Engine
@@ -70,8 +86,18 @@ targets:
     platform: iOS
     sources:
       - path: ObadhApp/Sources
+      - path: Shared/Sources/Appearance
+      - path: Shared/Sources/Design
+      - path: Shared/Sources/Keyboard/KeyboardKeyButton.swift
+      - path: Shared/Sources/Keyboard/KeyboardLayout.swift
+      - path: Shared/Sources/Keyboard/KeyboardFieldPolicy.swift
+      - path: Shared/Sources/Keyboard/KeyboardFieldLayout.swift
+      - path: Shared/Sources/Keyboard/KeyboardLayoutGeometry.swift
       - path: ObadhApp/Resources/Assets.xcassets
       - path: ObadhApp/Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      # Voice typing's model catalog: what can be downloaded, pinned by revision + hash.
+      - path: ObadhApp/Resources/VoiceModelCatalog.json
         buildPhase: resources
       # Empty on purpose: it exists so the app has an entry in Settings at all, which
       # is what openSettingsURLString needs in order to land anywhere but the root.
@@ -85,6 +111,11 @@ targets:
       - path: Shared/Sources/Settings/LearnedWordStore.swift
       - path: Shared/Sources/Settings/AppBuildInfo.swift
       - path: Shared/Sources/Engine/PersonalAutosuggestStore.swift
+      - path: Shared/Sources/Engine/TextCompositionController.swift
+      - path: Shared/Sources/Voice
+      - path: Shared/Sources/VoiceUI
+      - path: Shared/Sources/VoiceGlow
+      - path: Shared/Sources/VoiceModels
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(OBADH_APP_BUNDLE_ID)
@@ -102,6 +133,9 @@ targets:
     dependencies:
       - framework: Frameworks/ObadhBridge.xcframework
         embed: false
+      # Voice typing's recognizers (scripts/fetch-sherpa-onnx.sh). App only.
+      - framework: Frameworks/SherpaOnnxC.xcframework
+        embed: true
       - target: ObadhKeyboard
         embed: true
   ObadhKeyboard:
@@ -109,9 +143,11 @@ targets:
     platform: iOS
     sources:
       - path: ObadhKeyboard/Sources
+      - path: Shared/Sources/Appearance
       - path: Shared/Sources/Design
       - path: Shared/Sources/Engine
       - path: Shared/Sources/Keyboard
+      - path: Shared/Sources/Voice
       - path: Shared/Sources/Settings/KeyboardPreferences.swift
       - path: Shared/Sources/Settings/ObadhIdentity.swift
       - path: Shared/Sources/Settings/KeyboardSizingLog.swift
@@ -146,6 +182,7 @@ targets:
       - path: Shared/Sources/Engine/ObadhBridgeClient.swift
       - path: Shared/Sources/Engine/BanglaTypingEngine.swift
       - path: Shared/Sources/Engine/AutoInsertGate.swift
+      - path: Shared/Sources/Engine/EmoticonRules.swift
       # The shipped artifacts, so the tests run against real data (folder ref so
       # the ObadhModels/... subpaths resolve like they do in the keyboard).
       - path: Resources/ObadhModels
@@ -164,9 +201,11 @@ targets:
     sources:
       - path: Tests/ObadhKeyboardLifecycleTests
       - path: ObadhKeyboard/Sources
+      - path: Shared/Sources/Appearance
       - path: Shared/Sources/Design
       - path: Shared/Sources/Engine
       - path: Shared/Sources/Keyboard
+      - path: Shared/Sources/Voice
       - path: Shared/Sources/Settings/KeyboardPreferences.swift
       - path: Shared/Sources/Settings/ObadhIdentity.swift
       - path: Shared/Sources/Settings/KeyboardSizingLog.swift
@@ -204,6 +243,15 @@ targets:
     dependencies:
       - target: Obadh
 schemes:
+  ObadhVoiceTests:
+    build:
+      targets:
+        Obadh: all
+        ObadhVoiceTests: all
+    test:
+      config: Debug
+      targets:
+        - ObadhVoiceTests
   ObadhAccuracyLab:
     build:
       targets:

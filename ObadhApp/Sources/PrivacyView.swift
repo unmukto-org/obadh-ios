@@ -15,12 +15,16 @@ struct PrivacyView: View {
                     "Transliteration, autocorrect, suggestions and emoji search all run inside the keyboard. The keyboard has no network access, so nothing you type can leave your device."
                 )
                 paragraph(
+                    "Voice typing",
+                    "Speech is recognized by models running on this iPhone. Audio is never recorded to storage or sent anywhere; each phrase is held in memory only until it is transcribed. The text passes from the app to the keyboard through Obadh's own container and is deleted once it reaches your text field. The one-time model download from Hugging Face is the only network request Obadh makes, and it carries nothing about you."
+                )
+                paragraph(
                     "What Obadh remembers",
                     "The emoji you use most recently, and the words you type — kept so suggestions improve as you write. Both are stored in Obadh's own container on this device."
                 )
                 paragraph(
                     "Full Access",
-                    "iOS requires it before a keyboard may play typing sounds and haptics or read the settings you choose in this app. Obadh uses it for nothing else. Granting it does not send anything anywhere."
+                    "iOS requires it before a keyboard may play typing sounds and haptics, read the settings you choose in this app, or open this app to start voice typing and receive the dictated text. Obadh uses it for nothing else. Granting it does not send anything anywhere."
                 )
             }
 

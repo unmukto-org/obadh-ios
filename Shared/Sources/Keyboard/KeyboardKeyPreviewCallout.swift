@@ -15,12 +15,12 @@ final class KeyboardKeyPreviewCallout: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func update(text: String, metrics: KeyboardMetrics, traitCollection: UITraitCollection) {
+    func update(text: String, metrics: KeyboardMetrics, traitCollection: UITraitCollection, themePalette: KeyboardThemePalette? = nil) {
         self.metrics = metrics
         label.text = text
         label.font = .systemFont(ofSize: metrics.keyPreviewFontSize, weight: .regular)
-        label.textColor = KeyboardTheme.textColor(for: traitCollection)
-        shapeLayer.fillColor = KeyboardTheme.keyPreviewColor(for: traitCollection).cgColor
+        label.textColor = themePalette?.ink.uiColor ?? KeyboardTheme.textColor(for: traitCollection)
+        shapeLayer.fillColor = (themePalette?.opaqueKey.uiColor ?? KeyboardTheme.keyPreviewColor(for: traitCollection)).cgColor
         layer.shadowColor = UIColor.black.cgColor
         layer.shadowOpacity = metrics.keyPreviewShadowOpacity
         layer.shadowRadius = metrics.keyPreviewShadowRadius

@@ -18,6 +18,10 @@ let package = Package(
             path: "Shared/Sources",
             exclude: [
                 "Design",
+                "Appearance/KeyboardThemeUIKit.swift",
+                "Appearance/KeyboardThemePreviewView.swift",
+                "VoiceUI",
+                "VoiceGlow",
                 "Keyboard/Emoji/EmojiPanelView.swift",
                 "Keyboard/Emoji/EmojiVariantPopoverView.swift",
                 "Keyboard/KeyboardDebugChannel.swift",
@@ -29,6 +33,7 @@ let package = Package(
                 "Keyboard/KeyboardRowView.swift",
                 "Keyboard/KeyboardTouchSurfaceView.swift",
                 "Keyboard/SuggestionBarView.swift",
+                "Keyboard/VoiceStripIndicatorView.swift",
                 "Engine/ObadhBridgeClient.swift"
             ]
         ),

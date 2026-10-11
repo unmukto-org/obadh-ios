@@ -173,7 +173,7 @@ final class KeyboardEngineShortcutTests: XCTestCase {
         composer.clear()
         composer.append("katla")
         XCTAssertEqual(composer.preview, "কাতলা")
-        XCTAssertEqual(AppBuildInfo.engineVersion, "0.9.4")
+        XCTAssertEqual(AppBuildInfo.engineVersion, "0.9.5")
     }
 
 }

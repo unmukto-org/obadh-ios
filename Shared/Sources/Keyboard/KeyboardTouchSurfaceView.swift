@@ -25,6 +25,9 @@ protocol KeyboardTouchSurfaceViewDelegate: AnyObject {
 
 class KeyboardTouchSurfaceView: UIView {
     weak var delegate: KeyboardTouchSurfaceViewDelegate?
+    /// Refresh host hints before resolving a fresh finger against the layout.
+    /// The owner may cancel old contacts or replace rows synchronously here.
+    var prepareForNewContacts: (() -> Void)?
     /// Downward travel that turns a tap into a secondary-glyph insert. Zero
     /// disables the gesture entirely, which is what iPhone uses — no iPhone key
     /// has a secondary, so a flick there would be a mystery keystroke.
@@ -80,6 +83,7 @@ class KeyboardTouchSurfaceView: UIView {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        prepareForNewContacts?()
         // Set iteration is not chronological. Exact timestamp ties have no
         // observable intended order; position provides a reproducible tie break.
         let ordered = touches.sorted { lhs, rhs in

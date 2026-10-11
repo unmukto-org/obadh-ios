@@ -180,8 +180,10 @@ final class KeyboardTestViewController: UIViewController {
         textView.autocapitalizationType = .none
         textView.autocorrectionType = .yes
         textView.spellCheckingType = .yes
-        textView.keyboardType = ProcessInfo.processInfo.arguments.contains("--keyboard-default")
-            ? .default : .alphabet
+        // `.alphabet` is a deprecated alias of `.asciiCapable`, not a request for
+        // the current language's letters. The ordinary Bangla probe uses default.
+        textView.keyboardType = ProcessInfo.processInfo.arguments.contains("--keyboard-ascii")
+            ? .asciiCapable : .default
         // `--seed=<text>` prefills the field. The native keyboard's prediction row
         // is only populated when there is context, and `simctl` has no tap
         // primitive, so this is the only way to capture native predictions as a
