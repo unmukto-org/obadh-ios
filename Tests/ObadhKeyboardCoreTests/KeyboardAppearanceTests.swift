@@ -24,25 +24,31 @@ final class KeyboardAppearanceTests: XCTestCase {
   }
   func testEveryThemeMaintainsReadableInkIncludingInterpolatedColors() {
     for preset in KeyboardThemeCatalog.presets {
-      let palette = KeyboardThemePalette(preset: preset)
-      var samples = preset.samples.map(ThemeColor.init)
-      let original = samples
-      // Midpoints stress luminance minima between mesh/gradient vertices.
-      for (a, b) in zip(original, original.dropFirst()) {
-        samples.append(a.blended(over: b, opacity: 0.5))
+      for scheme in [ThemeColorScheme.light, .dark] {
+        let palette = KeyboardThemePalette(preset: preset, scheme: scheme)
+        var samples = preset.samples.map(ThemeColor.init)
+        let original = samples
+        // Midpoints stress luminance minima between mesh/gradient vertices.
+        for (a, b) in zip(original, original.dropFirst()) {
+          samples.append(a.blended(over: b, opacity: 0.5))
+        }
+        for sample in samples {
+          let background = palette.surface.blended(
+            over: sample, opacity: palette.backdropScrimOpacity)
+          XCTAssertGreaterThanOrEqual(palette.ink.contrast(with: background), 4.5, preset.id)
+        }
+        XCTAssertGreaterThanOrEqual(palette.ink.contrast(with: palette.opaqueKey), 4.5, preset.id)
+        XCTAssertGreaterThanOrEqual(palette.actionInk.contrast(with: palette.accent), 4.5, preset.id)
       }
-      for sample in samples {
-        let background = palette.surface.blended(
-          over: sample, opacity: palette.backdropScrimOpacity)
-        XCTAssertGreaterThanOrEqual(palette.ink.contrast(with: background), 4.5, preset.id)
-      }
-      XCTAssertGreaterThanOrEqual(palette.ink.contrast(with: palette.opaqueKey), 4.5, preset.id)
-      XCTAssertGreaterThanOrEqual(palette.actionInk.contrast(with: palette.accent), 4.5, preset.id)
     }
-    let photo = KeyboardThemePalette.photo
-    XCTAssertGreaterThanOrEqual(
-      photo.ink.contrast(
-        with: photo.surface.blended(over: .white, opacity: photo.backdropScrimOpacity)), 4.5)
+    for scheme in [ThemeColorScheme.light, .dark] {
+      let photo = KeyboardThemePalette.photo(for: scheme)
+      for source in [ThemeColor.black, .white] {
+        XCTAssertGreaterThanOrEqual(
+          photo.ink.contrast(
+            with: photo.surface.blended(over: source, opacity: photo.backdropScrimOpacity)), 4.5)
+      }
+    }
   }
   func testDefaultAndCorruptAppearanceUseUnchangedSystemRendering() throws {
     let suite = "appearance-test-" + UUID().uuidString

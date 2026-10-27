@@ -64,6 +64,11 @@ enum KeyboardThemeCatalog {
   static func preset(_ id: String) -> KeyboardThemePreset? { index[id] }
 }
 
+enum ThemeColorScheme: Sendable, Equatable {
+  case light, dark
+  var isDark: Bool { self == .dark }
+}
+
 /// Exact sRGB calculations shared by palette selection and its acceptance tests.
 struct ThemeColor: Equatable, Sendable {
   let red: Double
@@ -107,9 +112,9 @@ struct KeyboardThemePalette: Equatable, Sendable {
   let prefersDark: Bool
   let opaqueKey: ThemeColor
 
-  init(preset: KeyboardThemePreset) {
+  init(preset: KeyboardThemePreset, scheme: ThemeColorScheme? = nil) {
     let samples = preset.samples.map(ThemeColor.init)
-    let whiteInk = preset.palette[3] & 0xFFFFFF == 0xFFFFFF
+    let whiteInk = scheme?.isDark ?? (preset.palette[3] & 0xFFFFFF == 0xFFFFFF)
     prefersDark = whiteInk
     let chosenInk: ThemeColor = whiteInk ? .white : .black
     ink = chosenInk
@@ -125,9 +130,7 @@ struct KeyboardThemePalette: Equatable, Sendable {
     backdropScrimOpacity = scrim
     surface = tint
     tintOpacity = whiteInk ? 0.24 : 0.42
-    opaqueKey = tint.blended(
-      over: tint.blended(over: ThemeColor(preset.palette[0]), opacity: scrim),
-      opacity: whiteInk ? 0.24 : 0.42)
+    opaqueKey = whiteInk ? ThemeColor(0xFF1C_1C1E) : ThemeColor(0xFFF2_F2F7)
     let originalAccent = ThemeColor(preset.palette[4])
     accent = originalAccent
     actionInk =
@@ -135,17 +138,19 @@ struct KeyboardThemePalette: Equatable, Sendable {
         >= ThemeColor.black.contrast(with: originalAccent) ? .white : .black
   }
 
-  /// Worst-case white photo remains readable; the editor may make it dimmer.
-  static let photo = KeyboardThemePalette()
-  private init() {
-    ink = .white
-    surface = .black
-    tintOpacity = 0.24
+  /// Both treatments remain readable over the worst-case opposing photo color.
+  static func photo(for scheme: ThemeColorScheme) -> KeyboardThemePalette {
+    KeyboardThemePalette(photoScheme: scheme)
+  }
+  private init(photoScheme scheme: ThemeColorScheme) {
+    ink = scheme.isDark ? .white : .black
+    surface = scheme.isDark ? .black : .white
+    tintOpacity = scheme.isDark ? 0.24 : 0.42
     accent = ThemeColor(0xFF0A_84FF)
     actionInk = .black
     backdropScrimOpacity = 0.55
-    prefersDark = true
-    opaqueKey = ThemeColor(0xFF28_282C)
+    prefersDark = scheme.isDark
+    opaqueKey = scheme.isDark ? ThemeColor(0xFF1C_1C1E) : ThemeColor(0xFFF2_F2F7)
   }
 }
 

@@ -67,6 +67,7 @@ class KeyboardViewController: UIInputViewController {
     private var themeBackdrop = KeyboardThemeBackdropView()
     private var themeAppearance = KeyboardAppearance()
     private var themePalette: KeyboardThemePalette?
+    private var themePaletteScheme: ThemeColorScheme?
     private var renderedThemePalette: KeyboardThemePalette?
     private var renderedKeyOutlines = false
     private var themePhoto: CGImage?
@@ -238,7 +239,9 @@ class KeyboardViewController: UIInputViewController {
         // Haptics are prepared in viewWillAppear, only for an actual presentation.
         themeAppearance = keyboardPreferences.appearance
         if !themeAppearance.isSystem, let preset = KeyboardThemeCatalog.preset(themeAppearance.themeID) {
-            themePalette = KeyboardThemePalette(preset: preset)
+            let scheme = currentThemeScheme
+            themePalette = KeyboardThemePalette(preset: preset, scheme: scheme)
+            themePaletteScheme = scheme
         }
         configureRootView()
         configureSuggestionBar()
@@ -283,7 +286,8 @@ class KeyboardViewController: UIInputViewController {
         feedbackController.suspend()
         isContentSuspended = true
         themePhotoTask?.cancel(); themePhotoTask = nil
-        themeGeneration = UUID(); themePhoto = nil; themePhotoRevision = nil; themePalette = nil
+        themeGeneration = UUID(); themePhoto = nil; themePhotoRevision = nil
+        themePalette = nil; themePaletteScheme = nil
         themeBackdrop.removeFromSuperview(); themeBackdrop = KeyboardThemeBackdropView()
 
         highlightedKeyButton = nil
@@ -357,9 +361,24 @@ class KeyboardViewController: UIInputViewController {
         if status == NOTIFY_STATUS_OK { themeNotificationToken = token }
     }
 
+    private var currentThemeScheme: ThemeColorScheme {
+        switch fieldPolicy.traits.appearance {
+        case .light: return .light
+        case .dark: return .dark
+        case .automatic:
+            return view.window?.traitCollection.userInterfaceStyle == .dark ? .dark : .light
+        }
+    }
+
     private func applyThemeInterfaceStyle() {
-        if let themePalette {
-            overrideUserInterfaceStyle = themePalette.prefersDark ? .dark : .light
+        if !themeAppearance.isSystem {
+            // A themed keyboard follows its host; artwork never dictates the
+            // appearance of the native glass or the system-owned dock.
+            switch fieldPolicy.traits.appearance {
+            case .automatic: overrideUserInterfaceStyle = .unspecified
+            case .light: overrideUserInterfaceStyle = .light
+            case .dark: overrideUserInterfaceStyle = .dark
+            }
         } else if themeAppearance.mode != .automatic {
             overrideUserInterfaceStyle = themeAppearance.mode == .dark ? .dark : .light
         } else {
@@ -382,7 +401,10 @@ class KeyboardViewController: UIInputViewController {
         let generation = UUID(); themeGeneration = generation
         if !retainPhoto { themePhoto = nil; themePhotoRevision = nil }
         let preset = next.isSystem || next.photoID != nil ? nil : KeyboardThemeCatalog.preset(next.themeID)
-        themePalette = preset.map(KeyboardThemePalette.init) ?? (retainPhoto ? .photo : nil)
+        let scheme = currentThemeScheme
+        themePalette = preset.map { KeyboardThemePalette(preset: $0, scheme: scheme) }
+            ?? (retainPhoto ? .photo(for: scheme) : nil)
+        themePaletteScheme = themePalette == nil ? nil : scheme
         if let id = next.photoID {
             themePhotoTask = Task { [weak self] in
                 // Both metadata lookup and bounded decode stay off the typing
@@ -395,7 +417,10 @@ class KeyboardViewController: UIInputViewController {
                 guard !Task.isCancelled, let self, self.themeGeneration == generation else { return }
                 self.themePhotoTask = nil
                 guard let image else { return } // Retry unavailable files on the next presentation.
-                self.themePhoto = image; self.themePhotoRevision = next.revision; self.themePalette = .photo
+                self.themePhoto = image; self.themePhotoRevision = next.revision
+                let scheme = self.currentThemeScheme
+                self.themePalette = .photo(for: scheme)
+                self.themePaletteScheme = scheme
                 self.presentTheme(preset: nil)
             }
         }
@@ -410,9 +435,9 @@ class KeyboardViewController: UIInputViewController {
         }
         applyThemeInterfaceStyle()
         themeBackdrop.display(preset: preset, photo: themePhoto, palette: themePalette)
-        // Suggestions remain on native glass, continuous with the system-owned
-        // band above the extension. Theme colors start at the key field.
-        suggestionBar.themePalette = nil
+        // The strip stays native glass, with the artwork gradually appearing
+        // beneath it. Ink follows the host-matched theme treatment.
+        suggestionBar.themePalette = themePalette
         if rebuild {
             reloadKeyboardRows()
         } else if themePalette != nil {
@@ -699,6 +724,15 @@ class KeyboardViewController: UIInputViewController {
         #endif
         recordPresentationTransient()
         applyLayoutMetricsIfNeeded()
+        if themePalette != nil, suggestionBar.superview != nil {
+            let keyTop = keyboardGlassContainer?.frame.minY ?? keyboardStack.frame.minY
+            if keyTop > suggestionBar.frame.minY {
+                themeBackdrop.alignWithNativeSuggestionBand(
+                    height: suggestionBar.frame.height,
+                    keyFieldTop: keyTop,
+                    suggestionTop: suggestionBar.frame.minY)
+            }
+        }
         updateKeyboardTouchRegions()
         memoryProbe.recordFirstLayout(of: view)
         #if DEBUG
@@ -1193,8 +1227,8 @@ class KeyboardViewController: UIInputViewController {
             keyboardBackgroundView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             keyboardBackgroundView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
-        // iOS owns the material band above our view. Continue that material
-        // through the suggestion strip, then reveal artwork before the keys.
+        // iOS owns the band above our view. Begin on the matching native
+        // material, then reveal artwork through our suggestion strip.
         let metrics = currentMetrics
         themeBackdrop.alignWithNativeSuggestionBand(
             height: metrics.suggestionHeight,
@@ -1431,13 +1465,25 @@ class KeyboardViewController: UIInputViewController {
     private func refreshKeyboard() {
         guard !isContentSuspended else { return }
         synchronizeHostInputTraits()
+        let scheme = currentThemeScheme
+        if themePalette != nil, themePaletteScheme != scheme {
+            let preset = KeyboardThemeCatalog.preset(themeAppearance.themeID)
+            let updated = preset.map { KeyboardThemePalette(preset: $0, scheme: scheme) }
+                ?? (themePhoto != nil ? .photo(for: scheme) : nil)
+            themePaletteScheme = scheme
+            if updated != themePalette {
+                themePalette = updated
+                themeBackdrop.display(preset: preset, photo: themePhoto, palette: updated)
+                suggestionBar.themePalette = updated
+                reloadKeyboardRows()
+            }
+        }
         updateAutomaticCapitalization()
         let metrics = currentMetrics
         updateKeyboardHeightConstraintIfReady()
         view.backgroundColor = .clear
-        // Theme ink belongs to the keys. The strip and underlying material
-        // must follow the host's actual appearance, which can differ from a
-        // preset's preferred light/dark style.
+        // The native material follows the host's actual appearance, not the
+        // preset artwork's original light/dark treatment.
         let materialStyle: UIUserInterfaceStyle
         if themePalette == nil {
             materialStyle = .unspecified

@@ -5,6 +5,43 @@ import XCTest
 
 @MainActor
 final class ThemeThumbnailTests: XCTestCase {
+  func testThemePreviewRebuildsKeysForEachHostAppearance() throws {
+    let view = KeyboardThemePreviewView(frame: CGRect(x: 0, y: 0, width: 414, height: 280))
+    func keys(in root: UIView) -> [KeyboardKeyButton] {
+      (root as? KeyboardKeyButton).map { [$0] } ?? root.subviews.flatMap(keys)
+    }
+    let themeID = try XCTUnwrap(KeyboardThemeCatalog.presets.first?.id)
+    view.display(.init(themeID: themeID, mode: .light), photo: nil)
+    let lightKeys = keys(in: view)
+    XCTAssertFalse(lightKeys.isEmpty)
+    view.display(.init(themeID: themeID, mode: .dark), photo: nil)
+    let darkKeys = keys(in: view)
+    XCTAssertEqual(darkKeys.count, lightKeys.count)
+    XCTAssertFalse(lightKeys[0] === darkKeys[0])
+  }
+
+  func testBackdropRevealsArtworkAcrossRibbonAndFadesAtBottom() throws {
+    let backdrop = KeyboardThemeBackdropView(frame: CGRect(x: 0, y: 0, width: 414, height: 280))
+    backdrop.alignWithNativeSuggestionBand(height: 44, keyFieldTop: 50, suggestionTop: 8)
+    backdrop.layoutIfNeeded()
+    let mask = try XCTUnwrap(backdrop.layer.mask as? CAGradientLayer)
+    let stops = try XCTUnwrap(mask.locations?.map(\.doubleValue))
+    XCTAssertEqual(stops.count, 6)
+    XCTAssertEqual(stops[0], 0)
+    XCTAssertEqual(stops[1], 8.0 / 280.0, accuracy: 0.001)
+    XCTAssertEqual(stops[2], 50.0 / 280.0, accuracy: 0.001)
+    XCTAssertGreaterThan(stops[3], stops[2])
+    XCTAssertLessThan(stops[3], 1)
+    XCTAssertGreaterThan(stops[4], stops[3])
+    XCTAssertLessThan(stops[4], 1)
+    XCTAssertEqual(stops[5], 1)
+    let colors = try XCTUnwrap(mask.colors as? [CGColor])
+    XCTAssertEqual(colors.map(\.alpha), [0, 0, 1, 1, 0.45, 0])
+    backdrop.alignWithNativeSuggestionBand(height: 44, keyFieldTop: 50, suggestionTop: 8)
+    XCTAssertTrue(backdrop.layer.mask === mask)
+    XCTAssertEqual(mask.locations?.map(\.doubleValue), stops)
+  }
+
   func testSystemOutlinePreviewUpdatesWithoutRebuildingKeys() throws {
     let view = KeyboardThemePreviewView(frame: CGRect(x: 0, y: 0, width: 414, height: 280))
     func keys(in root: UIView) -> [KeyboardKeyButton] {

@@ -14,6 +14,7 @@
     private let scrim = CALayer()
     private let materialBlendMask = CAGradientLayer()
     private var nativeSuggestionBandHeight: CGFloat = 0
+    private var suggestionTop: CGFloat = 0
     private var keyFieldTop: CGFloat = 1
     override init(frame: CGRect) {
       super.init(frame: frame)
@@ -34,6 +35,8 @@
         UIColor.clear.cgColor,
         UIColor.black.cgColor,
         UIColor.black.cgColor,
+        UIColor.black.withAlphaComponent(0.45).cgColor,
+        UIColor.clear.cgColor,
       ]
     }
     required init?(coder: NSCoder) { fatalError("Unused") }
@@ -45,23 +48,42 @@
       updateMaterialBlendMask()
       CATransaction.commit()
     }
-    /// Leave the suggestion strip on the same native material as the iOS-owned
-    /// band above it. Feather the artwork through the actual inset before the
-    /// first key row, so the boundary follows keyboard geometry on every size.
-    func alignWithNativeSuggestionBand(height: CGFloat, keyFieldTop: CGFloat) {
-      nativeSuggestionBandHeight = max(0, height)
-      self.keyFieldTop = max(nativeSuggestionBandHeight + 1, keyFieldTop)
-      layer.mask = materialBlendMask
+    /// Reveal artwork gently through our suggestion strip and first-row inset,
+    /// then return to the native material before the system-owned lower dock.
+    func alignWithNativeSuggestionBand(height: CGFloat, keyFieldTop: CGFloat,
+      suggestionTop: CGFloat = 0) {
+      let nextHeight = max(0, height)
+      let nextTop = max(0, suggestionTop)
+      let nextKeyTop = max(nextTop + 1, keyFieldTop)
+      guard layer.mask !== materialBlendMask
+        || abs(nativeSuggestionBandHeight - nextHeight) >= 0.5
+        || abs(self.suggestionTop - nextTop) >= 0.5
+        || abs(self.keyFieldTop - nextKeyTop) >= 0.5 else { return }
+      nativeSuggestionBandHeight = nextHeight
+      self.suggestionTop = nextTop
+      self.keyFieldTop = nextKeyTop
+      CATransaction.begin()
+      CATransaction.setDisableActions(true)
+      if layer.mask !== materialBlendMask { layer.mask = materialBlendMask }
       updateMaterialBlendMask()
+      CATransaction.commit()
     }
     private func updateMaterialBlendMask() {
-      materialBlendMask.frame = bounds
+      if materialBlendMask.frame != bounds { materialBlendMask.frame = bounds }
       guard bounds.height > 0 else { return }
-      let start = min(bounds.height, nativeSuggestionBandHeight)
-      let end = min(bounds.height, keyFieldTop)
-      materialBlendMask.locations = [0,
+      let start = min(bounds.height, suggestionTop)
+      let full = min(bounds.height, keyFieldTop)
+      // The extension cannot paint the system-owned dock. Ease the chroma out
+      // across the lower keys so no hard artwork edge meets that native area.
+      let fadeLength = max(72, min(125, bounds.height * 0.4))
+      let fadeStart = max(full, bounds.height - fadeLength)
+      let fadeMid = fadeStart + (bounds.height - fadeStart) * 0.62
+      let stops: [NSNumber] = [0,
         NSNumber(value: start / bounds.height),
-        NSNumber(value: end / bounds.height), 1]
+        NSNumber(value: full / bounds.height),
+        NSNumber(value: fadeStart / bounds.height),
+        NSNumber(value: fadeMid / bounds.height), 1]
+      if materialBlendMask.locations != stops { materialBlendMask.locations = stops }
     }
     func display(preset: KeyboardThemePreset?, photo: CGImage?, palette: KeyboardThemePalette?,
       editingCrop: ThemePhotoCrop? = nil, editingBrightness: Double = 1) {
