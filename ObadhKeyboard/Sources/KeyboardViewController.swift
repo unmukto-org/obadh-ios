@@ -90,6 +90,16 @@ class KeyboardViewController: UIInputViewController {
     private var keyButtons: [KeyboardKeyButton] = []
     private var highlightedKeyButton: KeyboardKeyButton?
     private var activeTouchKey: KeyboardKey?
+    private var cursorDragRemainder: CGFloat = 0
+    private var isCursorDragging = false
+    private struct CursorDragContext: Equatable {
+        let document: UUID?
+        let before: String?
+        let after: String?
+        let selected: String?
+    }
+    private var cursorDragSettleUntil: CFTimeInterval = 0
+    private var cursorDragSettleContext: CursorDragContext?
     private var keyPreviewDismissal: DispatchWorkItem?
     private var shifted = false
     /// iPad caps lock. Distinct from `shifted`: it survives a keypress, and the
@@ -1123,7 +1133,8 @@ class KeyboardViewController: UIInputViewController {
 
     override func textWillChange(_ textInput: UITextInput?) {
         super.textWillChange(textInput)
-        guard !isUpdatingTextProxy else { return }
+        guard !isUpdatingTextProxy, !isCursorDragging,
+              !isSettlingCursorDragCallback() else { return }
         // The host is about to change the text out from under us (a send button
         // clearing the field, a paste, another edit). Drop composition bookkeeping;
         // whatever was marked is the host's now.
@@ -1133,7 +1144,8 @@ class KeyboardViewController: UIInputViewController {
 
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
-        guard !isUpdatingTextProxy else { return }
+        guard !isUpdatingTextProxy, !isCursorDragging,
+              !isSettlingCursorDragCallback() else { return }
         #if DEBUG
         return measureMain("textDidChange") { textDidChangeBody() }
         #else
@@ -1162,10 +1174,10 @@ class KeyboardViewController: UIInputViewController {
     // is nothing to confirm and nothing to strand.
     override func selectionWillChange(_ textInput: UITextInput?) {
         super.selectionWillChange(textInput)
-        // Same guard the text callbacks use: our own proxy edits deliver their selection
-        // callbacks synchronously inside performTextUpdate, where the flag is set, so
-        // this fires only for genuine external moves.
-        guard !isUpdatingTextProxy else { return }
+        // Hosts may deliver cursor callbacks after the proxy call returns. Keep
+        // the drag alive until the finger lifts, then reconcile once.
+        guard !isUpdatingTextProxy, !isCursorDragging,
+              !isSettlingCursorDragCallback() else { return }
         keyboardTouchSurface.cancelTracking()
         backspaceRepeater.end()
         resetCompositionBookkeeping()
@@ -1173,7 +1185,8 @@ class KeyboardViewController: UIInputViewController {
 
     override func selectionDidChange(_ textInput: UITextInput?) {
         super.selectionDidChange(textInput)
-        guard !isUpdatingTextProxy else { return }
+        guard !isUpdatingTextProxy, !isCursorDragging,
+              !isSettlingCursorDragCallback() else { return }
         #if DEBUG
         return measureMain("selectionDidChange") { selectionDidChangeBody() }
         #else
@@ -2277,6 +2290,8 @@ class KeyboardViewController: UIInputViewController {
     /// keyboard is switching away, or the host changed the field. Because there is no
     /// marked region, there is nothing to strand and the cursor is never trapped.
     private func resetCompositionBookkeeping() {
+        cursorDragSettleContext = nil
+        cursorDragSettleUntil = 0
         // Invalidate before the next context callback or appearance. A query can
         // already have posted its completion to the main queue; cancelling the
         // work item alone cannot prevent that result from restoring stale choices.
@@ -2299,13 +2314,37 @@ class KeyboardViewController: UIInputViewController {
         }
     }
 
-    /// Marks proxy edits so our own text/selection callbacks are ignored. The edit and
-    /// the callbacks it triggers are synchronous, so the flag need only span this call —
-    /// the same contract the text-change delegates already rely on.
+    /// Marks synchronous proxy callbacks as our own. Hosts that deliver them
+    /// later are covered by the short cursor-drag context reconciliation window.
     private func performTextUpdate(_ update: () -> Void) {
         isUpdatingTextProxy = true
         defer { isUpdatingTextProxy = false }
         update()
+        if cursorDragSettleContext != nil {
+            cursorDragSettleContext = CACurrentMediaTime() < cursorDragSettleUntil
+                ? currentCursorDragContext() : nil
+        }
+    }
+
+    private func currentCursorDragContext() -> CursorDragContext {
+        let proxy = textDocumentProxy
+        return CursorDragContext(
+            document: KeyboardFieldTraits.documentIdentifier(for: proxy),
+            before: proxy.documentContextBeforeInput,
+            after: proxy.documentContextAfterInput,
+            selected: proxy.selectedText
+        )
+    }
+
+    private func isSettlingCursorDragCallback() -> Bool {
+        guard let snapshot = cursorDragSettleContext else { return false }
+        guard CACurrentMediaTime() < cursorDragSettleUntil else {
+            cursorDragSettleContext = nil
+            return false
+        }
+        if currentCursorDragContext() == snapshot { return true }
+        cursorDragSettleContext = nil
+        return false
     }
 
     private func insertSpace() {
@@ -2787,6 +2826,84 @@ class KeyboardViewController: UIInputViewController {
 }
 
 extension KeyboardViewController: KeyboardTouchSurfaceViewDelegate {
+    func keyboardTouchSurfaceShouldBeginCursorDrag(_ view: KeyboardTouchSurfaceView) -> Bool {
+        if synchronizeHostInputTraits() {
+            refreshKeyboard()
+            return false
+        }
+        guard !isEmojiSearchActive, !showsEmojiPanel,
+              keyIsEnabled(.space) else { return false }
+        let proxy = textDocumentProxy
+        guard proxy.documentContextBeforeInput != nil
+                || proxy.documentContextAfterInput != nil else { return false }
+        return true
+    }
+
+    func keyboardTouchSurfaceDidBeginCursorDrag(_ view: KeyboardTouchSurfaceView) {
+        // The composing word is already ordinary document text. Stop tracking it
+        // before moving the caret so a later keystroke starts at the new position.
+        cancelTouch()
+        resetCompositionBookkeeping()
+        voice.finishBeforeTyping()
+        setHighlightedKey(.space)
+        feedbackController.cursorDragBegan()
+        cursorDragRemainder = 0
+        cursorDragSettleContext = nil
+        cursorDragSettleUntil = 0
+        isCursorDragging = true
+    }
+
+    func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didDragCursorBy translation: CGPoint) {
+        guard translation.x.isFinite else { return }
+        cursorDragRemainder = max(-400, min(400, cursorDragRemainder + translation.x))
+        // Keep sub-character movement so slow drags are precise. UIKit exposes
+        // character offsets to keyboard extensions, not the host's caret geometry.
+        let steps = Int(cursorDragRemainder / 10)
+        guard steps != 0 else { return }
+        let direction = steps > 0 ? 1 : -1
+        let context = direction < 0
+            ? textDocumentProxy.documentContextBeforeInput
+            : textDocumentProxy.documentContextAfterInput
+        // The proxy offset is in UTF-16 units. A visual character may contain
+        // several units (Bangla conjuncts, emoji, combining marks), so never
+        // issue an offset that stops inside one. If a host withholds context,
+        // stop rather than guessing an unsafe offset.
+        guard let context, !context.isEmpty else {
+            cursorDragRemainder = 0
+            return
+        }
+        let requested = min(abs(steps), 40)
+        let characters = direction < 0
+            ? Array(context.reversed().prefix(requested))
+            : Array(context.prefix(requested))
+        let count = characters.count
+        guard count > 0 else { return }
+        let units = characters.reduce(0) { $0 + String($1).utf16.count }
+        cursorDragRemainder = count < requested
+            ? 0 : cursorDragRemainder - CGFloat(direction * count) * 10
+        performTextUpdate {
+            textDocumentProxy.adjustTextPosition(byCharacterOffset: direction * units)
+        }
+    }
+
+    func keyboardTouchSurfaceDidEndCursorDrag(_ view: KeyboardTouchSurfaceView) {
+        guard isCursorDragging else { return }
+        isCursorDragging = false
+        cursorDragRemainder = 0
+        clearHighlightedKey()
+        selectionDidChangeBody()
+        cursorDragSettleContext = currentCursorDragContext()
+        cursorDragSettleUntil = CACurrentMediaTime() + 0.22
+    }
+
+    func keyboardTouchSurfaceDidCancelCursorDrag(_ view: KeyboardTouchSurfaceView) {
+        isCursorDragging = false
+        cursorDragRemainder = 0
+        cursorDragSettleContext = nil
+        cursorDragSettleUntil = 0
+        clearHighlightedKey()
+    }
+
     func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didBegin key: KeyboardKey) {
         beginTouch(on: key)
     }

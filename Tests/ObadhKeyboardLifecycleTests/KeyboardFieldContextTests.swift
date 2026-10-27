@@ -506,6 +506,7 @@ final class KeyboardFieldContextTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(buttons.first { $0.key == .emoji }).accessibilityActivate())
         let panel = EmojiPanelView()
         controller.emojiPanelViewDidRequestSearch(panel)
+        XCTAssertFalse(controller.keyboardTouchSurfaceShouldBeginCursorDrag(KeyboardTouchSurfaceView()))
         buttons = try stored("keyButtons", controller)
         XCTAssertFalse(buttons.contains { $0.key == .symbol(.literal("@")) })
         controller.handleDebugCommand("tap", argument: "return")
@@ -513,6 +514,125 @@ final class KeyboardFieldContextTests: XCTestCase {
         buttons = try stored("keyButtons", controller)
         XCTAssertTrue(buttons.contains { $0.key == .symbol(.literal("@")) })
         XCTAssertTrue(proxy.text.isEmpty)
+    }
+
+    func testSpacebarCursorDragMovesCaretWithoutTypingSpace() {
+        let proxy = FieldDocumentProxy()
+        proxy.keyboardType = .asciiCapable
+        proxy.text = "abcd"
+        proxy.cursor = 4
+        let controller = make(proxy)
+        let surface = KeyboardTouchSurfaceView()
+
+        controller.keyboardTouchSurface(surface, didEnd: .shift, flickedDown: false)
+        controller.keyboardTouchSurface(surface, didBegin: .space)
+        controller.keyboardTouchSurfaceDidBeginCursorDrag(surface)
+        controller.keyboardTouchSurface(surface, didDragCursorBy: CGPoint(x: -25, y: 0))
+        controller.keyboardTouchSurfaceDidEndCursorDrag(surface)
+
+        XCTAssertEqual(proxy.cursor, 2)
+        XCTAssertEqual(proxy.text, "abcd")
+        type("x", controller)
+        XCTAssertEqual(proxy.text, "abxcd")
+    }
+
+    func testCursorDragCrossesWholeBanglaConjunctAndEmoji() {
+        for cluster in ["ক্ষ", "👩🏽‍💻"] {
+            let proxy = FieldDocumentProxy()
+            proxy.keyboardType = .asciiCapable
+            proxy.text = cluster + "x"
+            proxy.cursor = proxy.text.unicodeScalars.count
+            let controller = make(proxy)
+            let surface = KeyboardTouchSurfaceView()
+
+            controller.keyboardTouchSurface(surface, didBegin: .space)
+            controller.keyboardTouchSurfaceDidBeginCursorDrag(surface)
+            controller.keyboardTouchSurface(surface, didDragCursorBy: CGPoint(x: -10, y: 0))
+            controller.keyboardTouchSurface(surface, didDragCursorBy: CGPoint(x: -10, y: 0))
+            controller.keyboardTouchSurfaceDidEndCursorDrag(surface)
+
+            XCTAssertEqual(proxy.adjustedOffsets, [-1, -cluster.utf16.count])
+            XCTAssertEqual(proxy.cursor, 0)
+            type("q", controller)
+            XCTAssertEqual(proxy.text, "q" + cluster + "x")
+        }
+    }
+
+    func testDelayedHostCallbacksDoNotCancelActiveCursorDrag() {
+        let proxy = FieldDocumentProxy()
+        proxy.keyboardType = .asciiCapable
+        proxy.text = "abcd"
+        proxy.cursor = 4
+        let controller = make(proxy)
+        let surface = KeyboardTouchSurfaceView()
+        controller.keyboardTouchSurface(surface, didBegin: .space)
+        controller.keyboardTouchSurfaceDidBeginCursorDrag(surface)
+        controller.keyboardTouchSurface(surface, didDragCursorBy: CGPoint(x: -10, y: 0))
+        controller.selectionWillChange(nil)
+        controller.selectionDidChange(nil)
+        controller.textWillChange(nil)
+        controller.textDidChange(nil)
+        controller.keyboardTouchSurface(surface, didDragCursorBy: CGPoint(x: -10, y: 0))
+        controller.keyboardTouchSurfaceDidEndCursorDrag(surface)
+        XCTAssertEqual(proxy.cursor, 2)
+        XCTAssertEqual(proxy.adjustedOffsets, [-1, -1])
+    }
+
+    func testLateCursorCallbackAfterLiftDoesNotSplitNextBanglaWord() {
+        let proxy = FieldDocumentProxy()
+        let controller = make(proxy)
+        let surface = KeyboardTouchSurfaceView()
+        controller.keyboardTouchSurface(surface, didBegin: .space)
+        controller.keyboardTouchSurfaceDidBeginCursorDrag(surface)
+        controller.keyboardTouchSurfaceDidEndCursorDrag(surface)
+
+        type("b", controller)
+        controller.selectionWillChange(nil)
+        controller.selectionDidChange(nil)
+        type("us", controller)
+        controller.handleDebugCommand("tap", argument: "space")
+        XCTAssertEqual(proxy.text, "বাস ")
+    }
+
+    func testWithheldHostContextDisablesCursorDrag() {
+        let proxy = FieldDocumentProxy()
+        proxy.exposesContext = false
+        proxy.text = "already"
+        proxy.cursor = proxy.text.unicodeScalars.count
+        let controller = make(proxy)
+        XCTAssertFalse(controller.keyboardTouchSurfaceShouldBeginCursorDrag(KeyboardTouchSurfaceView()))
+    }
+
+    func testExternalSelectionDuringSettleWindowStillResetsComposition() throws {
+        let proxy = FieldDocumentProxy()
+        let controller = make(proxy)
+        let surface = KeyboardTouchSurfaceView()
+        controller.keyboardTouchSurface(surface, didBegin: .space)
+        controller.keyboardTouchSurfaceDidBeginCursorDrag(surface)
+        controller.keyboardTouchSurfaceDidEndCursorDrag(surface)
+        type("b", controller)
+        let composer: KeyboardComposer = try stored("composer", controller)
+        XCTAssertTrue(composer.hasActiveInput)
+
+        proxy.cursor = 0 // A genuine host cursor move changes the context.
+        controller.selectionWillChange(nil)
+        XCTAssertFalse(composer.hasActiveInput)
+    }
+
+    func testSettleWindowExpires() async throws {
+        let proxy = FieldDocumentProxy()
+        let controller = make(proxy)
+        let surface = KeyboardTouchSurfaceView()
+        controller.keyboardTouchSurface(surface, didBegin: .space)
+        controller.keyboardTouchSurfaceDidBeginCursorDrag(surface)
+        controller.keyboardTouchSurfaceDidEndCursorDrag(surface)
+        try await Task.sleep(for: .milliseconds(300))
+        type("b", controller)
+        let composer: KeyboardComposer = try stored("composer", controller)
+        XCTAssertTrue(composer.hasActiveInput)
+
+        controller.selectionWillChange(nil)
+        XCTAssertFalse(composer.hasActiveInput)
     }
 }
 
@@ -531,6 +651,7 @@ private final class FieldDocumentProxy: NSObject, UITextDocumentProxy {
     var cursor = 0
     var operations: [Operation] = []
     var submitted: [String] = []
+    var adjustedOffsets: [Int] = []
     var documentIdentifier = UUID()
     var exposesContext = true
     var documentContextBeforeInput: String? { exposesContext ? String(text.unicodeScalars.prefix(cursor)) : nil }
@@ -571,7 +692,19 @@ private final class FieldDocumentProxy: NSObject, UITextDocumentProxy {
         cursor = before.unicodeScalars.count
         operations.append(.delete)
     }
-    func adjustTextPosition(byCharacterOffset offset: Int) { cursor = min(text.unicodeScalars.count, max(0, cursor + offset)) }
+    func adjustTextPosition(byCharacterOffset offset: Int) {
+        adjustedOffsets.append(offset)
+        let current = String(text.unicodeScalars.prefix(cursor)).utf16.count
+        let destination = min(text.utf16.count, max(0, current + offset))
+        var utf16Position = 0
+        cursor = 0
+        for scalar in text.unicodeScalars {
+            let next = utf16Position + String(scalar).utf16.count
+            guard next <= destination else { break }
+            utf16Position = next
+            cursor += 1
+        }
+    }
     func setMarkedText(_ markedText: String, selectedRange: NSRange) { XCTFail("Fields must remain plain text") }
     func unmarkText() { XCTFail("Fields must remain plain text") }
 }

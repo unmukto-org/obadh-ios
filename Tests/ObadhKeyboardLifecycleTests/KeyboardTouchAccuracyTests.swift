@@ -21,6 +21,11 @@ final class KeyboardTouchAccuracyTests: XCTestCase {
         var keys: [KeyboardKey] = []
         var beginnings: [KeyboardKey] = []
         var flicks: [Bool] = []
+        var cursorDragBeginnings = 0
+        var cursorDragEndings = 0
+        var cursorDragCancellations = 0
+        var cursorTranslations: [CGPoint] = []
+        var allowsCursorDrag = true
         var onCommit: (() -> Void)?
         func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didBegin key: KeyboardKey) {
             beginnings.append(key)
@@ -33,6 +38,21 @@ final class KeyboardTouchAccuracyTests: XCTestCase {
             onCommit?()
         }
         func keyboardTouchSurfaceDidCancel(_ view: KeyboardTouchSurfaceView) {}
+        func keyboardTouchSurfaceDidBeginCursorDrag(_ view: KeyboardTouchSurfaceView) {
+            cursorDragBeginnings += 1
+        }
+        func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didDragCursorBy translation: CGPoint) {
+            cursorTranslations.append(translation)
+        }
+        func keyboardTouchSurfaceDidEndCursorDrag(_ view: KeyboardTouchSurfaceView) {
+            cursorDragEndings += 1
+        }
+        func keyboardTouchSurfaceDidCancelCursorDrag(_ view: KeyboardTouchSurfaceView) {
+            cursorDragCancellations += 1
+        }
+        func keyboardTouchSurfaceShouldBeginCursorDrag(_ view: KeyboardTouchSurfaceView) -> Bool {
+            allowsCursorDrag
+        }
     }
 
     private func surface(_ recorder: Recorder) -> KeyboardTouchSurfaceView {
@@ -48,6 +68,121 @@ final class KeyboardTouchAccuracyTests: XCTestCase {
 
     func testAcceptsMultipleFingers() {
         XCTAssertTrue(surface(Recorder()).isMultipleTouchEnabled)
+    }
+
+    func testSpaceTapStillCommitsButHeldDragDoesNotInsertSpace() async throws {
+        let recorder = Recorder()
+        let view = surface(recorder)
+        view.keyRows = [[.init(key: .space, visualFrame: CGRect(x: 0, y: 0, width: 150, height: 50))]]
+        view.cursorDragHoldDuration = 0.02
+
+        let tap = Finger(x: 50, time: 1)
+        view.touchesBegan([tap], with: nil)
+        view.touchesEnded([tap], with: nil)
+        XCTAssertEqual(recorder.keys, [.space])
+
+        let drag = Finger(x: 50, time: 2)
+        view.touchesBegan([drag], with: nil)
+        try await Task.sleep(for: .milliseconds(60))
+        XCTAssertEqual(recorder.cursorDragBeginnings, 1)
+        drag.point.x = 100
+        view.touchesMoved([drag], with: nil)
+        drag.point.x = 175 // Continue tracking beyond the key and surface.
+        view.touchesMoved([drag], with: nil)
+        view.touchesEnded([drag], with: nil)
+        XCTAssertEqual(recorder.keys, [.space])
+        XCTAssertEqual(recorder.cursorTranslations.map(\.x), [50, 75])
+        XCTAssertEqual(recorder.cursorDragEndings, 1)
+    }
+
+    func testCancelledSpaceHoldCannotStartCursorDrag() async throws {
+        let recorder = Recorder()
+        let view = surface(recorder)
+        view.keyRows = [[.init(key: .space, visualFrame: CGRect(x: 0, y: 0, width: 150, height: 50))]]
+        view.cursorDragHoldDuration = 0.02
+        let finger = Finger(x: 50, time: 1)
+        view.touchesBegan([finger], with: nil)
+        view.cancelTracking()
+        try await Task.sleep(for: .milliseconds(60))
+        XCTAssertEqual(recorder.cursorDragBeginnings, 0)
+        XCTAssertTrue(recorder.keys.isEmpty)
+    }
+
+    func testCursorDragIgnoresSecondFingerAndIncludesMovementAtLift() async throws {
+        let recorder = Recorder()
+        let view = surface(recorder)
+        view.keyRows = [[
+            .init(key: .space, visualFrame: CGRect(x: 0, y: 0, width: 75, height: 50)),
+            .init(key: .character("a"), visualFrame: CGRect(x: 75, y: 0, width: 75, height: 50))
+        ]]
+        view.cursorDragHoldDuration = 0.02
+        let space = Finger(x: 40, time: 1)
+        view.touchesBegan([space], with: nil)
+        try await Task.sleep(for: .milliseconds(60))
+        let later = Finger(x: 110, time: 2)
+        view.touchesBegan([later], with: nil)
+        view.touchesEnded([later], with: nil)
+        space.point.x = 60
+        view.touchesEnded([space], with: nil)
+
+        XCTAssertEqual(recorder.cursorTranslations.map(\.x), [20])
+        XCTAssertEqual(recorder.cursorDragEndings, 1)
+        XCTAssertTrue(recorder.keys.isEmpty)
+    }
+
+    func testSecondFingerCancelsPendingSpaceHoldWithoutLosingEitherKey() async throws {
+        let recorder = Recorder()
+        let view = surface(recorder)
+        view.keyRows = [[
+            .init(key: .space, visualFrame: CGRect(x: 0, y: 0, width: 75, height: 50)),
+            .init(key: .character("a"), visualFrame: CGRect(x: 75, y: 0, width: 75, height: 50))
+        ]]
+        view.cursorDragHoldDuration = 0.02
+        let space = Finger(x: 40, time: 1)
+        let letter = Finger(x: 110, time: 2)
+        view.touchesBegan([space], with: nil)
+        view.touchesBegan([letter], with: nil)
+        view.touchesEnded([letter], with: nil)
+        try await Task.sleep(for: .milliseconds(60))
+        view.touchesEnded([space], with: nil)
+        XCTAssertEqual(recorder.cursorDragBeginnings, 0)
+        XCTAssertEqual(recorder.keys, [.space, .character("a")])
+    }
+
+    func testDelegateCanKeepHeldSpaceAsOrdinaryTap() async throws {
+        let recorder = Recorder()
+        recorder.allowsCursorDrag = false
+        let view = surface(recorder)
+        view.keyRows = [[.init(key: .space, visualFrame: CGRect(x: 0, y: 0, width: 150, height: 50))]]
+        view.cursorDragHoldDuration = 0.02
+        let space = Finger(x: 50, time: 1)
+        view.touchesBegan([space], with: nil)
+        try await Task.sleep(for: .milliseconds(60))
+        view.touchesEnded([space], with: nil)
+        XCTAssertEqual(recorder.cursorDragBeginnings, 0)
+        XCTAssertEqual(recorder.keys, [.space])
+    }
+
+    func testActiveCursorDragCancellationEndsExactlyOnceWithoutTyping() async throws {
+        for cancelFromSystem in [false, true] {
+            let recorder = Recorder()
+            let view = surface(recorder)
+            view.keyRows = [[.init(key: .space, visualFrame: CGRect(x: 0, y: 0, width: 150, height: 50))]]
+            view.cursorDragHoldDuration = 0.02
+            let space = Finger(x: 50, time: 1)
+            view.touchesBegan([space], with: nil)
+            try await Task.sleep(for: .milliseconds(60))
+            XCTAssertEqual(recorder.cursorDragBeginnings, 1)
+            if cancelFromSystem {
+                view.touchesCancelled([space], with: nil)
+            } else {
+                view.cancelTracking()
+            }
+            view.touchesEnded([space], with: nil)
+            XCTAssertEqual(recorder.cursorDragEndings, cancelFromSystem ? 1 : 0)
+            XCTAssertEqual(recorder.cursorDragCancellations, cancelFromSystem ? 0 : 1)
+            XCTAssertTrue(recorder.keys.isEmpty)
+        }
     }
 
     func testOverlappingThumbsDoNotDropSecondLetter() {

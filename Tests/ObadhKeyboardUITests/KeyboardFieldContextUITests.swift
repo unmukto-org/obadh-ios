@@ -52,6 +52,54 @@ final class KeyboardFieldContextUITests: XCTestCase {
         add(attachment)
     }
 
+    func testSpacebarHoldDragMovesInsertionPointInHostField() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--keyboard-field-test"]
+        app.launch()
+        defer { app.terminate() }
+        selectObadh(app)
+        let email = app.textFields["field-email"]
+        email.tap()
+        for key in ["a", "b", "c", "d"] { press(key, app) }
+        XCTAssertEqual(email.value as? String, "abcd")
+
+        let space = app.buttons["Space"].firstMatch
+        XCTAssertTrue(space.waitForExistence(timeout: 5), app.debugDescription)
+        let start = space.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let end = start.withOffset(CGVector(dx: -30, dy: 0))
+        start.press(forDuration: 0.6, thenDragTo: end)
+
+        XCTAssertEqual(email.value as? String, "abcd", "A cursor drag must not insert a space")
+        press("x", app)
+        XCTAssertEqual(email.value as? String, "axbcd")
+    }
+
+    func testSpacebarDragCrossesWholeClustersInHostFields() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--keyboard-field-test", "--cursor-cluster-test"]
+        app.launch()
+        defer { app.terminate() }
+        selectObadh(app)
+
+        for (name, original, expected) in [
+            ("field-latin", "aক্ষx", "aqক্ষx"),
+            ("field-code", "a👩🏽‍💻x", "aq👩🏽‍💻x")
+        ] {
+            let field = app.textFields[name]
+            field.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+            XCTAssertEqual(field.value as? String, original)
+            let space = app.buttons["Space"].firstMatch
+            XCTAssertTrue(space.waitForExistence(timeout: 5), app.debugDescription)
+            let start = space.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            start.press(forDuration: 0.6, thenDragTo: start.withOffset(CGVector(dx: -20, dy: 0)))
+            XCTAssertEqual(field.value as? String, original)
+            press("q", app)
+            XCTAssertEqual(field.value as? String, expected)
+        }
+    }
+
     func testBothSmileAliasesOfferEmojiAndLiteralBeforeAutomaticReplacement() {
         continueAfterFailure = false
         let app = XCUIApplication()

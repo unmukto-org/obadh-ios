@@ -44,6 +44,10 @@ final class KeyboardFieldTestViewController: UIViewController, UITextFieldDelega
             field.smartDashesType = .default
             field.enablesReturnKeyAutomatically = name == "search"
             field.delegate = self
+            if ProcessInfo.processInfo.arguments.contains("--cursor-cluster-test") {
+                if name == "latin" { field.text = "aক্ষx" }
+                if name == "code" { field.text = "a👩🏽‍💻x" }
+            }
             field.heightAnchor.constraint(equalToConstant: 34).isActive = true
             fields.append(field)
             stack.addArrangedSubview(field)

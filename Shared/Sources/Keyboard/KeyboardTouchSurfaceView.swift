@@ -21,6 +21,19 @@ protocol KeyboardTouchSurfaceViewDelegate: AnyObject {
         flickedDown: Bool
     )
     func keyboardTouchSurfaceDidCancel(_ view: KeyboardTouchSurfaceView)
+    func keyboardTouchSurfaceDidBeginCursorDrag(_ view: KeyboardTouchSurfaceView)
+    func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didDragCursorBy translation: CGPoint)
+    func keyboardTouchSurfaceDidEndCursorDrag(_ view: KeyboardTouchSurfaceView)
+    func keyboardTouchSurfaceDidCancelCursorDrag(_ view: KeyboardTouchSurfaceView)
+    func keyboardTouchSurfaceShouldBeginCursorDrag(_ view: KeyboardTouchSurfaceView) -> Bool
+}
+
+extension KeyboardTouchSurfaceViewDelegate {
+    func keyboardTouchSurfaceDidBeginCursorDrag(_ view: KeyboardTouchSurfaceView) {}
+    func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didDragCursorBy translation: CGPoint) {}
+    func keyboardTouchSurfaceDidEndCursorDrag(_ view: KeyboardTouchSurfaceView) {}
+    func keyboardTouchSurfaceDidCancelCursorDrag(_ view: KeyboardTouchSurfaceView) {}
+    func keyboardTouchSurfaceShouldBeginCursorDrag(_ view: KeyboardTouchSurfaceView) -> Bool { true }
 }
 
 class KeyboardTouchSurfaceView: UIView {
@@ -32,6 +45,7 @@ class KeyboardTouchSurfaceView: UIView {
     /// disables the gesture entirely, which is what iPhone uses — no iPhone key
     /// has a secondary, so a flick there would be a mystery keystroke.
     var flickThreshold: CGFloat = 0
+    var cursorDragHoldDuration: TimeInterval = 0.38
     private final class Contact {
         let touch: UITouch
         let beganLocation: CGPoint
@@ -40,6 +54,8 @@ class KeyboardTouchSurfaceView: UIView {
         var region: KeyboardTouchResolvedRegion?
         var ended = false
         var announced = false
+        var cursorDragActive = false
+        var cursorDragHold: DispatchWorkItem?
 
         init(touch: UITouch, location: CGPoint, region: KeyboardTouchResolvedRegion) {
             self.touch = touch
@@ -83,7 +99,16 @@ class KeyboardTouchSurfaceView: UIView {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // Once the spacebar owns a cursor drag, other fingers cannot queue text
+        // that would unexpectedly appear when the dragging finger lifts.
+        guard contacts.first?.cursorDragActive != true else { return }
         prepareForNewContacts?()
+        if contacts.first?.cursorDragHold != nil,
+           touches.contains(where: { touch in !contacts.contains(where: { $0.touch === touch }) }) {
+            // A second finger means the user is still typing. Preserve both
+            // keystrokes in touch-down order instead of entering cursor mode.
+            cancelCursorDragHold(contacts[0])
+        }
         // Set iteration is not chronological. Exact timestamp ties have no
         // observable intended order; position provides a reproducible tie break.
         let ordered = touches.sorted { lhs, rhs in
@@ -102,8 +127,14 @@ class KeyboardTouchSurfaceView: UIView {
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         for contact in contacts where !contact.ended && touches.contains(contact.touch) {
             let previousKey = contact.region?.key
+            let previousLocation = contact.location
             update(contact)
             guard contact === contacts.first, contact.announced else { continue }
+            if contact.cursorDragActive {
+                reportCursorDrag(contact, from: previousLocation)
+                continue
+            }
+            if contact.region?.key != .space { cancelCursorDragHold(contact) }
             reportFlick(contact)
             guard contact === contacts.first else { return }
             if let region = contact.region, region.key != previousKey {
@@ -114,18 +145,30 @@ class KeyboardTouchSurfaceView: UIView {
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         for contact in contacts where !contact.ended && touches.contains(contact.touch) {
+            let previousLocation = contact.location
             update(contact)
+            if contact.cursorDragActive, contact === contacts.first {
+                reportCursorDrag(contact, from: previousLocation)
+                guard contact === contacts.first else { continue }
+            }
             contact.ended = true
+            cancelCursorDragHold(contact)
         }
         drainContacts()
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         let first = contacts.first
+        for contact in contacts where touches.contains(contact.touch) {
+            cancelCursorDragHold(contact)
+        }
         contacts.removeAll { touches.contains($0.touch) }
         if let first, touches.contains(first.touch) {
             activeTouch = nil
             resetFlick(first)
+            // A system interruption can cancel a touch while the keyboard stays
+            // visible. Reconcile the caret just as for a normal finger lift.
+            if first.cursorDragActive { delegate?.keyboardTouchSurfaceDidEndCursorDrag(self) }
             delegate?.keyboardTouchSurfaceDidCancel(self)
         }
         drainContacts()
@@ -135,9 +178,11 @@ class KeyboardTouchSurfaceView: UIView {
     /// second-thumb releases. Later events from those fingers cannot type.
     func cancelTracking() {
         let first = contacts.first
+        for contact in contacts { cancelCursorDragHold(contact) }
         contacts.removeAll()
         activeTouch = nil
         if let first { resetFlick(first) }
+        if first?.cursorDragActive == true { delegate?.keyboardTouchSurfaceDidCancelCursorDrag(self) }
         delegate?.keyboardTouchSurfaceDidCancel(self)
     }
 
@@ -160,6 +205,35 @@ class KeyboardTouchSurfaceView: UIView {
         delegate?.keyboardTouchSurface(self, didUpdateFlickProgress: 0, on: contact.beganKey)
     }
 
+    private func startCursorDragHold(_ contact: Contact) {
+        guard contacts.count == 1, contact.region?.key == .space else { return }
+        let hold = DispatchWorkItem { [weak self, weak contact] in
+            guard let self, let contact,
+                  self.contacts.first === contact,
+                  !contact.ended, contact.region?.key == .space else { return }
+            contact.cursorDragHold = nil
+            guard self.delegate?.keyboardTouchSurfaceShouldBeginCursorDrag(self) == true else { return }
+            contact.cursorDragActive = true
+            self.delegate?.keyboardTouchSurfaceDidBeginCursorDrag(self)
+        }
+        contact.cursorDragHold = hold
+        DispatchQueue.main.asyncAfter(deadline: .now() + cursorDragHoldDuration, execute: hold)
+    }
+
+    private func cancelCursorDragHold(_ contact: Contact) {
+        contact.cursorDragHold?.cancel()
+        contact.cursorDragHold = nil
+    }
+
+    private func reportCursorDrag(_ contact: Contact, from previousLocation: CGPoint) {
+        let translation = CGPoint(
+            x: contact.location.x - previousLocation.x,
+            y: contact.location.y - previousLocation.y
+        )
+        guard translation != .zero else { return }
+        delegate?.keyboardTouchSurface(self, didDragCursorBy: translation)
+    }
+
     private func drainContacts() {
         while let contact = contacts.first {
             if !contact.announced {
@@ -168,13 +242,19 @@ class KeyboardTouchSurfaceView: UIView {
                 delegate?.keyboardTouchSurface(self, didBegin: contact.region?.key ?? contact.beganKey)
                 // A delegate may replace the layout or dismiss the keyboard.
                 guard contact === contacts.first else { return }
+                startCursorDragHold(contact)
             }
             guard contact.ended else { return }
+            cancelCursorDragHold(contact)
             let flicked = flickThreshold > 0
                 && contact.location.y - contact.beganLocation.y >= flickThreshold
             contacts.removeFirst()
             activeTouch = nil
             resetFlick(contact)
+            if contact.cursorDragActive {
+                delegate?.keyboardTouchSurfaceDidEndCursorDrag(self)
+                continue
+            }
             delegate?.keyboardTouchSurface(
                 self,
                 didEnd: flicked ? contact.beganKey : contact.region?.key,
