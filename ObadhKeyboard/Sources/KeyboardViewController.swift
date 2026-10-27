@@ -90,6 +90,7 @@ class KeyboardViewController: UIInputViewController {
     private var keyButtons: [KeyboardKeyButton] = []
     private var highlightedKeyButton: KeyboardKeyButton?
     private var activeTouchKey: KeyboardKey?
+    private var cursorDragRemainder: CGFloat = 0
     private var keyPreviewDismissal: DispatchWorkItem?
     private var shifted = false
     /// iPad caps lock. Distinct from `shifted`: it survives a keypress, and the
@@ -2787,6 +2788,34 @@ class KeyboardViewController: UIInputViewController {
 }
 
 extension KeyboardViewController: KeyboardTouchSurfaceViewDelegate {
+    func keyboardTouchSurfaceDidBeginCursorDrag(_ view: KeyboardTouchSurfaceView) {
+        // The composing word is already ordinary document text. Stop tracking it
+        // before moving the caret so a later keystroke starts at the new position.
+        cancelTouch()
+        resetCompositionBookkeeping()
+        cursorDragRemainder = 0
+    }
+
+    func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didDragCursorBy translation: CGPoint) {
+        guard translation.x.isFinite else { return }
+        cursorDragRemainder += translation.x
+        // Keep sub-character movement so slow drags are precise. UIKit exposes
+        // character offsets to keyboard extensions, not the host's caret geometry.
+        let step = Int(cursorDragRemainder / 10)
+        guard step != 0 else { return }
+        let offset = max(-40, min(40, step))
+        cursorDragRemainder -= CGFloat(offset) * 10
+        performTextUpdate {
+            textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
+        }
+    }
+
+    func keyboardTouchSurfaceDidEndCursorDrag(_ view: KeyboardTouchSurfaceView) {
+        cursorDragRemainder = 0
+        updateAutomaticCapitalization()
+        refreshKeyboard()
+    }
+
     func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didBegin key: KeyboardKey) {
         beginTouch(on: key)
     }

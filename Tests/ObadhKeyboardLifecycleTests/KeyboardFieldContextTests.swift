@@ -514,6 +514,25 @@ final class KeyboardFieldContextTests: XCTestCase {
         XCTAssertTrue(buttons.contains { $0.key == .symbol(.literal("@")) })
         XCTAssertTrue(proxy.text.isEmpty)
     }
+
+    func testSpacebarCursorDragMovesCaretWithoutTypingSpace() {
+        let proxy = FieldDocumentProxy()
+        proxy.keyboardType = .asciiCapable
+        proxy.text = "abcd"
+        proxy.cursor = 4
+        let controller = make(proxy)
+        let surface = KeyboardTouchSurfaceView()
+
+        controller.keyboardTouchSurface(surface, didBegin: .space)
+        controller.keyboardTouchSurfaceDidBeginCursorDrag(surface)
+        controller.keyboardTouchSurface(surface, didDragCursorBy: CGPoint(x: -25, y: 0))
+        controller.keyboardTouchSurfaceDidEndCursorDrag(surface)
+
+        XCTAssertEqual(proxy.cursor, 2)
+        XCTAssertEqual(proxy.text, "abcd")
+        type("x", controller)
+        XCTAssertEqual(proxy.text, "abxcd")
+    }
 }
 
 @MainActor
