@@ -166,7 +166,9 @@ class KeyboardTouchSurfaceView: UIView {
         if let first, touches.contains(first.touch) {
             activeTouch = nil
             resetFlick(first)
-            if first.cursorDragActive { delegate?.keyboardTouchSurfaceDidCancelCursorDrag(self) }
+            // A system interruption can cancel a touch while the keyboard stays
+            // visible. Reconcile the caret just as for a normal finger lift.
+            if first.cursorDragActive { delegate?.keyboardTouchSurfaceDidEndCursorDrag(self) }
             delegate?.keyboardTouchSurfaceDidCancel(self)
         }
         drainContacts()

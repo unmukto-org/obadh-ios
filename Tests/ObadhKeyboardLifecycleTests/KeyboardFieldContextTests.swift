@@ -602,6 +602,38 @@ final class KeyboardFieldContextTests: XCTestCase {
         let controller = make(proxy)
         XCTAssertFalse(controller.keyboardTouchSurfaceShouldBeginCursorDrag(KeyboardTouchSurfaceView()))
     }
+
+    func testExternalSelectionDuringSettleWindowStillResetsComposition() throws {
+        let proxy = FieldDocumentProxy()
+        let controller = make(proxy)
+        let surface = KeyboardTouchSurfaceView()
+        controller.keyboardTouchSurface(surface, didBegin: .space)
+        controller.keyboardTouchSurfaceDidBeginCursorDrag(surface)
+        controller.keyboardTouchSurfaceDidEndCursorDrag(surface)
+        type("b", controller)
+        let composer: KeyboardComposer = try stored("composer", controller)
+        XCTAssertTrue(composer.hasActiveInput)
+
+        proxy.cursor = 0 // A genuine host cursor move changes the context.
+        controller.selectionWillChange(nil)
+        XCTAssertFalse(composer.hasActiveInput)
+    }
+
+    func testSettleWindowExpires() async throws {
+        let proxy = FieldDocumentProxy()
+        let controller = make(proxy)
+        let surface = KeyboardTouchSurfaceView()
+        controller.keyboardTouchSurface(surface, didBegin: .space)
+        controller.keyboardTouchSurfaceDidBeginCursorDrag(surface)
+        controller.keyboardTouchSurfaceDidEndCursorDrag(surface)
+        try await Task.sleep(for: .milliseconds(300))
+        type("b", controller)
+        let composer: KeyboardComposer = try stored("composer", controller)
+        XCTAssertTrue(composer.hasActiveInput)
+
+        controller.selectionWillChange(nil)
+        XCTAssertFalse(composer.hasActiveInput)
+    }
 }
 
 @MainActor

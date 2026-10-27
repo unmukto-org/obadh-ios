@@ -179,8 +179,8 @@ final class KeyboardTouchAccuracyTests: XCTestCase {
                 view.cancelTracking()
             }
             view.touchesEnded([space], with: nil)
-            XCTAssertEqual(recorder.cursorDragEndings, 0)
-            XCTAssertEqual(recorder.cursorDragCancellations, 1)
+            XCTAssertEqual(recorder.cursorDragEndings, cancelFromSystem ? 1 : 0)
+            XCTAssertEqual(recorder.cursorDragCancellations, cancelFromSystem ? 0 : 1)
             XCTAssertTrue(recorder.keys.isEmpty)
         }
     }
