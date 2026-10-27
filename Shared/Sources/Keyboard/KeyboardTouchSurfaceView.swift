@@ -24,12 +24,14 @@ protocol KeyboardTouchSurfaceViewDelegate: AnyObject {
     func keyboardTouchSurfaceDidBeginCursorDrag(_ view: KeyboardTouchSurfaceView)
     func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didDragCursorBy translation: CGPoint)
     func keyboardTouchSurfaceDidEndCursorDrag(_ view: KeyboardTouchSurfaceView)
+    func keyboardTouchSurfaceShouldBeginCursorDrag(_ view: KeyboardTouchSurfaceView) -> Bool
 }
 
 extension KeyboardTouchSurfaceViewDelegate {
     func keyboardTouchSurfaceDidBeginCursorDrag(_ view: KeyboardTouchSurfaceView) {}
     func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didDragCursorBy translation: CGPoint) {}
     func keyboardTouchSurfaceDidEndCursorDrag(_ view: KeyboardTouchSurfaceView) {}
+    func keyboardTouchSurfaceShouldBeginCursorDrag(_ view: KeyboardTouchSurfaceView) -> Bool { true }
 }
 
 class KeyboardTouchSurfaceView: UIView {
@@ -95,7 +97,16 @@ class KeyboardTouchSurfaceView: UIView {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // Once the spacebar owns a cursor drag, other fingers cannot queue text
+        // that would unexpectedly appear when the dragging finger lifts.
+        guard contacts.first?.cursorDragActive != true else { return }
         prepareForNewContacts?()
+        if contacts.first?.cursorDragHold != nil,
+           touches.contains(where: { touch in !contacts.contains(where: { $0.touch === touch }) }) {
+            // A second finger means the user is still typing. Preserve both
+            // keystrokes in touch-down order instead of entering cursor mode.
+            cancelCursorDragHold(contacts[0])
+        }
         // Set iteration is not chronological. Exact timestamp ties have no
         // observable intended order; position provides a reproducible tie break.
         let ordered = touches.sorted { lhs, rhs in
@@ -118,13 +129,7 @@ class KeyboardTouchSurfaceView: UIView {
             update(contact)
             guard contact === contacts.first, contact.announced else { continue }
             if contact.cursorDragActive {
-                delegate?.keyboardTouchSurface(
-                    self,
-                    didDragCursorBy: CGPoint(
-                        x: contact.location.x - previousLocation.x,
-                        y: contact.location.y - previousLocation.y
-                    )
-                )
+                reportCursorDrag(contact, from: previousLocation)
                 continue
             }
             if contact.region?.key != .space { cancelCursorDragHold(contact) }
@@ -138,7 +143,12 @@ class KeyboardTouchSurfaceView: UIView {
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         for contact in contacts where !contact.ended && touches.contains(contact.touch) {
+            let previousLocation = contact.location
             update(contact)
+            if contact.cursorDragActive, contact === contacts.first {
+                reportCursorDrag(contact, from: previousLocation)
+                guard contact === contacts.first else { continue }
+            }
             contact.ended = true
             cancelCursorDragHold(contact)
         }
@@ -192,12 +202,13 @@ class KeyboardTouchSurfaceView: UIView {
     }
 
     private func startCursorDragHold(_ contact: Contact) {
-        guard contact.region?.key == .space else { return }
+        guard contacts.count == 1, contact.region?.key == .space else { return }
         let hold = DispatchWorkItem { [weak self, weak contact] in
             guard let self, let contact,
                   self.contacts.first === contact,
                   !contact.ended, contact.region?.key == .space else { return }
             contact.cursorDragHold = nil
+            guard self.delegate?.keyboardTouchSurfaceShouldBeginCursorDrag(self) == true else { return }
             contact.cursorDragActive = true
             self.delegate?.keyboardTouchSurfaceDidBeginCursorDrag(self)
         }
@@ -208,6 +219,15 @@ class KeyboardTouchSurfaceView: UIView {
     private func cancelCursorDragHold(_ contact: Contact) {
         contact.cursorDragHold?.cancel()
         contact.cursorDragHold = nil
+    }
+
+    private func reportCursorDrag(_ contact: Contact, from previousLocation: CGPoint) {
+        let translation = CGPoint(
+            x: contact.location.x - previousLocation.x,
+            y: contact.location.y - previousLocation.y
+        )
+        guard translation != .zero else { return }
+        delegate?.keyboardTouchSurface(self, didDragCursorBy: translation)
     }
 
     private func drainContacts() {

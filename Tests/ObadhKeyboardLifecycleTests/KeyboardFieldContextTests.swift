@@ -506,6 +506,7 @@ final class KeyboardFieldContextTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(buttons.first { $0.key == .emoji }).accessibilityActivate())
         let panel = EmojiPanelView()
         controller.emojiPanelViewDidRequestSearch(panel)
+        XCTAssertFalse(controller.keyboardTouchSurfaceShouldBeginCursorDrag(KeyboardTouchSurfaceView()))
         buttons = try stored("keyButtons", controller)
         XCTAssertFalse(buttons.contains { $0.key == .symbol(.literal("@")) })
         controller.handleDebugCommand("tap", argument: "return")
@@ -523,6 +524,7 @@ final class KeyboardFieldContextTests: XCTestCase {
         let controller = make(proxy)
         let surface = KeyboardTouchSurfaceView()
 
+        controller.keyboardTouchSurface(surface, didEnd: .shift, flickedDown: false)
         controller.keyboardTouchSurface(surface, didBegin: .space)
         controller.keyboardTouchSurfaceDidBeginCursorDrag(surface)
         controller.keyboardTouchSurface(surface, didDragCursorBy: CGPoint(x: -25, y: 0))
@@ -532,6 +534,48 @@ final class KeyboardFieldContextTests: XCTestCase {
         XCTAssertEqual(proxy.text, "abcd")
         type("x", controller)
         XCTAssertEqual(proxy.text, "abxcd")
+    }
+
+    func testCursorDragCrossesWholeBanglaConjunctAndEmoji() {
+        for cluster in ["ক্ষ", "👩🏽‍💻"] {
+            let proxy = FieldDocumentProxy()
+            proxy.keyboardType = .asciiCapable
+            proxy.text = cluster + "x"
+            proxy.cursor = proxy.text.unicodeScalars.count
+            let controller = make(proxy)
+            let surface = KeyboardTouchSurfaceView()
+
+            controller.keyboardTouchSurface(surface, didBegin: .space)
+            controller.keyboardTouchSurfaceDidBeginCursorDrag(surface)
+            controller.keyboardTouchSurface(surface, didDragCursorBy: CGPoint(x: -10, y: 0))
+            controller.keyboardTouchSurface(surface, didDragCursorBy: CGPoint(x: -10, y: 0))
+            controller.keyboardTouchSurfaceDidEndCursorDrag(surface)
+
+            XCTAssertEqual(proxy.adjustedOffsets, [-1, -cluster.utf16.count])
+            XCTAssertEqual(proxy.cursor, 0)
+            type("q", controller)
+            XCTAssertEqual(proxy.text, "q" + cluster + "x")
+        }
+    }
+
+    func testDelayedHostCallbacksDoNotCancelActiveCursorDrag() {
+        let proxy = FieldDocumentProxy()
+        proxy.keyboardType = .asciiCapable
+        proxy.text = "abcd"
+        proxy.cursor = 4
+        let controller = make(proxy)
+        let surface = KeyboardTouchSurfaceView()
+        controller.keyboardTouchSurface(surface, didBegin: .space)
+        controller.keyboardTouchSurfaceDidBeginCursorDrag(surface)
+        controller.keyboardTouchSurface(surface, didDragCursorBy: CGPoint(x: -10, y: 0))
+        controller.selectionWillChange(nil)
+        controller.selectionDidChange(nil)
+        controller.textWillChange(nil)
+        controller.textDidChange(nil)
+        controller.keyboardTouchSurface(surface, didDragCursorBy: CGPoint(x: -10, y: 0))
+        controller.keyboardTouchSurfaceDidEndCursorDrag(surface)
+        XCTAssertEqual(proxy.cursor, 2)
+        XCTAssertEqual(proxy.adjustedOffsets, [-1, -1])
     }
 }
 
@@ -550,6 +594,7 @@ private final class FieldDocumentProxy: NSObject, UITextDocumentProxy {
     var cursor = 0
     var operations: [Operation] = []
     var submitted: [String] = []
+    var adjustedOffsets: [Int] = []
     var documentIdentifier = UUID()
     var exposesContext = true
     var documentContextBeforeInput: String? { exposesContext ? String(text.unicodeScalars.prefix(cursor)) : nil }
@@ -590,7 +635,19 @@ private final class FieldDocumentProxy: NSObject, UITextDocumentProxy {
         cursor = before.unicodeScalars.count
         operations.append(.delete)
     }
-    func adjustTextPosition(byCharacterOffset offset: Int) { cursor = min(text.unicodeScalars.count, max(0, cursor + offset)) }
+    func adjustTextPosition(byCharacterOffset offset: Int) {
+        adjustedOffsets.append(offset)
+        let current = String(text.unicodeScalars.prefix(cursor)).utf16.count
+        let destination = min(text.utf16.count, max(0, current + offset))
+        var utf16Position = 0
+        cursor = 0
+        for scalar in text.unicodeScalars {
+            let next = utf16Position + String(scalar).utf16.count
+            guard next <= destination else { break }
+            utf16Position = next
+            cursor += 1
+        }
+    }
     func setMarkedText(_ markedText: String, selectedRange: NSRange) { XCTFail("Fields must remain plain text") }
     func unmarkText() { XCTFail("Fields must remain plain text") }
 }

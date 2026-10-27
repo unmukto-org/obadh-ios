@@ -199,6 +199,12 @@ final class KeyboardFeedbackController {
         playInputClick(.input)
     }
 
+    func cursorDragBegan() {
+        if hapticFeedbackEnabled {
+            emit(Self.standardTick)
+        }
+    }
+
     func backspaceRepeated(unit: BackspaceDeletionUnit) {
         if hapticFeedbackEnabled {
             switch unit {
