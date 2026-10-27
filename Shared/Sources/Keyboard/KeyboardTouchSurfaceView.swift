@@ -24,6 +24,7 @@ protocol KeyboardTouchSurfaceViewDelegate: AnyObject {
     func keyboardTouchSurfaceDidBeginCursorDrag(_ view: KeyboardTouchSurfaceView)
     func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didDragCursorBy translation: CGPoint)
     func keyboardTouchSurfaceDidEndCursorDrag(_ view: KeyboardTouchSurfaceView)
+    func keyboardTouchSurfaceDidCancelCursorDrag(_ view: KeyboardTouchSurfaceView)
     func keyboardTouchSurfaceShouldBeginCursorDrag(_ view: KeyboardTouchSurfaceView) -> Bool
 }
 
@@ -31,6 +32,7 @@ extension KeyboardTouchSurfaceViewDelegate {
     func keyboardTouchSurfaceDidBeginCursorDrag(_ view: KeyboardTouchSurfaceView) {}
     func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didDragCursorBy translation: CGPoint) {}
     func keyboardTouchSurfaceDidEndCursorDrag(_ view: KeyboardTouchSurfaceView) {}
+    func keyboardTouchSurfaceDidCancelCursorDrag(_ view: KeyboardTouchSurfaceView) {}
     func keyboardTouchSurfaceShouldBeginCursorDrag(_ view: KeyboardTouchSurfaceView) -> Bool { true }
 }
 
@@ -164,7 +166,7 @@ class KeyboardTouchSurfaceView: UIView {
         if let first, touches.contains(first.touch) {
             activeTouch = nil
             resetFlick(first)
-            if first.cursorDragActive { delegate?.keyboardTouchSurfaceDidEndCursorDrag(self) }
+            if first.cursorDragActive { delegate?.keyboardTouchSurfaceDidCancelCursorDrag(self) }
             delegate?.keyboardTouchSurfaceDidCancel(self)
         }
         drainContacts()
@@ -178,7 +180,7 @@ class KeyboardTouchSurfaceView: UIView {
         contacts.removeAll()
         activeTouch = nil
         if let first { resetFlick(first) }
-        if first?.cursorDragActive == true { delegate?.keyboardTouchSurfaceDidEndCursorDrag(self) }
+        if first?.cursorDragActive == true { delegate?.keyboardTouchSurfaceDidCancelCursorDrag(self) }
         delegate?.keyboardTouchSurfaceDidCancel(self)
     }
 

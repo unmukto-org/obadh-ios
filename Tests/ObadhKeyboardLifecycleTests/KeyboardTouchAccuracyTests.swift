@@ -23,6 +23,7 @@ final class KeyboardTouchAccuracyTests: XCTestCase {
         var flicks: [Bool] = []
         var cursorDragBeginnings = 0
         var cursorDragEndings = 0
+        var cursorDragCancellations = 0
         var cursorTranslations: [CGPoint] = []
         var allowsCursorDrag = true
         var onCommit: (() -> Void)?
@@ -45,6 +46,9 @@ final class KeyboardTouchAccuracyTests: XCTestCase {
         }
         func keyboardTouchSurfaceDidEndCursorDrag(_ view: KeyboardTouchSurfaceView) {
             cursorDragEndings += 1
+        }
+        func keyboardTouchSurfaceDidCancelCursorDrag(_ view: KeyboardTouchSurfaceView) {
+            cursorDragCancellations += 1
         }
         func keyboardTouchSurfaceShouldBeginCursorDrag(_ view: KeyboardTouchSurfaceView) -> Bool {
             allowsCursorDrag
@@ -175,7 +179,8 @@ final class KeyboardTouchAccuracyTests: XCTestCase {
                 view.cancelTracking()
             }
             view.touchesEnded([space], with: nil)
-            XCTAssertEqual(recorder.cursorDragEndings, 1)
+            XCTAssertEqual(recorder.cursorDragEndings, 0)
+            XCTAssertEqual(recorder.cursorDragCancellations, 1)
             XCTAssertTrue(recorder.keys.isEmpty)
         }
     }

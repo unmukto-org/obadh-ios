@@ -577,6 +577,31 @@ final class KeyboardFieldContextTests: XCTestCase {
         XCTAssertEqual(proxy.cursor, 2)
         XCTAssertEqual(proxy.adjustedOffsets, [-1, -1])
     }
+
+    func testLateCursorCallbackAfterLiftDoesNotSplitNextBanglaWord() {
+        let proxy = FieldDocumentProxy()
+        let controller = make(proxy)
+        let surface = KeyboardTouchSurfaceView()
+        controller.keyboardTouchSurface(surface, didBegin: .space)
+        controller.keyboardTouchSurfaceDidBeginCursorDrag(surface)
+        controller.keyboardTouchSurfaceDidEndCursorDrag(surface)
+
+        type("b", controller)
+        controller.selectionWillChange(nil)
+        controller.selectionDidChange(nil)
+        type("us", controller)
+        controller.handleDebugCommand("tap", argument: "space")
+        XCTAssertEqual(proxy.text, "বাস ")
+    }
+
+    func testWithheldHostContextDisablesCursorDrag() {
+        let proxy = FieldDocumentProxy()
+        proxy.exposesContext = false
+        proxy.text = "already"
+        proxy.cursor = proxy.text.unicodeScalars.count
+        let controller = make(proxy)
+        XCTAssertFalse(controller.keyboardTouchSurfaceShouldBeginCursorDrag(KeyboardTouchSurfaceView()))
+    }
 }
 
 @MainActor
